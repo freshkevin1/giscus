@@ -177,3 +177,44 @@ def scrape_irobotnews():
 
     logger.info("Scraped %d articles from irobotnews", len(articles))
     return articles
+
+
+def scrape_robotreport():
+    """Scrape articles from The Robot Report.
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://www.therobotreport.com/category/news/"
+    articles = []
+    seen_urls = set()
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch robotreport: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    for article_tag in soup.select("article"):
+        link_el = article_tag.select_one("h2 a.entry-title-link")
+        if not link_el:
+            link_el = article_tag.select_one("h2 a") or article_tag.select_one("h3 a")
+        if not link_el:
+            continue
+
+        title = link_el.get_text(strip=True)
+        href = link_el.get("href", "")
+
+        if not title or not href:
+            continue
+
+        if href in seen_urls:
+            continue
+        seen_urls.add(href)
+
+        articles.append({"title": title, "url": href, "section": ""})
+
+    logger.info("Scraped %d articles from robotreport", len(articles))
+    return articles

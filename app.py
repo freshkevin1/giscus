@@ -15,7 +15,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 
 from config import Config
 from models import Article, ReadArticle, User, db, init_default_user
-from scraper import scrape_irobotnews, scrape_mk_today
+from scraper import scrape_irobotnews, scrape_mk_today, scrape_robotreport
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,6 +43,7 @@ def scheduled_scrape():
     with app.app_context():
         run_scrape("mk")
         run_scrape("irobot")
+        run_scrape("robotreport")
 
 
 def run_scrape(source="mk"):
@@ -51,6 +52,8 @@ def run_scrape(source="mk"):
         articles = scrape_mk_today()
     elif source == "irobot":
         articles = scrape_irobotnews()
+    elif source == "robotreport":
+        articles = scrape_robotreport()
     else:
         return 0
 
@@ -167,6 +170,13 @@ def irobot_news():
     return render_template("irobot_news.html", articles=articles)
 
 
+@app.route("/news/robotreport")
+@login_required
+def robotreport_news():
+    articles = Article.query.filter_by(source="robotreport").order_by(Article.scraped_at.desc()).all()
+    return render_template("robotreport_news.html", articles=articles)
+
+
 @app.route("/events")
 @login_required
 def daily_event():
@@ -184,7 +194,7 @@ def bestsellers():
 @app.route("/api/scrape/<source>", methods=["POST"])
 @login_required
 def api_scrape(source):
-    if source not in ("mk", "irobot"):
+    if source not in ("mk", "irobot", "robotreport"):
         return jsonify({"status": "error", "message": "Unknown source"}), 400
     count = run_scrape(source)
     return jsonify({"status": "ok", "new_articles": count})

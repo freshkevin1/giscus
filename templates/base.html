@@ -23,11 +23,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news') %}active{% endif %}"
+                    <a class="nav-link {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news') %}active{% endif %}"
                        href="{{ url_for('daily_news') }}">
                         <i class="bi bi-newspaper"></i> Daily News
                     </a>
-                    {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news') %}
+                    {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news') %}
                     <ul class="nav flex-column ms-3">
                         <li class="nav-item">
                             <a class="nav-link sub-link {% if request.endpoint == 'mk_news' %}active{% endif %}"
@@ -39,6 +39,12 @@
                             <a class="nav-link sub-link {% if request.endpoint == 'irobot_news' %}active{% endif %}"
                                href="{{ url_for('irobot_news') }}">
                                 로봇신문
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link sub-link {% if request.endpoint == 'robotreport_news' %}active{% endif %}"
+                               href="{{ url_for('robotreport_news') }}">
+                                Robot Report
                             </a>
                         </li>
                     </ul>
