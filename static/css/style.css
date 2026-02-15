@@ -1,0 +1,120 @@
+/* Sidebar */
+.sidebar {
+    width: 250px;
+    min-height: 100vh;
+    background-color: #1a1d23;
+    color: #c2c7d0;
+    position: sticky;
+    top: 0;
+    flex-shrink: 0;
+}
+
+.sidebar-brand {
+    color: #fff;
+    text-decoration: none;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.sidebar-brand:hover {
+    color: #e0e0e0;
+}
+
+.sidebar .nav-link {
+    color: #8b929a;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    padding: 0.6rem 0.8rem;
+    transition: all 0.2s;
+}
+
+.sidebar .nav-link:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar .nav-link.active {
+    color: #fff;
+    background-color: #0d6efd;
+}
+
+.sidebar .nav-link i {
+    margin-right: 0.5rem;
+    width: 1.2em;
+    text-align: center;
+}
+
+.sidebar .sub-link {
+    font-size: 0.875rem;
+    padding: 0.35rem 0.8rem;
+}
+
+.sidebar .sub-link.active {
+    background-color: rgba(13, 110, 253, 0.6);
+}
+
+/* Main content */
+.main-content {
+    min-height: 100vh;
+    background-color: #f5f6fa;
+}
+
+/* Login page */
+.login-body {
+    background: linear-gradient(135deg, #1a1d23 0%, #2d3748 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 420px;
+    padding: 1rem;
+}
+
+.login-card {
+    border: none;
+    border-radius: 12px;
+}
+
+.login-icon {
+    font-size: 3rem;
+    color: #0d6efd;
+}
+
+/* Menu cards */
+.menu-card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.menu-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* Article list */
+.article-link {
+    text-decoration: none;
+    color: #212529;
+    font-weight: 500;
+}
+
+.article-link:hover {
+    color: #0d6efd;
+    text-decoration: underline;
+}
+
+#article-list .list-group-item {
+    border-left: none;
+    border-right: none;
+    padding: 0.75rem 1rem;
+}
+
+#article-list .list-group-item:first-child {
+    border-top: none;
+}

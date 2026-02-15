@@ -1,0 +1,131 @@
+import logging
+import re
+from datetime import date, timedelta
+
+import requests
+from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+}
+
+ARTICLE_URL_RE = re.compile(r"/news/[^/]+/\d{5,}")
+
+
+def _get_recent_weekday():
+    """Return the most recent weekday (Mon-Fri) as YYYYMMDD string."""
+    d = date.today()
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d.strftime("%Y%m%d")
+
+
+def _extract_from_page(url, default_section=""):
+    """Extract articles from a single MK page.
+
+    Tries two patterns:
+    1. li.news_node containing h3.news_ttl and a.link (today-paper, headline)
+    2. a[href] wrapping h3.news_ttl (ranking page)
+    """
+    articles = []
+    seen_urls = set()
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch %s: %s", url, e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Pattern 1: li.news_node > a.link + h3.news_ttl
+    for node in soup.select("li.news_node"):
+        title_el = node.select_one("h3.news_ttl")
+        link_el = node.select_one("a.link") or node.select_one("a")
+
+        if not title_el or not link_el:
+            continue
+
+        # Remove reporter name span before extracting title
+        writing_span = title_el.select_one("span.writing")
+        if writing_span:
+            writing_span.decompose()
+        title = title_el.get_text(strip=True)
+        href = link_el.get("href", "")
+
+        if not title or not ARTICLE_URL_RE.search(href):
+            continue
+
+        if href.startswith("/"):
+            href = "https://www.mk.co.kr" + href
+
+        if href in seen_urls:
+            continue
+        seen_urls.add(href)
+
+        section = default_section
+        cate_parent = node.find_parent("li", class_="cate_page_node")
+        if cate_parent:
+            cate_el = cate_parent.select_one("em.cate")
+            if cate_el:
+                section = cate_el.get_text(strip=True)
+
+        articles.append({"title": title, "url": href, "section": section})
+
+    # Pattern 2: a[href] > h3.news_ttl (ranking page style)
+    if not articles:
+        for a_tag in soup.find_all("a", href=ARTICLE_URL_RE):
+            title_el = a_tag.select_one("h3.news_ttl")
+            if not title_el:
+                continue
+
+            title = title_el.get_text(strip=True)
+            href = a_tag.get("href", "")
+
+            if not title or href in seen_urls:
+                continue
+
+            if href.startswith("/"):
+                href = "https://www.mk.co.kr" + href
+
+            seen_urls.add(href)
+            articles.append({"title": title, "url": href, "section": default_section})
+
+    logger.info("Extracted %d articles from %s", len(articles), url)
+    return articles
+
+
+def scrape_mk_today():
+    """Scrape today's articles from 매일경제.
+
+    Sources:
+    1. today-paper (uses most recent weekday if today is weekend)
+    2. ranking page (인기뉴스)
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    all_articles = []
+    seen_urls = set()
+
+    weekday_date = _get_recent_weekday()
+    sources = [
+        (f"https://www.mk.co.kr/today-paper?date={weekday_date}", "오늘의 매경"),
+        ("https://www.mk.co.kr/news/ranking", "인기뉴스"),
+    ]
+
+    for url, section in sources:
+        articles = _extract_from_page(url, section)
+        for a in articles:
+            if a["url"] not in seen_urls:
+                seen_urls.add(a["url"])
+                all_articles.append(a)
+
+    logger.info("Total scraped: %d unique articles", len(all_articles))
+    return all_articles
