@@ -24,6 +24,7 @@ class Article(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(500), nullable=False)
     url = db.Column(db.String(1000), nullable=False)
+    source = db.Column(db.String(50), default="mk")
     section = db.Column(db.String(100), default="")
     scraped_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

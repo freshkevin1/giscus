@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}매일경제 - Dashboard{% endblock %}
+{% block title %}로봇신문 - Dashboard{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-newspaper"></i> 매일경제 오늘의 신문</h2>
+    <h2><i class="bi bi-robot"></i> 로봇신문</h2>
     <div>
         <button id="btn-read-all" class="btn btn-outline-success me-2">
             <i class="bi bi-check-all"></i> 모두 읽음
@@ -80,7 +80,7 @@ document.getElementById('btn-scrape').addEventListener('click', async function()
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 스크래핑 중...';
 
     try {
-        const resp = await fetch('/api/scrape/mk', {method: 'POST'});
+        const resp = await fetch('/api/scrape/irobot', {method: 'POST'});
         const data = await resp.json();
         btn.innerHTML = '<i class="bi bi-check-lg"></i> 완료 (' + data.new_articles + '개 추가)';
         setTimeout(() => location.reload(), 1500);
@@ -98,7 +98,7 @@ document.getElementById('btn-read-all').addEventListener('click', async function
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 처리 중...';
 
     try {
-        const resp = await fetch('/api/articles/read-all/mk', {method: 'POST'});
+        const resp = await fetch('/api/articles/read-all/irobot', {method: 'POST'});
         const data = await resp.json();
         btn.innerHTML = '<i class="bi bi-check-all"></i> 완료 (' + data.cleared + '개)';
         setTimeout(() => location.reload(), 1000);

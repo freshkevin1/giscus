@@ -15,7 +15,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 
 from config import Config
 from models import Article, ReadArticle, User, db, init_default_user
-from scraper import scrape_mk_today
+from scraper import scrape_irobotnews, scrape_mk_today
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,43 +41,55 @@ def load_user(user_id):
 def scheduled_scrape():
     """Run scraping job within app context."""
     with app.app_context():
-        run_scrape()
+        run_scrape("mk")
+        run_scrape("irobot")
 
 
-def run_scrape():
-    """Scrape articles and save to DB, enforcing MAX_ARTICLES limit."""
-    articles = scrape_mk_today()
+def run_scrape(source="mk"):
+    """Scrape articles for a given source and save to DB, enforcing per-source limit."""
+    if source == "mk":
+        articles = scrape_mk_today()
+    elif source == "irobot":
+        articles = scrape_irobotnews()
+    else:
+        return 0
+
     if not articles:
-        logger.warning("No articles scraped")
+        logger.warning("No articles scraped for %s", source)
         return 0
 
     count = 0
     for a in articles:
-        # Skip already-read articles
         if ReadArticle.query.filter_by(url=a["url"]).first():
             continue
-        exists = Article.query.filter_by(url=a["url"]).first()
-        if not exists:
-            article = Article(
-                title=a["title"],
-                url=a["url"],
-                section=a["section"],
-            )
-            db.session.add(article)
-            count += 1
+        if Article.query.filter_by(url=a["url"]).first():
+            continue
+        article = Article(
+            title=a["title"],
+            url=a["url"],
+            source=source,
+            section=a["section"],
+        )
+        db.session.add(article)
+        count += 1
 
     db.session.commit()
-    logger.info("Added %d new articles", count)
+    logger.info("Added %d new articles for %s", count, source)
 
-    # Enforce article limit
-    total = Article.query.count()
+    # Enforce per-source article limit
+    total = Article.query.filter_by(source=source).count()
     if total > Config.MAX_ARTICLES:
         excess = total - Config.MAX_ARTICLES
-        old_articles = Article.query.order_by(Article.scraped_at.asc()).limit(excess).all()
+        old_articles = (
+            Article.query.filter_by(source=source)
+            .order_by(Article.scraped_at.asc())
+            .limit(excess)
+            .all()
+        )
         for old in old_articles:
             db.session.delete(old)
         db.session.commit()
-        logger.info("Removed %d old articles (limit: %d)", excess, Config.MAX_ARTICLES)
+        logger.info("Removed %d old %s articles (limit: %d)", excess, source, Config.MAX_ARTICLES)
 
     return count
 
@@ -144,8 +156,15 @@ def daily_news():
 @app.route("/news/mk")
 @login_required
 def mk_news():
-    articles = Article.query.order_by(Article.scraped_at.desc()).all()
+    articles = Article.query.filter_by(source="mk").order_by(Article.scraped_at.desc()).all()
     return render_template("mk_news.html", articles=articles)
+
+
+@app.route("/news/irobot")
+@login_required
+def irobot_news():
+    articles = Article.query.filter_by(source="irobot").order_by(Article.scraped_at.desc()).all()
+    return render_template("irobot_news.html", articles=articles)
 
 
 @app.route("/events")
@@ -162,10 +181,12 @@ def bestsellers():
 
 # --- API Routes ---
 
-@app.route("/api/scrape", methods=["POST"])
+@app.route("/api/scrape/<source>", methods=["POST"])
 @login_required
-def api_scrape():
-    count = run_scrape()
+def api_scrape(source):
+    if source not in ("mk", "irobot"):
+        return jsonify({"status": "error", "message": "Unknown source"}), 400
+    count = run_scrape(source)
     return jsonify({"status": "ok", "new_articles": count})
 
 
@@ -183,10 +204,10 @@ def mark_read(article_id):
     return jsonify({"status": "not_found"}), 404
 
 
-@app.route("/api/articles/read-all", methods=["POST"])
+@app.route("/api/articles/read-all/<source>", methods=["POST"])
 @login_required
-def mark_all_read():
-    articles = Article.query.all()
+def mark_all_read(source):
+    articles = Article.query.filter_by(source=source).all()
     count = 0
     for article in articles:
         if not ReadArticle.query.filter_by(url=article.url).first():

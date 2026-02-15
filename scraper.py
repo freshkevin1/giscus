@@ -129,3 +129,51 @@ def scrape_mk_today():
 
     logger.info("Total scraped: %d unique articles", len(all_articles))
     return all_articles
+
+
+def scrape_irobotnews():
+    """Scrape articles from 로봇신문 (irobotnews.com).
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://www.irobotnews.com/news/articleList.html?view_type=sm"
+    articles = []
+    seen_urls = set()
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch irobotnews: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    for item in soup.select("#section-list li.altlist-webzine-item"):
+        link_el = item.select_one("h2.altlist-subject > a")
+        if not link_el:
+            continue
+
+        title = link_el.get_text(strip=True)
+        href = link_el.get("href", "")
+
+        if not title or not href:
+            continue
+
+        if href.startswith("/"):
+            href = "https://www.irobotnews.com" + href
+
+        if href in seen_urls:
+            continue
+        seen_urls.add(href)
+
+        # Extract category from metadata
+        section = ""
+        info_items = item.select("div.altlist-info-item")
+        if info_items:
+            section = info_items[0].get_text(strip=True)
+
+        articles.append({"title": title, "url": href, "section": section})
+
+    logger.info("Scraped %d articles from irobotnews", len(articles))
+    return articles
