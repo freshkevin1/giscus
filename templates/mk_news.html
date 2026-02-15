@@ -4,9 +4,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-newspaper"></i> 매일경제 오늘의 신문</h2>
-    <button id="btn-scrape" class="btn btn-primary">
-        <i class="bi bi-arrow-clockwise"></i> 스크래핑 실행
-    </button>
+    <div>
+        <button id="btn-read-all" class="btn btn-outline-success me-2">
+            <i class="bi bi-check-all"></i> 모두 읽음
+        </button>
+        <button id="btn-scrape" class="btn btn-primary">
+            <i class="bi bi-arrow-clockwise"></i> 스크래핑 실행
+        </button>
+    </div>
 </div>
 
 <p class="text-muted mb-3">총 <span id="article-count">{{ articles|length }}</span>개 기사</p>
@@ -82,6 +87,24 @@ document.getElementById('btn-scrape').addEventListener('click', async function()
     } catch (err) {
         btn.innerHTML = '<i class="bi bi-x-lg"></i> 실패';
         btn.classList.replace('btn-primary', 'btn-danger');
+    }
+});
+
+// Mark all as read
+document.getElementById('btn-read-all').addEventListener('click', async function() {
+    if (!confirm('모든 기사를 읽음 처리하시겠습니까?')) return;
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 처리 중...';
+
+    try {
+        const resp = await fetch('/api/articles/read-all', {method: 'POST'});
+        const data = await resp.json();
+        btn.innerHTML = '<i class="bi bi-check-all"></i> 완료 (' + data.cleared + '개)';
+        setTimeout(() => location.reload(), 1000);
+    } catch (err) {
+        btn.innerHTML = '<i class="bi bi-x-lg"></i> 실패';
+        btn.classList.replace('btn-outline-success', 'btn-danger');
     }
 });
 </script>

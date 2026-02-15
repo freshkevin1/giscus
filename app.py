@@ -183,6 +183,20 @@ def mark_read(article_id):
     return jsonify({"status": "not_found"}), 404
 
 
+@app.route("/api/articles/read-all", methods=["POST"])
+@login_required
+def mark_all_read():
+    articles = Article.query.all()
+    count = 0
+    for article in articles:
+        if not ReadArticle.query.filter_by(url=article.url).first():
+            db.session.add(ReadArticle(url=article.url))
+        db.session.delete(article)
+        count += 1
+    db.session.commit()
+    return jsonify({"status": "ok", "cleared": count})
+
+
 # --- Init & Run ---
 
 with app.app_context():
