@@ -117,7 +117,6 @@ def scrape_mk_today():
     weekday_date = _get_recent_weekday()
     sources = [
         (f"https://www.mk.co.kr/today-paper?date={weekday_date}", "오늘의 매경"),
-        ("https://www.mk.co.kr/news/ranking", "인기뉴스"),
     ]
 
     for url, section in sources:
