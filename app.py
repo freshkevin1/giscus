@@ -238,6 +238,18 @@ def mark_all_read(source):
     return jsonify({"status": "ok", "cleared": count})
 
 
+@app.route("/api/admin/clear-read/<keyword>", methods=["POST"])
+@login_required
+def clear_read_history(keyword):
+    """Remove read-history entries whose URL contains the given keyword."""
+    entries = ReadArticle.query.filter(ReadArticle.url.contains(keyword)).all()
+    count = len(entries)
+    for e in entries:
+        db.session.delete(e)
+    db.session.commit()
+    return jsonify({"status": "ok", "cleared": count, "keyword": keyword})
+
+
 # --- Init & Run ---
 
 with app.app_context():
