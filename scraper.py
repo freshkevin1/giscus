@@ -345,8 +345,40 @@ def scrape_meta_ai():
     return articles
 
 
+def scrape_openai():
+    """Scrape articles from OpenAI news via RSS feed.
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://openai.com/blog/rss.xml"
+    articles = []
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch openai rss: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    for item in soup.find_all("item")[:30]:
+        title_el = item.find("title")
+        link_el = item.find("guid")
+        if not title_el or not link_el:
+            continue
+        title = title_el.get_text(strip=True)
+        href = link_el.get_text(strip=True)
+        if not title or not href:
+            continue
+        articles.append({"title": title, "url": href, "section": "OpenAI"})
+
+    logger.info("Scraped %d articles from openai", len(articles))
+    return articles
+
+
 def scrape_ai_companies():
-    """Scrape articles from Anthropic, DeepMind, and Meta AI.
+    """Scrape articles from Anthropic, DeepMind, Meta AI, and OpenAI.
 
     Returns a combined list of dicts with keys: title, url, section.
     """
@@ -354,5 +386,6 @@ def scrape_ai_companies():
     all_articles.extend(scrape_anthropic())
     all_articles.extend(scrape_deepmind())
     all_articles.extend(scrape_meta_ai())
+    all_articles.extend(scrape_openai())
     logger.info("Total AI companies articles: %d", len(all_articles))
     return all_articles
