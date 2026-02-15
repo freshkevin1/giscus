@@ -360,7 +360,9 @@ def scrape_openai():
         logger.error("Failed to fetch openai rss: %s", e)
         return articles
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    # Strip CDATA wrappers before parsing so html.parser returns clean text
+    clean_xml = re.sub(r"<!\[CDATA\[(.*?)]]>", r"\1", resp.text, flags=re.DOTALL)
+    soup = BeautifulSoup(clean_xml, "html.parser")
 
     for item in soup.find_all("item")[:30]:
         title_el = item.find("title")
