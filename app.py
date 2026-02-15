@@ -15,7 +15,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 
 from config import Config
 from models import Article, ReadArticle, User, db, init_default_user
-from scraper import scrape_irobotnews, scrape_mk_today, scrape_robotreport
+from scraper import scrape_ai_companies, scrape_irobotnews, scrape_mk_today, scrape_robotreport
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,6 +44,7 @@ def scheduled_scrape():
         run_scrape("mk")
         run_scrape("irobot")
         run_scrape("robotreport")
+        run_scrape("aicompanies")
 
 
 def run_scrape(source="mk"):
@@ -54,6 +55,8 @@ def run_scrape(source="mk"):
         articles = scrape_irobotnews()
     elif source == "robotreport":
         articles = scrape_robotreport()
+    elif source == "aicompanies":
+        articles = scrape_ai_companies()
     else:
         return 0
 
@@ -177,10 +180,17 @@ def robotreport_news():
     return render_template("robotreport_news.html", articles=articles)
 
 
-@app.route("/events")
+@app.route("/news/ai")
 @login_required
-def daily_event():
-    return render_template("daily_event.html")
+def ai_news():
+    return render_template("ai_news.html")
+
+
+@app.route("/news/ai/companies")
+@login_required
+def ai_companies_news():
+    articles = Article.query.filter_by(source="aicompanies").order_by(Article.scraped_at.desc()).all()
+    return render_template("ai_companies_news.html", articles=articles)
 
 
 @app.route("/bestsellers")
@@ -194,7 +204,7 @@ def bestsellers():
 @app.route("/api/scrape/<source>", methods=["POST"])
 @login_required
 def api_scrape(source):
-    if source not in ("mk", "irobot", "robotreport"):
+    if source not in ("mk", "irobot", "robotreport", "aicompanies"):
         return jsonify({"status": "error", "message": "Unknown source"}), 400
     count = run_scrape(source)
     return jsonify({"status": "ok", "new_articles": count})

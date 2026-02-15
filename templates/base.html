@@ -51,10 +51,20 @@
                     {% endif %}
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'daily_event' %}active{% endif %}"
-                       href="{{ url_for('daily_event') }}">
-                        <i class="bi bi-calendar-event"></i> Daily Event
+                    <a class="nav-link {% if request.endpoint in ('ai_news', 'ai_companies_news') %}active{% endif %}"
+                       href="{{ url_for('ai_news') }}">
+                        <i class="bi bi-cpu"></i> AI News
                     </a>
+                    {% if request.endpoint in ('ai_news', 'ai_companies_news') %}
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link sub-link {% if request.endpoint == 'ai_companies_news' %}active{% endif %}"
+                               href="{{ url_for('ai_companies_news') }}">
+                                AI Companies
+                            </a>
+                        </li>
+                    </ul>
+                    {% endif %}
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint == 'bestsellers' %}active{% endif %}"

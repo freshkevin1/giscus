@@ -217,3 +217,142 @@ def scrape_robotreport():
 
     logger.info("Scraped %d articles from robotreport", len(articles))
     return articles
+
+
+def scrape_anthropic():
+    """Scrape articles from Anthropic research blog.
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://www.anthropic.com/research"
+    articles = []
+    seen_urls = set()
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch anthropic: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Featured articles
+    for a_tag in soup.select("a[class*='FeaturedGrid']"):
+        title_el = a_tag.select_one("h2") or a_tag.select_one("h4")
+        if not title_el:
+            continue
+        title = title_el.get_text(strip=True)
+        href = a_tag.get("href", "")
+        if not title or not href:
+            continue
+        if href.startswith("/"):
+            href = "https://www.anthropic.com" + href
+        if href not in seen_urls:
+            seen_urls.add(href)
+            articles.append({"title": title, "url": href, "section": "Anthropic"})
+
+    # Publication list articles
+    for a_tag in soup.select("a[class*='PublicationList']"):
+        title_el = a_tag.select_one("span[class*='title']")
+        if not title_el:
+            title_el = a_tag.select_one("h3") or a_tag.select_one("h4")
+        if not title_el:
+            continue
+        title = title_el.get_text(strip=True)
+        href = a_tag.get("href", "")
+        if not title or not href:
+            continue
+        if href.startswith("/"):
+            href = "https://www.anthropic.com" + href
+        if href not in seen_urls:
+            seen_urls.add(href)
+            articles.append({"title": title, "url": href, "section": "Anthropic"})
+
+    logger.info("Scraped %d articles from anthropic", len(articles))
+    return articles
+
+
+def scrape_deepmind():
+    """Scrape articles from Google DeepMind blog.
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://deepmind.google/discover/blog/"
+    articles = []
+    seen_urls = set()
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch deepmind: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    for card in soup.select("article.card-blog"):
+        title_el = card.select_one("h3")
+        link_el = card.select_one("a[href]")
+        if not title_el or not link_el:
+            continue
+        title = title_el.get_text(strip=True)
+        href = link_el.get("href", "")
+        if not title or not href:
+            continue
+        if href.startswith("/"):
+            href = "https://deepmind.google" + href
+        if href not in seen_urls:
+            seen_urls.add(href)
+            articles.append({"title": title, "url": href, "section": "DeepMind"})
+
+    logger.info("Scraped %d articles from deepmind", len(articles))
+    return articles
+
+
+def scrape_meta_ai():
+    """Scrape articles from Meta AI blog.
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://ai.meta.com/blog/"
+    articles = []
+    seen_urls = set()
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch meta ai: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    for a_tag in soup.select("a[href*='/blog/']"):
+        text = a_tag.get_text(strip=True)
+        href = a_tag.get("href", "")
+        if len(text) <= 10 or not href:
+            continue
+        # Ensure absolute URL
+        if href.startswith("/"):
+            href = "https://ai.meta.com" + href
+        if href in seen_urls:
+            continue
+        seen_urls.add(href)
+        articles.append({"title": text, "url": href, "section": "Meta AI"})
+
+    logger.info("Scraped %d articles from meta ai", len(articles))
+    return articles
+
+
+def scrape_ai_companies():
+    """Scrape articles from Anthropic, DeepMind, and Meta AI.
+
+    Returns a combined list of dicts with keys: title, url, section.
+    """
+    all_articles = []
+    all_articles.extend(scrape_anthropic())
+    all_articles.extend(scrape_deepmind())
+    all_articles.extend(scrape_meta_ai())
+    logger.info("Total AI companies articles: %d", len(all_articles))
+    return all_articles
