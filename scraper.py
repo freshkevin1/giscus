@@ -379,6 +379,105 @@ def scrape_openai():
     return articles
 
 
+def _get_recent_sunday():
+    """Return the most recent Sunday as YYYY-MM-DD string.
+
+    Amazon Charts uses Sundays as week anchors. If the current Sunday's
+    chart is not yet available (404), the caller should try the previous week.
+    """
+    today = date.today()
+    days_since_sunday = (today.weekday() + 1) % 7
+    return today - timedelta(days=days_since_sunday)
+
+
+def scrape_amazon_charts():
+    """Scrape Amazon Charts Most Read Nonfiction top 20.
+
+    Returns a list of dicts with keys: rank, title, author, url, image_url.
+    """
+    articles = []
+
+    amazon_headers = {
+        **HEADERS,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    }
+
+    # Try this week's Sunday, then fall back to previous week
+    sunday = _get_recent_sunday()
+    resp = None
+    for attempt in range(3):
+        chart_date = (sunday - timedelta(weeks=attempt)).isoformat()
+        url = f"https://www.amazon.com/charts/{chart_date}/mostread/nonfiction"
+        try:
+            resp = requests.get(url, headers=amazon_headers, timeout=30)
+            if resp.status_code == 200:
+                logger.info("Amazon Charts date: %s", chart_date)
+                break
+        except requests.RequestException as e:
+            logger.error("Failed to fetch amazon charts (%s): %s", chart_date, e)
+            continue
+    else:
+        logger.error("All Amazon Charts date attempts failed")
+        return articles
+
+    if not resp or resp.status_code != 200:
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    seen_urls = set()
+    for img in soup.select('img[alt^="Cover image of"]'):
+        alt = img.get("alt", "")
+        # alt format: "Cover image of Title by Author"
+        match = re.match(r"Cover image of (.+?) by (.+)", alt)
+        if not match:
+            continue
+
+        title = match.group(1).strip()
+        author = match.group(2).strip()
+        image_url = img.get("src", "")
+
+        # Find parent <a> with /dp/ in href
+        link_el = None
+        for parent in img.parents:
+            if parent.name == "a":
+                href = parent.get("href", "")
+                if "/dp/" in href:
+                    link_el = parent
+                    break
+
+        if not link_el:
+            continue
+
+        href = link_el.get("href", "")
+        if href.startswith("/"):
+            href = "https://www.amazon.com" + href
+
+        if href in seen_urls:
+            continue
+        seen_urls.add(href)
+
+        # Extract rank from ref parameter: chrt_bk_rd_XX_N (fc=fiction, nf=nonfiction)
+        rank_match = re.search(r"chrt_bk_rd_\w+_(\d+)", href)
+        rank = int(rank_match.group(1)) if rank_match else len(articles) + 1
+
+        articles.append({
+            "rank": rank,
+            "title": title,
+            "author": author,
+            "url": href,
+            "image_url": image_url,
+        })
+
+    articles.sort(key=lambda x: x["rank"])
+    logger.info("Scraped %d books from amazon charts", len(articles))
+    return articles
+
+
 def scrape_ai_companies():
     """Scrape articles from Anthropic, DeepMind, Meta AI, and OpenAI.
 
