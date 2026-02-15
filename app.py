@@ -1,7 +1,15 @@
 import logging
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from dotenv import load_dotenv
+
+# Load .env file if it exists (local development)
+_env_path = Path(__file__).resolve().parent / ".env"
+if _env_path.exists():
+    load_dotenv(_env_path)
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 

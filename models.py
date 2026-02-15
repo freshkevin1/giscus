@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 
 from flask_login import UserMixin
@@ -39,9 +40,13 @@ class ReadArticle(db.Model):
 
 
 def init_default_user():
-    """Create default user if not exists."""
-    if not User.query.filter_by(username="tornadogrowth").first():
-        user = User(username="tornadogrowth")
-        user.set_password("tornadogrowth128504")
+    """Create default user if not exists. Reads credentials from environment variables."""
+    username = os.environ.get("DASHBOARD_USER")
+    password = os.environ.get("DASHBOARD_PASS")
+    if not username or not password:
+        return
+    if not User.query.filter_by(username=username).first():
+        user = User(username=username)
+        user.set_password(password)
         db.session.add(user)
         db.session.commit()
