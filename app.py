@@ -16,6 +16,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 from config import Config
 from models import Article, MyBook, ReadArticle, Recommendation, User, db, init_default_user
 from recommender import generate_recommendations
+import requests as http_requests
 from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_irobotnews, scrape_mk_today, scrape_robotreport, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
@@ -275,6 +276,41 @@ def book_library():
     return render_template("book_library.html", books=books)
 
 
+@app.route("/api/books/search")
+@login_required
+def api_book_search():
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"results": []})
+
+    params = {"q": q, "maxResults": 10, "printType": "books"}
+    try:
+        r = http_requests.get("https://www.googleapis.com/books/v1/volumes",
+                              params=params, timeout=5)
+        r.raise_for_status()
+        items = r.json().get("items", [])
+    except Exception:
+        return jsonify({"results": []})
+
+    results = []
+    for item in items:
+        info = item.get("volumeInfo", {})
+        isbns = {i["type"]: i["identifier"] for i in info.get("industryIdentifiers", [])}
+        pub_date = info.get("publishedDate", "")
+        year = int(pub_date[:4]) if pub_date and pub_date[:4].isdigit() else 0
+        results.append({
+            "title": info.get("title", ""),
+            "author": ", ".join(info.get("authors", [])),
+            "publisher": info.get("publisher", ""),
+            "year_published": year,
+            "isbn": isbns.get("ISBN_10", ""),
+            "isbn13": isbns.get("ISBN_13", ""),
+            "average_rating": info.get("averageRating", 0.0),
+            "thumbnail": info.get("imageLinks", {}).get("thumbnail", ""),
+        })
+    return jsonify({"results": results})
+
+
 @app.route("/books/library/add", methods=["POST"])
 @login_required
 def book_add():
@@ -284,14 +320,24 @@ def book_add():
         flash("제목과 저자를 모두 입력해 주세요.", "danger")
         return redirect(url_for("book_library"))
 
-    existing = MyBook.query.filter_by(title=title, author=author).first()
-    if existing:
-        flash("이미 등록된 책입니다.", "warning")
-        return redirect(url_for("book_library"))
+    # Convert date_read from YYYY-MM-DD to YYYY/MM/DD
+    date_read_raw = request.form.get("date_read", "").strip()
+    date_read = date_read_raw.replace("-", "/") if date_read_raw else ""
+
+    my_rating = int(request.form.get("my_rating", 0) or 0)
+    if my_rating < 0 or my_rating > 5:
+        my_rating = 0
 
     book = MyBook(
         title=title,
         author=author,
+        isbn=request.form.get("isbn", "").strip(),
+        isbn13=request.form.get("isbn13", "").strip(),
+        publisher=request.form.get("publisher", "").strip(),
+        year_published=int(request.form.get("year_published", 0) or 0),
+        average_rating=float(request.form.get("average_rating", 0) or 0),
+        my_rating=my_rating,
+        date_read=date_read,
         shelf=request.form.get("shelf", "read"),
     )
     db.session.add(book)
