@@ -15,7 +15,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 
 from config import Config
 from models import Article, ReadArticle, User, db, init_default_user
-from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_irobotnews, scrape_mk_today, scrape_robotreport
+from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_irobotnews, scrape_mk_today, scrape_robotreport, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,6 +46,7 @@ def scheduled_scrape():
         run_scrape("robotreport")
         run_scrape("aicompanies")
         run_scrape("bestseller")
+        run_scrape("bestseller_kr")
 
 
 def run_scrape(source="mk"):
@@ -60,6 +61,8 @@ def run_scrape(source="mk"):
         articles = scrape_ai_companies()
     elif source == "bestseller":
         articles = scrape_amazon_charts()
+    elif source == "bestseller_kr":
+        articles = scrape_yes24_bestseller()
     else:
         return 0
 
@@ -67,21 +70,21 @@ def run_scrape(source="mk"):
         logger.warning("No articles scraped for %s", source)
         return 0
 
-    # Bestseller: replace all existing entries (weekly rotation)
-    if source == "bestseller":
-        Article.query.filter_by(source="bestseller").delete()
+    # Bestseller: replace all existing entries (weekly/monthly rotation)
+    if source in ("bestseller", "bestseller_kr"):
+        Article.query.filter_by(source=source).delete()
         db.session.commit()
         for a in articles:
             article = Article(
                 title=a["title"],
                 url=a["url"],
-                source="bestseller",
+                source=source,
                 section=str(a["rank"]),
                 image_url=a.get("image_url", ""),
             )
             db.session.add(article)
         db.session.commit()
-        logger.info("Replaced bestseller list with %d books", len(articles))
+        logger.info("Replaced %s list with %d books", source, len(articles))
         return len(articles)
 
     count = 0
@@ -216,12 +219,29 @@ def ai_companies_news():
 @app.route("/bestsellers")
 @login_required
 def bestsellers():
+    return render_template("bestsellers.html")
+
+
+@app.route("/bestsellers/global")
+@login_required
+def bestsellers_global():
     articles = (
         Article.query.filter_by(source="bestseller")
         .order_by(db.cast(Article.section, db.Integer))
         .all()
     )
-    return render_template("bestsellers.html", articles=articles)
+    return render_template("bestsellers_global.html", articles=articles)
+
+
+@app.route("/bestsellers/kr")
+@login_required
+def bestsellers_kr():
+    articles = (
+        Article.query.filter_by(source="bestseller_kr")
+        .order_by(db.cast(Article.section, db.Integer))
+        .all()
+    )
+    return render_template("bestsellers_kr.html", articles=articles)
 
 
 # --- API Routes ---
@@ -229,7 +249,7 @@ def bestsellers():
 @app.route("/api/scrape/<source>", methods=["POST"])
 @login_required
 def api_scrape(source):
-    if source not in ("mk", "irobot", "robotreport", "aicompanies", "bestseller"):
+    if source not in ("mk", "irobot", "robotreport", "aicompanies", "bestseller", "bestseller_kr"):
         return jsonify({"status": "error", "message": "Unknown source"}), 400
     count = run_scrape(source)
     return jsonify({"status": "ok", "new_articles": count})
@@ -279,6 +299,13 @@ def clear_read_history(keyword):
 
 with app.app_context():
     db.create_all()
+    # Migrate: add image_url column if missing (SQLite)
+    import sqlalchemy
+    with db.engine.connect() as conn:
+        columns = [r[1] for r in conn.execute(sqlalchemy.text("PRAGMA table_info(article)"))]
+        if "image_url" not in columns:
+            conn.execute(sqlalchemy.text("ALTER TABLE article ADD COLUMN image_url VARCHAR(1000) DEFAULT ''"))
+            conn.commit()
     init_default_user()
 
 scheduler.start()

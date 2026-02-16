@@ -478,6 +478,63 @@ def scrape_amazon_charts():
     return articles
 
 
+def scrape_yes24_bestseller():
+    """Scrape YES24 monthly bestseller top 30.
+
+    Returns a list of dicts with keys: rank, title, author, url, image_url.
+    """
+    url = (
+        "https://www.yes24.com/product/category/monthbestseller"
+        "?categoryNumber=001&pageNumber=1&pageSize=30"
+    )
+    articles = []
+
+    yes24_headers = {
+        **HEADERS,
+        "Accept-Language": "ko-KR,ko;q=0.9",
+    }
+
+    try:
+        resp = requests.get(url, headers=yes24_headers, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch yes24 bestseller: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    for item in soup.select(".itemUnit")[:30]:
+        rank_el = item.select_one("em.ico.rank")
+        rank = int(rank_el.get_text(strip=True)) if rank_el else len(articles) + 1
+
+        title_el = item.select_one("a.gd_name")
+        if not title_el:
+            continue
+        title = title_el.get_text(strip=True)
+        href = title_el.get("href", "")
+        if href.startswith("/"):
+            href = "https://www.yes24.com" + href
+
+        author_el = item.select_one(".info_auth a")
+        author = author_el.get_text(strip=True) if author_el else ""
+
+        img_el = item.select_one("img.lazy")
+        image_url = ""
+        if img_el:
+            image_url = img_el.get("data-original", "") or img_el.get("src", "")
+
+        articles.append({
+            "rank": rank,
+            "title": title,
+            "author": author,
+            "url": href,
+            "image_url": image_url,
+        })
+
+    logger.info("Scraped %d books from yes24 bestseller", len(articles))
+    return articles
+
+
 def scrape_ai_companies():
     """Scrape articles from Anthropic, DeepMind, Meta AI, and OpenAI.
 

@@ -67,10 +67,26 @@
                     {% endif %}
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'bestsellers' %}active{% endif %}"
+                    <a class="nav-link {% if request.endpoint in ('bestsellers', 'bestsellers_global', 'bestsellers_kr') %}active{% endif %}"
                        href="{{ url_for('bestsellers') }}">
                         <i class="bi bi-book"></i> Bestsellers
                     </a>
+                    {% if request.endpoint in ('bestsellers', 'bestsellers_global', 'bestsellers_kr') %}
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link sub-link {% if request.endpoint == 'bestsellers_kr' %}active{% endif %}"
+                               href="{{ url_for('bestsellers_kr') }}">
+                                국내 Bestsellers
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link sub-link {% if request.endpoint == 'bestsellers_global' %}active{% endif %}"
+                               href="{{ url_for('bestsellers_global') }}">
+                                해외 Bestsellers
+                            </a>
+                        </li>
+                    </ul>
+                    {% endif %}
                 </li>
             </ul>
             <div class="mt-auto">

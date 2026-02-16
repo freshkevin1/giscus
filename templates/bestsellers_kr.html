@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}국내 Bestsellers - Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-flag"></i> 국내 Bestsellers</h2>
+    <button id="btn-scrape" class="btn btn-primary">
+        <i class="bi bi-arrow-clockwise"></i> 스크래핑 실행
+    </button>
+</div>
+
+<p class="text-muted mb-3">YES24 — 월별 베스트셀러 Top 30</p>
+
+{% if articles %}
+<div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3" id="book-grid">
+    {% for article in articles %}
+    <div class="col">
+        <div class="card h-100 shadow-sm text-center">
+            <div class="position-relative">
+                <span class="badge bg-dark position-absolute top-0 start-0 m-2"
+                      style="font-size: 0.9rem; z-index: 1;">#{{ article.section }}</span>
+                {% if article.image_url %}
+                <img src="{{ article.image_url }}" class="card-img-top p-2"
+                     alt="{{ article.title }}"
+                     style="height: 220px; object-fit: contain;">
+                {% else %}
+                <div class="d-flex align-items-center justify-content-center bg-light"
+                     style="height: 220px;">
+                    <i class="bi bi-book" style="font-size: 3rem; color: #ccc;"></i>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-body p-2 d-flex flex-column">
+                <h6 class="card-title mb-1" style="font-size: 0.85rem; line-height: 1.3;">
+                    {{ article.title }}
+                </h6>
+                <small class="text-muted mb-2">{{ article.scraped_at.strftime('%Y-%m-%d') }}</small>
+                <a href="{{ article.url }}" target="_blank"
+                   class="btn btn-sm btn-outline-primary mt-auto">
+                    <i class="bi bi-cart"></i> YES24
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-journal-richtext" style="font-size: 3rem;"></i>
+    <p class="mt-2">데이터가 없습니다. 스크래핑을 실행해 주세요.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('btn-scrape').addEventListener('click', async function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 스크래핑 중...';
+
+    try {
+        const resp = await fetch('/api/scrape/bestseller_kr', {method: 'POST'});
+        const data = await resp.json();
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> 완료 (' + data.new_articles + '개)';
+        setTimeout(() => location.reload(), 1500);
+    } catch (err) {
+        btn.innerHTML = '<i class="bi bi-x-lg"></i> 실패';
+        btn.classList.replace('btn-primary', 'btn-danger');
+    }
+});
+</script>
+{% endblock %}
