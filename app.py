@@ -284,6 +284,9 @@ def api_book_search():
         return jsonify({"results": []})
 
     params = {"q": q, "maxResults": 10, "printType": "books"}
+    api_key = os.environ.get("GOOGLE_BOOKS_API_KEY")
+    if api_key:
+        params["key"] = api_key
     try:
         r = http_requests.get("https://www.googleapis.com/books/v1/volumes",
                               params=params, timeout=10)
