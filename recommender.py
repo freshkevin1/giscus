@@ -95,6 +95,69 @@ def build_book_sections(books):
     return "\n".join(lines)
 
 
+def _normalize_title(title):
+    """Normalize a book title for fuzzy comparison.
+
+    Lowercases, removes punctuation, and strips common articles.
+    """
+    t = title.lower()
+    # Remove punctuation
+    t = re.sub(r"[^\w\s]", "", t)
+    # Remove leading articles
+    t = re.sub(r"^(the|a|an)\s+", "", t)
+    # Collapse whitespace
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _extract_last_name(author):
+    """Extract the last name from an author string."""
+    if not author:
+        return ""
+    # Handle "Last, First" format
+    if "," in author:
+        return author.split(",")[0].strip().lower()
+    # Handle "First Last" format
+    parts = author.strip().split()
+    return parts[-1].lower() if parts else ""
+
+
+def _core_title(title):
+    """Extract core title before subtitle separators (colon, dash)."""
+    # Split on ": " or " - " and take the first part
+    part = re.split(r"\s*[:]\s*|\s+[-—–]\s+", title)[0]
+    return _normalize_title(part)
+
+
+def _is_duplicate(rec_title, rec_author, existing_books):
+    """Check if a recommended book is a duplicate of any existing book.
+
+    Uses normalized title comparison and author last-name matching.
+    """
+    norm_rec = _normalize_title(rec_title)
+    core_rec = _core_title(rec_title)
+    rec_last = _extract_last_name(rec_author)
+
+    for book in existing_books:
+        norm_existing = _normalize_title(book.title)
+
+        # Exact normalized title match → duplicate
+        if norm_rec == norm_existing:
+            return True
+
+        # Same author last name → check title similarity
+        if rec_last and _extract_last_name(book.author) == rec_last:
+            # One full title contains the other
+            if norm_rec in norm_existing or norm_existing in norm_rec:
+                return True
+            # Core titles (before subtitle) match
+            core_existing = _core_title(book.title)
+            if core_rec and core_existing and core_rec == core_existing:
+                return True
+
+    return False
+
+
 def generate_recommendations(books, num_recommendations=10):
     """Use Claude API to generate book recommendations based on the user's library.
 
@@ -111,12 +174,27 @@ def generate_recommendations(books, num_recommendations=10):
     profile = build_reader_profile(books)
     sections = build_book_sections(books)
 
+    # Build exclusion list for prompt
+    exclusion_lines = []
+    for b in books:
+        author_str = b.author if b.author else "Unknown"
+        exclusion_lines.append(f"- {b.title} — {author_str}")
+    exclusion_section = "\n".join(exclusion_lines)
+
+    # Request extra books to compensate for filtering
+    request_count = num_recommendations + 5
+
     user_prompt = (
         f"Here is a reader's book library:\n\n"
         f"{profile}\n"
         f"{sections}\n\n"
-        f"Based on this reader's taste, recommend exactly {num_recommendations} books "
-        "they would love. Do NOT recommend any book already in their library.\n"
+        f"## EXCLUSION LIST (절대 추천 금지)\n"
+        f"The following books are already in the reader's library. "
+        f"Do NOT recommend any of these books or different editions/translations of them:\n"
+        f"{exclusion_section}\n\n"
+        f"Based on this reader's taste, recommend exactly {request_count} books "
+        "they would love. Do NOT recommend any book already in their library, "
+        "including variant titles or different editions.\n"
         "Respond with ONLY a JSON array, no markdown fences, no extra text:\n"
         '[{"title": "...", "author": "...", "reason": "...", "category": "..."}]'
     )
@@ -129,10 +207,9 @@ def generate_recommendations(books, num_recommendations=10):
         '- Use specific, granular categories (e.g. "behavioral economics", "leadership", "evolutionary biology", "Korean modern literature") '
         'instead of broad ones (e.g. "business", "self-help", "science", "fiction").\n'
         "- Write the reason field in Korean (한국어).\n"
-        "- Provide diverse recommendations across different categories while staying aligned with the reader's demonstrated preferences."
+        "- Provide diverse recommendations across different categories while staying aligned with the reader's demonstrated preferences.\n"
+        "- CRITICAL: Never recommend any book from the EXCLUSION LIST. This includes variant titles, subtitles, or different editions of the same work."
     )
-
-    all_titles = {b.title.lower() for b in books}
 
     client = OpenAI()  # reads OPENAI_API_KEY from env
     response = client.chat.completions.create(
@@ -152,13 +229,15 @@ def generate_recommendations(books, num_recommendations=10):
 
     recommendations = json.loads(response_text)
 
-    # Filter out any books already in library
+    # Filter out any books already in library using fuzzy matching
     filtered = []
     for rec in recommendations:
-        if rec.get("title", "").lower() not in all_titles:
+        title = rec.get("title", "")
+        author = rec.get("author", "")
+        if not _is_duplicate(title, author, books):
             filtered.append({
-                "title": rec.get("title", ""),
-                "author": rec.get("author", ""),
+                "title": title,
+                "author": author,
                 "reason": rec.get("reason", ""),
                 "category": rec.get("category", ""),
             })
