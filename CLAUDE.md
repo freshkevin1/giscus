@@ -98,3 +98,11 @@ After every `railway up`, verify the deployment succeeded:
 3. Add the source key to the allowed list in `api_scrape()`
 4. Add it to `scheduled_scrape()` if it should run daily
 5. Create a template and route for the new source page
+
+## Coding Guidelines
+
+- State assumptions explicitly before implementing. If multiple interpretations exist, present them — don't pick silently. Push back if a simpler approach exists.
+- Every changed line must trace directly to the user's request. Remove only orphans YOUR changes created; for pre-existing dead code, mention it but don't delete.
+- Transform tasks into verifiable goals with step-by-step checks. State a brief plan before multi-step work:
+  1. [Step] → verify: [check]
+  2. [Step] → verify: [check]
