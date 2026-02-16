@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -36,6 +37,36 @@ login_manager.login_message = "로그인이 필요합니다."
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+
+# --- Background Recommendation Regeneration ---
+
+def _regenerate_recommendations_background():
+    """Regenerate recommendations in a background thread."""
+    with app.app_context():
+        try:
+            books = MyBook.query.all()
+            if not books:
+                return
+            recs = generate_recommendations(books)
+            Recommendation.query.delete()
+            for r in recs:
+                db.session.add(Recommendation(
+                    title=r["title"],
+                    author=r["author"],
+                    reason=r["reason"],
+                    category=r["category"],
+                ))
+            db.session.commit()
+            logger.info("Recommendations auto-regenerated (%d)", len(recs))
+        except Exception as e:
+            logger.error("Background recommendation regeneration failed: %s", e)
+
+
+def auto_regenerate_recommendations():
+    """Trigger recommendation regeneration in a background thread (non-blocking)."""
+    thread = threading.Thread(target=_regenerate_recommendations_background, daemon=True)
+    thread.start()
 
 
 # --- Scheduler ---
@@ -356,6 +387,7 @@ def book_add():
     )
     db.session.add(book)
     db.session.commit()
+    auto_regenerate_recommendations()
     flash(f'"{title}" 추가 완료', "success")
     return redirect(url_for("book_library"))
 
@@ -418,6 +450,7 @@ def api_rate_book(book_id):
         return jsonify({"status": "error", "message": "Rating must be 0-5"}), 400
     book.my_rating = rating
     db.session.commit()
+    auto_regenerate_recommendations()
     return jsonify({"status": "ok", "rating": rating})
 
 
@@ -429,6 +462,7 @@ def api_delete_book(book_id):
         return jsonify({"status": "not_found"}), 404
     db.session.delete(book)
     db.session.commit()
+    auto_regenerate_recommendations()
     return jsonify({"status": "ok"})
 
 
@@ -441,6 +475,7 @@ def api_toggle_hall_of_fame(book_id):
     data = request.get_json()
     book.hall_of_fame = bool(data.get("hall_of_fame", not book.hall_of_fame))
     db.session.commit()
+    auto_regenerate_recommendations()
     return jsonify({"status": "ok", "hall_of_fame": book.hall_of_fame})
 
 
