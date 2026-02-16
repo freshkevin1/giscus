@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Hall of Fame - Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-trophy"></i> Hall of Fame</h2>
+</div>
+
+{% if books %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle" id="hof-table">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 35%;">Title</th>
+                <th style="width: 20%;">Author</th>
+                <th style="width: 15%;">My Rating</th>
+                <th style="width: 15%;">Date Read</th>
+                <th style="width: 7%;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for book in books %}
+            <tr id="hof-row-{{ book.id }}">
+                <td>
+                    <strong>{{ book.title }}</strong>
+                    {% if book.year_published %}<br><small class="text-muted">{{ book.year_published }}</small>{% endif %}
+                </td>
+                <td>{{ book.author }}</td>
+                <td>
+                    {% for i in range(1, 6) %}
+                    <i class="bi bi-star{% if i <= book.my_rating %}-fill{% endif %}"
+                       style="color: #ffc107; font-size: 1.1rem;"></i>
+                    {% endfor %}
+                </td>
+                <td>
+                    {% if book.date_read and '/' in book.date_read %}
+                        {{ book.date_read.split('/')[1] }}/{{ book.date_read.split('/')[0] }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-warning btn-remove-hof" data-book-id="{{ book.id }}" title="Remove from Hall of Fame">
+                        <i class="bi bi-trophy-fill"></i>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-trophy" style="font-size: 3rem;"></i>
+    <p class="mt-2">No books in Hall of Fame yet. Add books from your Library.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.btn-remove-hof').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const bookId = this.dataset.bookId;
+        const resp = await fetch(`/api/books/${bookId}/hall-of-fame`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({hall_of_fame: false})
+        });
+        if (resp.ok) {
+            document.getElementById(`hof-row-${bookId}`).remove();
+            // Show empty state if no rows left
+            const tbody = document.querySelector('#hof-table tbody');
+            if (tbody && tbody.children.length === 0) {
+                document.querySelector('.table-responsive').innerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-trophy" style="font-size: 3rem;"></i>
+                        <p class="mt-2">No books in Hall of Fame yet. Add books from your Library.</p>
+                    </div>`;
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

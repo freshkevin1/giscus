@@ -57,7 +57,10 @@
                         -
                     {% endif %}
                 </td>
-                <td>
+                <td class="text-nowrap">
+                    <button class="btn btn-sm btn-hall-of-fame {% if book.hall_of_fame %}btn-warning{% else %}btn-outline-secondary{% endif %}" data-book-id="{{ book.id }}" data-hof="{{ book.hall_of_fame|int }}" title="Hall of Fame">
+                        <i class="bi bi-trophy{% if book.hall_of_fame %}-fill{% endif %}"></i>
+                    </button>
                     <button class="btn btn-sm btn-outline-danger btn-delete" data-book-id="{{ book.id }}">
                         <i class="bi bi-trash"></i>
                     </button>
@@ -264,6 +267,31 @@ document.querySelectorAll('.star-rating').forEach(container => {
                 });
             }
         });
+    });
+});
+
+// Hall of Fame toggle
+document.querySelectorAll('.btn-hall-of-fame').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const bookId = this.dataset.bookId;
+        const current = this.dataset.hof === '1';
+        const resp = await fetch(`/api/books/${bookId}/hall-of-fame`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({hall_of_fame: !current})
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            this.dataset.hof = data.hall_of_fame ? '1' : '0';
+            const icon = this.querySelector('i');
+            if (data.hall_of_fame) {
+                icon.className = 'bi bi-trophy-fill';
+                this.className = 'btn btn-sm btn-hall-of-fame btn-warning';
+            } else {
+                icon.className = 'bi bi-trophy';
+                this.className = 'btn btn-sm btn-hall-of-fame btn-outline-secondary';
+            }
+        }
     });
 });
 

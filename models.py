@@ -48,6 +48,7 @@ class MyBook(db.Model):
     year_published = db.Column(db.Integer, default=0)
     date_read = db.Column(db.String(20), default="")
     shelf = db.Column(db.String(20), default="read")
+    hall_of_fame = db.Column(db.Boolean, default=False)
     added_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):

@@ -263,10 +263,12 @@ def my_books():
             if year.isdigit():
                 yearly[int(year)] = yearly.get(int(year), 0) + 1
     yearly_stats = sorted(yearly.items(), reverse=True)
+    hall_of_fame_count = MyBook.query.filter_by(hall_of_fame=True).count()
     return render_template("books.html",
                            total_read=total_read,
                            avg_rating=round(avg_rating, 1),
-                           yearly_stats=yearly_stats)
+                           yearly_stats=yearly_stats,
+                           hall_of_fame_count=hall_of_fame_count)
 
 
 @app.route("/books/library")
@@ -274,6 +276,13 @@ def my_books():
 def book_library():
     books = MyBook.query.filter_by(shelf="read").order_by(MyBook.date_read.desc()).all()
     return render_template("book_library.html", books=books)
+
+
+@app.route("/books/hall-of-fame")
+@login_required
+def book_hall_of_fame():
+    books = MyBook.query.filter_by(hall_of_fame=True).order_by(MyBook.my_rating.desc()).all()
+    return render_template("book_hall_of_fame.html", books=books)
 
 
 @app.route("/api/books/search")
@@ -423,6 +432,18 @@ def api_delete_book(book_id):
     return jsonify({"status": "ok"})
 
 
+@app.route("/api/books/<int:book_id>/hall-of-fame", methods=["POST"])
+@login_required
+def api_toggle_hall_of_fame(book_id):
+    book = db.session.get(MyBook, book_id)
+    if not book:
+        return jsonify({"status": "not_found"}), 404
+    data = request.get_json()
+    book.hall_of_fame = bool(data.get("hall_of_fame", not book.hall_of_fame))
+    db.session.commit()
+    return jsonify({"status": "ok", "hall_of_fame": book.hall_of_fame})
+
+
 @app.route("/api/books/recommendations/generate", methods=["POST"])
 @login_required
 def api_generate_recommendations():
@@ -470,6 +491,11 @@ with app.app_context():
         columns = [r[1] for r in conn.execute(sqlalchemy.text("PRAGMA table_info(article)"))]
         if "image_url" not in columns:
             conn.execute(sqlalchemy.text("ALTER TABLE article ADD COLUMN image_url VARCHAR(1000) DEFAULT ''"))
+            conn.commit()
+        # Migrate: add hall_of_fame column to my_book if missing
+        mb_columns = [r[1] for r in conn.execute(sqlalchemy.text("PRAGMA table_info(my_book)"))]
+        if "hall_of_fame" not in mb_columns:
+            conn.execute(sqlalchemy.text("ALTER TABLE my_book ADD COLUMN hall_of_fame BOOLEAN DEFAULT 0"))
             conn.commit()
     init_default_user()
 
