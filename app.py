@@ -534,6 +534,19 @@ with app.app_context():
             conn.commit()
     init_default_user()
 
+    # One-time: fill missing date_read from year_published
+    from models import MyBook
+    books_no_date = MyBook.query.filter(
+        MyBook.shelf == "read",
+        (MyBook.date_read == None) | (MyBook.date_read == "")
+    ).all()
+    if books_no_date:
+        for b in books_no_date:
+            if b.year_published and b.year_published > 0:
+                b.date_read = f"{b.year_published}/01/01"
+        db.session.commit()
+        app.logger.info(f"Backfilled date_read for {len(books_no_date)} books")
+
 scheduler.start()
 
 if __name__ == "__main__":
