@@ -15,6 +15,9 @@ def import_goodreads_csv(filepath):
     with open(filepath, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            # Skip to-read books entirely
+            if (row.get("Exclusive Shelf", "").strip()) == "to-read":
+                continue
             # Clean ISBN fields: Goodreads wraps them like ="0399589023"
             isbn = re.sub(r'[=""]', "", row.get("ISBN", "")).strip()
             isbn13 = re.sub(r'[=""]', "", row.get("ISBN13", "")).strip()
@@ -62,8 +65,6 @@ def generate_recommendations(books, num_recommendations=10):
         reverse=True,
     )
     unrated_books = [b for b in books if b.my_rating == 0 and b.shelf == "read"]
-    to_read_books = [b for b in books if b.shelf == "to-read"]
-
     lines = []
     lines.append("Here is a reader's book library:\n")
 
@@ -76,11 +77,6 @@ def generate_recommendations(books, num_recommendations=10):
         lines.append("\n## Read but unrated:")
         for b in unrated_books:
             lines.append(f'- "{b.title}" by {b.author} (read, unrated)')
-
-    if to_read_books:
-        lines.append("\n## Already on to-read list (do NOT recommend these):")
-        for b in to_read_books:
-            lines.append(f'- "{b.title}" by {b.author}')
 
     all_titles = {b.title.lower() for b in books}
     lines.append(f"\nBased on this reader's taste, recommend exactly {num_recommendations} books "

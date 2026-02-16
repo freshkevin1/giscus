@@ -4,33 +4,10 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2><i class="bi bi-bookshelf"></i> Library</h2>
-    <div class="d-flex gap-2">
-        <form action="{{ url_for('book_import') }}" method="post" class="d-inline">
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-filetype-csv"></i> CSV Import
-            </button>
-        </form>
-        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addBookModal">
-            <i class="bi bi-plus-lg"></i> Add Book
-        </button>
-    </div>
+    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addBookModal">
+        <i class="bi bi-plus-lg"></i> Add Book
+    </button>
 </div>
-
-<!-- Shelf filter -->
-<ul class="nav nav-pills mb-3">
-    <li class="nav-item">
-        <a class="nav-link {% if shelf_filter == 'all' %}active{% endif %}"
-           href="{{ url_for('book_library', shelf='all') }}">All ({{ books|length }})</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if shelf_filter == 'read' %}active{% endif %}"
-           href="{{ url_for('book_library', shelf='read') }}">Read</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if shelf_filter == 'to-read' %}active{% endif %}"
-           href="{{ url_for('book_library', shelf='to-read') }}">To Read</a>
-    </li>
-</ul>
 
 <!-- Search -->
 <div class="mb-3">
@@ -42,23 +19,33 @@
     <table class="table table-hover align-middle" id="book-table">
         <thead class="table-light">
             <tr>
-                <th style="width: 40%;">Title</th>
-                <th style="width: 20%;">Author</th>
-                <th style="width: 15%;">My Rating</th>
-                <th style="width: 10%;">Shelf</th>
-                <th style="width: 8%;">Pages</th>
+                <th class="sortable" data-col="0" data-type="string" style="width: 35%; cursor: pointer;">
+                    Title <i class="bi bi-chevron-expand text-muted sort-icon" style="font-size: 0.75rem;"></i>
+                </th>
+                <th class="sortable" data-col="1" data-type="string" style="width: 18%; cursor: pointer;">
+                    Author <i class="bi bi-chevron-expand text-muted sort-icon" style="font-size: 0.75rem;"></i>
+                </th>
+                <th class="sortable" data-col="2" data-type="number" style="width: 13%; cursor: pointer;">
+                    My Rating <i class="bi bi-chevron-expand text-muted sort-icon" style="font-size: 0.75rem;"></i>
+                </th>
+                <th class="sortable" data-col="3" data-type="number" style="width: 8%; cursor: pointer;">
+                    Pages <i class="bi bi-chevron-expand text-muted sort-icon" style="font-size: 0.75rem;"></i>
+                </th>
+                <th class="sortable" data-col="4" data-type="date" style="width: 12%; cursor: pointer;">
+                    Date Read <i class="bi bi-chevron-expand text-muted sort-icon" style="font-size: 0.75rem;"></i>
+                </th>
                 <th style="width: 7%;"></th>
             </tr>
         </thead>
         <tbody>
             {% for book in books %}
             <tr class="book-row" data-title="{{ book.title|lower }}" data-author="{{ book.author|lower }}">
-                <td>
+                <td data-sort="{{ book.title|lower }}">
                     <strong>{{ book.title }}</strong>
                     {% if book.year_published %}<br><small class="text-muted">{{ book.year_published }}</small>{% endif %}
                 </td>
-                <td>{{ book.author }}</td>
-                <td>
+                <td data-sort="{{ book.author|lower }}">{{ book.author }}</td>
+                <td data-sort="{{ book.my_rating }}">
                     <div class="star-rating" data-book-id="{{ book.id }}" data-rating="{{ book.my_rating }}">
                         {% for i in range(1, 6) %}
                         <i class="bi bi-star{% if i <= book.my_rating %}-fill{% endif %} star-icon"
@@ -66,8 +53,14 @@
                         {% endfor %}
                     </div>
                 </td>
-                <td><span class="badge bg-{% if book.shelf == 'read' %}success{% else %}secondary{% endif %}">{{ book.shelf }}</span></td>
-                <td>{{ book.num_pages or '-' }}</td>
+                <td data-sort="{{ book.num_pages or 0 }}">{{ book.num_pages or '-' }}</td>
+                <td data-sort="{{ book.date_read or '' }}">
+                    {% if book.date_read and '/' in book.date_read %}
+                        {{ book.date_read.split('/')[1] }}/{{ book.date_read.split('/')[0] }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
                 <td>
                     <button class="btn btn-sm btn-outline-danger btn-delete" data-book-id="{{ book.id }}">
                         <i class="bi bi-trash"></i>
@@ -81,7 +74,7 @@
 {% else %}
 <div class="text-center text-muted py-5">
     <i class="bi bi-journal-richtext" style="font-size: 3rem;"></i>
-    <p class="mt-2">No books yet. Import your Goodreads CSV or add books manually.</p>
+    <p class="mt-2">No books yet. Add books manually to get started.</p>
 </div>
 {% endif %}
 
@@ -103,13 +96,6 @@
                         <label class="form-label">Author</label>
                         <input type="text" name="author" class="form-control" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Shelf</label>
-                        <select name="shelf" class="form-select">
-                            <option value="read">Read</option>
-                            <option value="to-read">To Read</option>
-                        </select>
-                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -123,6 +109,60 @@
 
 {% block scripts %}
 <script>
+// Column sorting
+(function() {
+    const table = document.getElementById('book-table');
+    if (!table) return;
+    const headers = table.querySelectorAll('th.sortable');
+    let currentCol = -1;
+    let ascending = true;
+
+    headers.forEach(th => {
+        th.addEventListener('click', function() {
+            const col = parseInt(this.dataset.col);
+            const type = this.dataset.type;
+
+            if (currentCol === col) {
+                ascending = !ascending;
+            } else {
+                ascending = true;
+                currentCol = col;
+            }
+
+            // Update icons
+            headers.forEach(h => {
+                h.querySelector('.sort-icon').className = 'bi bi-chevron-expand text-muted sort-icon';
+            });
+            this.querySelector('.sort-icon').className =
+                `bi bi-chevron-${ascending ? 'up' : 'down'} sort-icon`;
+
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            rows.sort((a, b) => {
+                const aVal = a.children[col].dataset.sort;
+                const bVal = b.children[col].dataset.sort;
+                let cmp = 0;
+
+                if (type === 'number') {
+                    cmp = (parseFloat(aVal) || 0) - (parseFloat(bVal) || 0);
+                } else if (type === 'date') {
+                    // YYYY/MM/DD format — empty strings sort last
+                    const aDate = aVal || (ascending ? '\uffff' : '');
+                    const bDate = bVal || (ascending ? '\uffff' : '');
+                    cmp = aDate.localeCompare(bDate);
+                } else {
+                    cmp = aVal.localeCompare(bVal);
+                }
+
+                return ascending ? cmp : -cmp;
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        });
+    });
+})();
+
 // Star rating click handler
 document.querySelectorAll('.star-rating').forEach(container => {
     container.querySelectorAll('.star-icon').forEach(star => {
@@ -130,7 +170,6 @@ document.querySelectorAll('.star-rating').forEach(container => {
             const bookId = this.parentElement.dataset.bookId;
             const value = parseInt(this.dataset.value);
             const currentRating = parseInt(this.parentElement.dataset.rating);
-            // Click same rating = clear to 0
             const newRating = (value === currentRating) ? 0 : value;
 
             const resp = await fetch(`/api/books/${bookId}/rate`, {
@@ -140,6 +179,8 @@ document.querySelectorAll('.star-rating').forEach(container => {
             });
             if (resp.ok) {
                 this.parentElement.dataset.rating = newRating;
+                // Update data-sort on the td for sorting
+                this.closest('td').dataset.sort = newRating;
                 this.parentElement.querySelectorAll('.star-icon').forEach((s, idx) => {
                     s.className = `bi bi-star${idx < newRating ? '-fill' : ''} star-icon`;
                 });

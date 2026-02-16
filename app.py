@@ -251,12 +251,10 @@ def bestsellers_kr():
 @login_required
 def my_books():
     total_read = MyBook.query.filter_by(shelf="read").count()
-    total_to_read = MyBook.query.filter_by(shelf="to-read").count()
     rated_books = MyBook.query.filter(MyBook.my_rating > 0).all()
     avg_rating = sum(b.my_rating for b in rated_books) / len(rated_books) if rated_books else 0
     return render_template("books.html",
                            total_read=total_read,
-                           total_to_read=total_to_read,
                            avg_rating=round(avg_rating, 1),
                            rated_count=len(rated_books))
 
@@ -264,12 +262,8 @@ def my_books():
 @app.route("/books/library")
 @login_required
 def book_library():
-    shelf_filter = request.args.get("shelf", "all")
-    query = MyBook.query
-    if shelf_filter in ("read", "to-read"):
-        query = query.filter_by(shelf=shelf_filter)
-    books = query.order_by(MyBook.my_rating.desc(), MyBook.added_at.desc()).all()
-    return render_template("book_library.html", books=books, shelf_filter=shelf_filter)
+    books = MyBook.query.filter_by(shelf="read").order_by(MyBook.my_rating.desc(), MyBook.added_at.desc()).all()
+    return render_template("book_library.html", books=books)
 
 
 @app.route("/books/library/import", methods=["POST"])
@@ -294,7 +288,13 @@ def book_import():
             db.session.add(MyBook(**b))
             count += 1
     db.session.commit()
-    flash(f"CSV 임포트 완료: {count}권 새로 추가, {len(books_data) - count}권 업데이트", "success")
+    # Remove any existing to-read books
+    deleted = MyBook.query.filter_by(shelf="to-read").delete()
+    db.session.commit()
+    msg = f"CSV 임포트 완료: {count}권 새로 추가, {len(books_data) - count}권 업데이트"
+    if deleted:
+        msg += f", to-read {deleted}권 삭제"
+    flash(msg, "success")
     return redirect(url_for("book_library"))
 
 
