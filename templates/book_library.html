@@ -28,10 +28,7 @@
                 <th class="sortable" data-col="2" data-type="number" style="width: 13%; cursor: pointer;">
                     My Rating <i class="bi bi-chevron-expand text-muted sort-icon" style="font-size: 0.75rem;"></i>
                 </th>
-                <th class="sortable" data-col="3" data-type="number" style="width: 8%; cursor: pointer;">
-                    Pages <i class="bi bi-chevron-expand text-muted sort-icon" style="font-size: 0.75rem;"></i>
-                </th>
-                <th class="sortable" data-col="4" data-type="date" style="width: 12%; cursor: pointer;">
+                <th class="sortable" data-col="3" data-type="date" style="width: 12%; cursor: pointer;">
                     Date Read <i class="bi bi-chevron-down sort-icon" style="font-size: 0.75rem;"></i>
                 </th>
                 <th style="width: 7%;"></th>
@@ -53,7 +50,6 @@
                         {% endfor %}
                     </div>
                 </td>
-                <td data-sort="{{ book.num_pages or 0 }}">{{ book.num_pages or '-' }}</td>
                 <td data-sort="{{ book.date_read or '' }}">
                     {% if book.date_read and '/' in book.date_read %}
                         {{ book.date_read.split('/')[1] }}/{{ book.date_read.split('/')[0] }}
@@ -114,7 +110,7 @@
     const table = document.getElementById('book-table');
     if (!table) return;
     const headers = table.querySelectorAll('th.sortable');
-    let currentCol = 4;
+    let currentCol = 3;
     let ascending = false;
 
     headers.forEach(th => {

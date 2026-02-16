@@ -45,7 +45,6 @@ class MyBook(db.Model):
     my_rating = db.Column(db.Integer, default=0)  # 0-5
     average_rating = db.Column(db.Float, default=0.0)
     publisher = db.Column(db.String(200), default="")
-    num_pages = db.Column(db.Integer, default=0)
     year_published = db.Column(db.Integer, default=0)
     date_read = db.Column(db.String(20), default="")
     shelf = db.Column(db.String(20), default="read")

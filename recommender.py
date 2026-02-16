@@ -24,10 +24,12 @@ def import_goodreads_csv(filepath):
 
             my_rating = int(row.get("My Rating", 0) or 0)
             avg_rating = float(row.get("Average Rating", 0) or 0)
-            num_pages = int(row.get("Number of Pages", 0) or 0)
-
             year_str = row.get("Year Published", "") or row.get("Original Publication Year", "")
             year_published = int(year_str) if year_str.strip() else 0
+
+            date_read = row.get("Date Read", "").strip()
+            if not date_read:
+                date_read = row.get("Date Added", "").strip()
 
             books.append({
                 "goodreads_id": row.get("Book Id", "").strip(),
@@ -38,9 +40,8 @@ def import_goodreads_csv(filepath):
                 "my_rating": my_rating,
                 "average_rating": avg_rating,
                 "publisher": row.get("Publisher", "").strip(),
-                "num_pages": num_pages,
                 "year_published": year_published,
-                "date_read": row.get("Date Read", "").strip(),
+                "date_read": date_read,
                 "shelf": row.get("Exclusive Shelf", "read").strip() or "read",
             })
     return books
