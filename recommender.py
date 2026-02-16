@@ -214,7 +214,7 @@ def generate_recommendations(books, num_recommendations=10):
     client = OpenAI()  # reads OPENAI_API_KEY from env
     response = client.chat.completions.create(
         model="gpt-5-mini",
-        max_tokens=2048,
+        max_completion_tokens=2048,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
