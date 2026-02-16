@@ -15,7 +15,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 
 from config import Config
 from models import Article, MyBook, ReadArticle, Recommendation, User, db, init_default_user
-from recommender import generate_recommendations, import_goodreads_csv
+from recommender import generate_recommendations
 from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_irobotnews, scrape_mk_today, scrape_robotreport, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
@@ -264,38 +264,6 @@ def my_books():
 def book_library():
     books = MyBook.query.filter_by(shelf="read").order_by(MyBook.date_read.desc()).all()
     return render_template("book_library.html", books=books)
-
-
-@app.route("/books/library/import", methods=["POST"])
-@login_required
-def book_import():
-    csv_path = os.path.join(os.path.dirname(__file__), "Book CSV", "goodreads_library_export.csv")
-    if not os.path.exists(csv_path):
-        flash("CSV 파일을 찾을 수 없습니다: Book CSV/goodreads_library_export.csv", "danger")
-        return redirect(url_for("book_library"))
-
-    books_data = import_goodreads_csv(csv_path)
-    count = 0
-    for b in books_data:
-        existing = None
-        if b["goodreads_id"]:
-            existing = MyBook.query.filter_by(goodreads_id=b["goodreads_id"]).first()
-        if existing:
-            # Update existing book
-            for key, val in b.items():
-                setattr(existing, key, val)
-        else:
-            db.session.add(MyBook(**b))
-            count += 1
-    db.session.commit()
-    # Remove any existing to-read books
-    deleted = MyBook.query.filter_by(shelf="to-read").delete()
-    db.session.commit()
-    msg = f"CSV 임포트 완료: {count}권 새로 추가, {len(books_data) - count}권 업데이트"
-    if deleted:
-        msg += f", to-read {deleted}권 삭제"
-    flash(msg, "success")
-    return redirect(url_for("book_library"))
 
 
 @app.route("/books/library/add", methods=["POST"])

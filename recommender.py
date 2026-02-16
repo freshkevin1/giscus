@@ -1,50 +1,10 @@
-"""Utility module for Goodreads CSV import and Claude-powered book recommendations."""
+"""Utility module for Claude-powered book recommendations."""
 
-import csv
 import json
 import logging
-import os
 import re
 
 logger = logging.getLogger(__name__)
-
-
-def import_goodreads_csv(filepath):
-    """Parse a Goodreads library export CSV and return a list of book dicts."""
-    books = []
-    with open(filepath, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            # Skip to-read books entirely
-            if (row.get("Exclusive Shelf", "").strip()) == "to-read":
-                continue
-            # Clean ISBN fields: Goodreads wraps them like ="0399589023"
-            isbn = re.sub(r'[=""]', "", row.get("ISBN", "")).strip()
-            isbn13 = re.sub(r'[=""]', "", row.get("ISBN13", "")).strip()
-
-            my_rating = int(row.get("My Rating", 0) or 0)
-            avg_rating = float(row.get("Average Rating", 0) or 0)
-            year_str = row.get("Year Published", "") or row.get("Original Publication Year", "")
-            year_published = int(year_str) if year_str.strip() else 0
-
-            date_read = row.get("Date Read", "").strip()
-            if not date_read:
-                date_read = row.get("Date Added", "").strip()
-
-            books.append({
-                "goodreads_id": row.get("Book Id", "").strip(),
-                "title": row.get("Title", "").strip(),
-                "author": row.get("Author", "").strip(),
-                "isbn": isbn,
-                "isbn13": isbn13,
-                "my_rating": my_rating,
-                "average_rating": avg_rating,
-                "publisher": row.get("Publisher", "").strip(),
-                "year_published": year_published,
-                "date_read": date_read,
-                "shelf": row.get("Exclusive Shelf", "read").strip() or "read",
-            })
-    return books
 
 
 def generate_recommendations(books, num_recommendations=10):
