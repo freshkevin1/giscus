@@ -250,13 +250,22 @@ def bestsellers_kr():
 @app.route("/books")
 @login_required
 def my_books():
-    total_read = MyBook.query.filter_by(shelf="read").count()
-    rated_books = MyBook.query.filter(MyBook.my_rating > 0).all()
+    all_read = MyBook.query.filter_by(shelf="read").all()
+    total_read = len(all_read)
+    rated_books = [b for b in all_read if b.my_rating > 0]
     avg_rating = sum(b.my_rating for b in rated_books) / len(rated_books) if rated_books else 0
+    # 연도별 통계
+    yearly = {}
+    for b in all_read:
+        if b.date_read and '/' in b.date_read:
+            year = b.date_read.split('/')[0]
+            if year.isdigit():
+                yearly[int(year)] = yearly.get(int(year), 0) + 1
+    yearly_stats = sorted(yearly.items(), reverse=True)
     return render_template("books.html",
                            total_read=total_read,
                            avg_rating=round(avg_rating, 1),
-                           rated_count=len(rated_books))
+                           yearly_stats=yearly_stats)
 
 
 @app.route("/books/library")

@@ -21,15 +21,25 @@
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card shadow-sm border-0 text-center">
-            <div class="card-body">
-                <div style="font-size: 2rem; font-weight: 700; color: #6f42c1;">{{ rated_count }}</div>
-                <small class="text-muted">Rated</small>
+</div>
+
+{% if yearly_stats %}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3"><i class="bi bi-bar-chart"></i> Books Read by Year</h5>
+        {% set max_count = yearly_stats|map(attribute=1)|max %}
+        {% for year, count in yearly_stats %}
+        <div class="d-flex align-items-center mb-2">
+            <span style="width: 60px; font-weight: 600;">{{ year }}</span>
+            <div class="flex-grow-1 mx-2">
+                <div style="height: 24px; width: {{ (count / max_count * 100)|round }}%; background: #0d6efd; border-radius: 4px;"></div>
             </div>
+            <span style="width: 40px; text-align: right; font-weight: 600;">{{ count }}</span>
         </div>
+        {% endfor %}
     </div>
 </div>
+{% endif %}
 
 <div class="row g-4">
     <div class="col-md-6 col-lg-4">
