@@ -32,7 +32,7 @@
                     Pages <i class="bi bi-chevron-expand text-muted sort-icon" style="font-size: 0.75rem;"></i>
                 </th>
                 <th class="sortable" data-col="4" data-type="date" style="width: 12%; cursor: pointer;">
-                    Date Read <i class="bi bi-chevron-expand text-muted sort-icon" style="font-size: 0.75rem;"></i>
+                    Date Read <i class="bi bi-chevron-down sort-icon" style="font-size: 0.75rem;"></i>
                 </th>
                 <th style="width: 7%;"></th>
             </tr>
@@ -114,8 +114,8 @@
     const table = document.getElementById('book-table');
     if (!table) return;
     const headers = table.querySelectorAll('th.sortable');
-    let currentCol = -1;
-    let ascending = true;
+    let currentCol = 4;
+    let ascending = false;
 
     headers.forEach(th => {
         th.addEventListener('click', function() {

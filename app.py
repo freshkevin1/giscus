@@ -262,7 +262,7 @@ def my_books():
 @app.route("/books/library")
 @login_required
 def book_library():
-    books = MyBook.query.filter_by(shelf="read").order_by(MyBook.my_rating.desc(), MyBook.added_at.desc()).all()
+    books = MyBook.query.filter_by(shelf="read").order_by(MyBook.date_read.desc()).all()
     return render_template("book_library.html", books=books)
 
 
