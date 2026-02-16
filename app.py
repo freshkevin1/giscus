@@ -283,7 +283,7 @@ def api_book_search():
     if not q:
         return jsonify({"results": []})
 
-    params = {"q": q, "maxResults": 10, "printType": "books"}
+    params = {"q": q, "maxResults": 20, "printType": "books"}
     api_key = os.environ.get("GOOGLE_BOOKS_API_KEY")
     if api_key:
         params["key"] = api_key
