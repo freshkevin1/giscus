@@ -15,8 +15,8 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, url
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 
 from config import Config
-from models import Article, MyBook, ReadArticle, Recommendation, User, db, init_default_user
-from recommender import generate_recommendations
+from models import Article, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
 from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_irobotnews, scrape_mk_today, scrape_robotreport, scrape_yes24_bestseller
 
@@ -395,8 +395,14 @@ def book_add():
 @app.route("/books/recommendations")
 @login_required
 def book_recommendations():
-    recs = Recommendation.query.order_by(Recommendation.id).all()
-    return render_template("book_recommendations.html", recommendations=recs)
+    return render_template("book_recommendations.html")
+
+
+@app.route("/books/saved")
+@login_required
+def book_saved():
+    books = SavedBook.query.order_by(SavedBook.saved_at.desc()).all()
+    return render_template("book_saved.html", books=books)
 
 
 # --- API Routes ---
@@ -502,6 +508,54 @@ def api_generate_recommendations():
         ))
     db.session.commit()
     return jsonify({"status": "ok", "count": len(recs)})
+
+
+@app.route("/api/books/chat", methods=["POST"])
+@login_required
+def api_books_chat():
+    data = request.get_json()
+    if not data or not data.get("message", "").strip():
+        return jsonify({"status": "error", "message": "메시지를 입력해 주세요."}), 400
+
+    books = MyBook.query.all()
+    history = data.get("history", [])
+
+    try:
+        result = chat_recommendation(data["message"].strip(), history, books)
+    except Exception as e:
+        logger.error("Chat recommendation failed: %s", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify(result)
+
+
+@app.route("/api/books/saved", methods=["POST"])
+@login_required
+def api_save_book():
+    data = request.get_json()
+    if not data or not data.get("title", "").strip():
+        return jsonify({"status": "error", "message": "제목이 필요합니다."}), 400
+
+    book = SavedBook(
+        title=data["title"].strip(),
+        author=data.get("author", "").strip(),
+        reason=data.get("reason", "").strip(),
+        category=data.get("category", "").strip(),
+    )
+    db.session.add(book)
+    db.session.commit()
+    return jsonify({"status": "ok", "id": book.id})
+
+
+@app.route("/api/books/saved/<int:book_id>", methods=["DELETE"])
+@login_required
+def api_delete_saved_book(book_id):
+    book = db.session.get(SavedBook, book_id)
+    if not book:
+        return jsonify({"status": "not_found"}), 404
+    db.session.delete(book)
+    db.session.commit()
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/admin/clear-read/<keyword>", methods=["POST"])

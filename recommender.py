@@ -5,7 +5,11 @@ import logging
 import re
 from collections import Counter
 
+import anthropic
+
 logger = logging.getLogger(__name__)
+
+_REC_MARKER = "[REC]"
 
 
 def _extract_year(date_read):
@@ -125,7 +129,7 @@ def _extract_last_name(author):
 def _core_title(title):
     """Extract core title before subtitle separators (colon, dash)."""
     # Split on ": " or " - " and take the first part
-    part = re.split(r"\s*[:]\s*|\s+[-—–]\s+", title)[0]
+    part = re.split(r"\s*[:]\s*|\s+[-\u2014\u2013]\s+", title)[0]
     return _normalize_title(part)
 
 
@@ -141,11 +145,11 @@ def _is_duplicate(rec_title, rec_author, existing_books):
     for book in existing_books:
         norm_existing = _normalize_title(book.title)
 
-        # Exact normalized title match → duplicate
+        # Exact normalized title match -> duplicate
         if norm_rec == norm_existing:
             return True
 
-        # Same author last name → check title similarity
+        # Same author last name -> check title similarity
         if rec_last and _extract_last_name(book.author) == rec_last:
             # One full title contains the other
             if norm_rec in norm_existing or norm_existing in norm_rec:
@@ -168,8 +172,6 @@ def generate_recommendations(books, num_recommendations=10):
     Returns:
         list of dicts with keys: title, author, reason, category
     """
-    from openai import OpenAI
-
     # Build structured prompt
     profile = build_reader_profile(books)
     sections = build_book_sections(books)
@@ -178,7 +180,7 @@ def generate_recommendations(books, num_recommendations=10):
     exclusion_lines = []
     for b in books:
         author_str = b.author if b.author else "Unknown"
-        exclusion_lines.append(f"- {b.title} — {author_str}")
+        exclusion_lines.append(f"- {b.title} \u2014 {author_str}")
     exclusion_section = "\n".join(exclusion_lines)
 
     # Request extra books to compensate for filtering
@@ -188,7 +190,7 @@ def generate_recommendations(books, num_recommendations=10):
         f"Here is a reader's book library:\n\n"
         f"{profile}\n"
         f"{sections}\n\n"
-        f"## EXCLUSION LIST (절대 추천 금지)\n"
+        f"## EXCLUSION LIST (\uc808\ub300 \ucd94\ucc9c \uae08\uc9c0)\n"
         f"The following books are already in the reader's library. "
         f"Do NOT recommend any of these books or different editions/translations of them:\n"
         f"{exclusion_section}\n\n"
@@ -206,26 +208,25 @@ def generate_recommendations(books, num_recommendations=10):
         "- Consider other works by the reader's favorite authors (authors with 3+ books read).\n"
         '- Use specific, granular categories (e.g. "behavioral economics", "leadership", "evolutionary biology", "Korean modern literature") '
         'instead of broad ones (e.g. "business", "self-help", "science", "fiction").\n'
-        "- Write the reason field in Korean (한국어).\n"
+        "- Write the reason field in Korean (\ud55c\uad6d\uc5b4).\n"
         "- Provide diverse recommendations across different categories while staying aligned with the reader's demonstrated preferences.\n"
         "- CRITICAL: Never recommend any book from the EXCLUSION LIST. This includes variant titles, subtitles, or different editions of the same work."
     )
 
-    client = OpenAI()  # reads OPENAI_API_KEY from env
-    response = client.chat.completions.create(
-        model="gpt-5-mini",
-        max_completion_tokens=4096,
-        response_format={"type": "json_object"},
+    client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+    response = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=4096,
+        system=system_prompt,
         messages=[
-            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
     )
 
     # Parse response
-    raw = response.choices[0].message.content
+    raw = response.content[0].text
     if not raw:
-        raise ValueError(f"OpenAI returned empty content. finish_reason={response.choices[0].finish_reason}")
+        raise ValueError(f"Claude returned empty content. stop_reason={response.stop_reason}")
     response_text = raw.strip()
     # Remove markdown fences if present
     response_text = re.sub(r"^```(?:json)?\s*", "", response_text)
@@ -248,3 +249,89 @@ def generate_recommendations(books, num_recommendations=10):
             })
 
     return filtered[:num_recommendations]
+
+
+def chat_recommendation(user_message, conversation_history, books):
+    """Interactive chat-based book recommendation using Claude API.
+
+    Args:
+        user_message: the user's current message
+        conversation_history: list of {"role": "user"|"assistant", "content": "..."}
+        books: list of MyBook model instances
+
+    Returns:
+        dict with keys: message (str), recommendations (list of dicts)
+    """
+    profile = build_reader_profile(books)
+    sections = build_book_sections(books)
+
+    system_prompt = (
+        "You are a friendly, knowledgeable book recommendation assistant. "
+        "You have access to the reader's complete book library and reading history.\n\n"
+        f"{profile}\n"
+        f"{sections}\n\n"
+        "## Your Role\n"
+        "- Answer questions about books, reading, and provide personalized recommendations.\n"
+        "- Base your recommendations on the reader's demonstrated taste from their library.\n"
+        "- Always respond in Korean (\ud55c\uad6d\uc5b4).\n"
+        "- Be conversational and helpful.\n\n"
+        "## Response Format\n"
+        "When you recommend specific books, include them at the END of your response "
+        f"after the marker '{_REC_MARKER}' as a JSON array. Example:\n\n"
+        "\ub9d0\uc94d\ud558\uc2e0 \uc8fc\uc81c\uc5d0 \ub531 \ub9de\ub294 \ucc45\ub4e4\uc744 \ucd94\ucc9c\ub4dc\ub9bd\ub2c8\ub2e4!\n\n"
+        f"{_REC_MARKER}\n"
+        '[{"title": "Book Title", "author": "Author Name", "reason": "\ucd94\ucc9c \uc774\uc720", "category": "category"}]\n\n'
+        "If your response is just conversational (no book recommendations), do NOT include the marker.\n"
+        "- Do NOT recommend books that are already in the reader's library.\n"
+        '- Use specific categories (e.g. "behavioral economics", "leadership") instead of broad ones.'
+    )
+
+    # Build messages list from history + current message
+    messages = []
+    for msg in conversation_history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": user_message})
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=4096,
+        system=system_prompt,
+        messages=messages,
+    )
+
+    raw = response.content[0].text or ""
+
+    # Parse: split on [REC] marker
+    if _REC_MARKER in raw:
+        parts = raw.split(_REC_MARKER, 1)
+        message_text = parts[0].strip()
+        rec_text = parts[1].strip()
+        # Remove markdown fences if present
+        rec_text = re.sub(r"^```(?:json)?\s*", "", rec_text)
+        rec_text = re.sub(r"\s*```$", "", rec_text)
+        try:
+            recommendations = json.loads(rec_text)
+            if not isinstance(recommendations, list):
+                recommendations = recommendations.get("recommendations", [])
+        except (json.JSONDecodeError, AttributeError):
+            logger.warning("Failed to parse recommendations JSON: %s", rec_text[:200])
+            recommendations = []
+    else:
+        message_text = raw.strip()
+        recommendations = []
+
+    # Sanitize recommendations
+    clean_recs = []
+    for rec in recommendations:
+        clean_recs.append({
+            "title": rec.get("title", ""),
+            "author": rec.get("author", ""),
+            "reason": rec.get("reason", ""),
+            "category": rec.get("category", ""),
+        })
+
+    return {
+        "message": message_text,
+        "recommendations": clean_recs,
+    }

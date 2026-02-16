@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Saved Books - Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-bookmark-star"></i> Saved Books</h2>
+    <span class="text-muted">{{ books|length }}권</span>
+</div>
+
+{% if books %}
+<div class="row row-cols-1 row-cols-md-2 g-3" id="saved-list">
+    {% for book in books %}
+    <div class="col" id="saved-{{ book.id }}">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title mb-0">{{ book.title }}</h5>
+                    {% if book.category %}
+                    <span class="badge bg-info text-dark ms-2" style="white-space: nowrap;">{{ book.category }}</span>
+                    {% endif %}
+                </div>
+                <h6 class="card-subtitle text-muted mb-2">{{ book.author }}</h6>
+                {% if book.reason %}
+                <p class="card-text" style="font-size: 0.9rem;">{{ book.reason }}</p>
+                {% endif %}
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <small class="text-muted">
+                        {{ book.saved_at.strftime('%Y-%m-%d') }}
+                    </small>
+                    <button class="btn btn-outline-danger btn-sm" onclick="removeSaved({{ book.id }})">
+                        <i class="bi bi-trash"></i> 제거
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-bookmark" style="font-size: 3rem;"></i>
+    <p class="mt-2">찜한 책이 없습니다.</p>
+    <p style="font-size: 0.9rem;">
+        <a href="{{ url_for('book_recommendations') }}">AI Book Advisor</a>에서 추천받은 책을 찜해 보세요.
+    </p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function removeSaved(id) {
+    try {
+        const resp = await fetch(`/api/books/saved/${id}`, {method: 'DELETE'});
+        if (resp.ok) {
+            const el = document.getElementById('saved-' + id);
+            if (el) {
+                el.style.transition = 'opacity 0.3s';
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 300);
+            }
+        }
+    } catch (err) {
+        console.error('Remove failed:', err);
+    }
+}
+</script>
+{% endblock %}

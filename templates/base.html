@@ -89,11 +89,11 @@
                     {% endif %}
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint in ('my_books', 'book_library', 'book_hall_of_fame', 'book_recommendations') %}active{% endif %}"
+                    <a class="nav-link {% if request.endpoint in ('my_books', 'book_library', 'book_hall_of_fame', 'book_recommendations', 'book_saved') %}active{% endif %}"
                        href="{{ url_for('my_books') }}">
                         <i class="bi bi-journal-bookmark"></i> My Books
                     </a>
-                    {% if request.endpoint in ('my_books', 'book_library', 'book_hall_of_fame', 'book_recommendations') %}
+                    {% if request.endpoint in ('my_books', 'book_library', 'book_hall_of_fame', 'book_recommendations', 'book_saved') %}
                     <ul class="nav flex-column ms-3">
                         <li class="nav-item">
                             <a class="nav-link sub-link {% if request.endpoint == 'book_library' %}active{% endif %}"
@@ -111,6 +111,12 @@
                             <a class="nav-link sub-link {% if request.endpoint == 'book_recommendations' %}active{% endif %}"
                                href="{{ url_for('book_recommendations') }}">
                                 Recommendations
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link sub-link {% if request.endpoint == 'book_saved' %}active{% endif %}"
+                               href="{{ url_for('book_saved') }}">
+                                Saved Books
                             </a>
                         </li>
                     </ul>

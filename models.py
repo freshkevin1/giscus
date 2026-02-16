@@ -65,6 +65,16 @@ class Recommendation(db.Model):
     generated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class SavedBook(db.Model):
+    """찜한 책 — AI 추천에서 저장한 책."""
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(500), nullable=False)
+    author = db.Column(db.String(300), nullable=False)
+    reason = db.Column(db.Text, default="")
+    category = db.Column(db.String(100), default="")
+    saved_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class ReadArticle(db.Model):
     """Tracks URLs of articles marked as read, so they are not re-imported."""
     id = db.Column(db.Integer, primary_key=True)
