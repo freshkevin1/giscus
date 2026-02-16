@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Executive dashboard web app (Korean/English) that scrapes and displays news articles and bestseller book lists. Built with Flask, SQLAlchemy (SQLite), and BeautifulSoup. Deployed via Gunicorn on Railway (auto-deploy on push to `main`).
+Executive dashboard web app (Korean/English) that scrapes and displays news articles and bestseller book lists. Built with Flask, SQLAlchemy (SQLite), and BeautifulSoup. Deployed via Gunicorn on Railway (CLI deploy).
 
 ## Commands
 
@@ -16,10 +16,10 @@ No test suite or linter is configured.
 
 ## Deployment
 
-- **Platform:** Railway (connected to GitHub repo, auto-deploys on push to `main`)
+- **Platform:** Railway (CLI deploy via `railway up`, GitHub auto-deploy is NOT connected)
 - **Production URL:** `executive-dashboard-production.up.railway.app`
-- **Deploy command:** Push to `main` triggers build automatically — no manual deploy step needed
-- **Logs:** `railway logs` to check deployment status and runtime errors
+- **Deploy command:** `railway up --detach` (uploads current directory and builds on Railway)
+- **Logs:** `railway logs -n 20` to check deployment status and runtime errors
 
 ### Commit & Deploy Policy
 
@@ -27,9 +27,20 @@ When the user asks to deploy (배포), follow this sequence without asking for c
 
 1. `git add` the changed files (specific files, not `-A`)
 2. `git commit` with a descriptive message
-3. `git push origin main` — this triggers Railway auto-deploy
+3. `git push origin main`
+4. `railway up --detach` — triggers the actual Railway build & deploy
+5. **Validate deployment** (see below)
 
-All three commands (`git add`, `git commit`, `git push`) are pre-authorized in `.claude/settings.local.json`.
+All commands (`git add`, `git commit`, `git push`, `railway up`) are pre-authorized in `.claude/settings.local.json`.
+
+### Deployment Validation
+
+After every `railway up`, verify the deployment succeeded:
+
+1. Wait ~30 seconds for the build to complete
+2. Run `railway deployment list` — confirm the latest deployment shows `SUCCESS`
+3. Run `railway logs -n 10` — confirm Gunicorn started without errors (look for `Listening at:`)
+4. If the deployment shows `FAILED` or logs contain errors, report the issue to the user immediately
 
 ## Architecture
 
