@@ -14,7 +14,8 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, url
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 
 from config import Config
-from models import Article, ReadArticle, User, db, init_default_user
+from models import Article, MyBook, ReadArticle, Recommendation, User, db, init_default_user
+from recommender import generate_recommendations, import_goodreads_csv
 from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_irobotnews, scrape_mk_today, scrape_robotreport, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
@@ -244,6 +245,91 @@ def bestsellers_kr():
     return render_template("bestsellers_kr.html", articles=articles)
 
 
+# --- My Books Routes ---
+
+@app.route("/books")
+@login_required
+def my_books():
+    total_read = MyBook.query.filter_by(shelf="read").count()
+    total_to_read = MyBook.query.filter_by(shelf="to-read").count()
+    rated_books = MyBook.query.filter(MyBook.my_rating > 0).all()
+    avg_rating = sum(b.my_rating for b in rated_books) / len(rated_books) if rated_books else 0
+    return render_template("books.html",
+                           total_read=total_read,
+                           total_to_read=total_to_read,
+                           avg_rating=round(avg_rating, 1),
+                           rated_count=len(rated_books))
+
+
+@app.route("/books/library")
+@login_required
+def book_library():
+    shelf_filter = request.args.get("shelf", "all")
+    query = MyBook.query
+    if shelf_filter in ("read", "to-read"):
+        query = query.filter_by(shelf=shelf_filter)
+    books = query.order_by(MyBook.my_rating.desc(), MyBook.added_at.desc()).all()
+    return render_template("book_library.html", books=books, shelf_filter=shelf_filter)
+
+
+@app.route("/books/library/import", methods=["POST"])
+@login_required
+def book_import():
+    csv_path = os.path.join(os.path.dirname(__file__), "Book CSV", "goodreads_library_export.csv")
+    if not os.path.exists(csv_path):
+        flash("CSV 파일을 찾을 수 없습니다: Book CSV/goodreads_library_export.csv", "danger")
+        return redirect(url_for("book_library"))
+
+    books_data = import_goodreads_csv(csv_path)
+    count = 0
+    for b in books_data:
+        existing = None
+        if b["goodreads_id"]:
+            existing = MyBook.query.filter_by(goodreads_id=b["goodreads_id"]).first()
+        if existing:
+            # Update existing book
+            for key, val in b.items():
+                setattr(existing, key, val)
+        else:
+            db.session.add(MyBook(**b))
+            count += 1
+    db.session.commit()
+    flash(f"CSV 임포트 완료: {count}권 새로 추가, {len(books_data) - count}권 업데이트", "success")
+    return redirect(url_for("book_library"))
+
+
+@app.route("/books/library/add", methods=["POST"])
+@login_required
+def book_add():
+    title = request.form.get("title", "").strip()
+    author = request.form.get("author", "").strip()
+    if not title or not author:
+        flash("제목과 저자를 모두 입력해 주세요.", "danger")
+        return redirect(url_for("book_library"))
+
+    existing = MyBook.query.filter_by(title=title, author=author).first()
+    if existing:
+        flash("이미 등록된 책입니다.", "warning")
+        return redirect(url_for("book_library"))
+
+    book = MyBook(
+        title=title,
+        author=author,
+        shelf=request.form.get("shelf", "read"),
+    )
+    db.session.add(book)
+    db.session.commit()
+    flash(f'"{title}" 추가 완료', "success")
+    return redirect(url_for("book_library"))
+
+
+@app.route("/books/recommendations")
+@login_required
+def book_recommendations():
+    recs = Recommendation.query.order_by(Recommendation.id).all()
+    return render_template("book_recommendations.html", recommendations=recs)
+
+
 # --- API Routes ---
 
 @app.route("/api/scrape/<source>", methods=["POST"])
@@ -281,6 +367,57 @@ def mark_all_read(source):
         count += 1
     db.session.commit()
     return jsonify({"status": "ok", "cleared": count})
+
+
+@app.route("/api/books/<int:book_id>/rate", methods=["POST"])
+@login_required
+def api_rate_book(book_id):
+    book = db.session.get(MyBook, book_id)
+    if not book:
+        return jsonify({"status": "not_found"}), 404
+    data = request.get_json()
+    rating = data.get("rating", 0)
+    if not isinstance(rating, int) or rating < 0 or rating > 5:
+        return jsonify({"status": "error", "message": "Rating must be 0-5"}), 400
+    book.my_rating = rating
+    db.session.commit()
+    return jsonify({"status": "ok", "rating": rating})
+
+
+@app.route("/api/books/<int:book_id>/delete", methods=["POST"])
+@login_required
+def api_delete_book(book_id):
+    book = db.session.get(MyBook, book_id)
+    if not book:
+        return jsonify({"status": "not_found"}), 404
+    db.session.delete(book)
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/books/recommendations/generate", methods=["POST"])
+@login_required
+def api_generate_recommendations():
+    books = MyBook.query.all()
+    if not books:
+        return jsonify({"status": "error", "message": "책이 없습니다. 먼저 라이브러리에 책을 추가해 주세요."}), 400
+    try:
+        recs = generate_recommendations(books)
+    except Exception as e:
+        logger.error("Recommendation generation failed: %s", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    # Replace all existing recommendations
+    Recommendation.query.delete()
+    for r in recs:
+        db.session.add(Recommendation(
+            title=r["title"],
+            author=r["author"],
+            reason=r["reason"],
+            category=r["category"],
+        ))
+    db.session.commit()
+    return jsonify({"status": "ok", "count": len(recs)})
 
 
 @app.route("/api/admin/clear-read/<keyword>", methods=["POST"])

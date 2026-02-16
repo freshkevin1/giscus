@@ -88,6 +88,28 @@
                     </ul>
                     {% endif %}
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint in ('my_books', 'book_library', 'book_recommendations') %}active{% endif %}"
+                       href="{{ url_for('my_books') }}">
+                        <i class="bi bi-journal-bookmark"></i> My Books
+                    </a>
+                    {% if request.endpoint in ('my_books', 'book_library', 'book_recommendations') %}
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link sub-link {% if request.endpoint == 'book_library' %}active{% endif %}"
+                               href="{{ url_for('book_library') }}">
+                                Library
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link sub-link {% if request.endpoint == 'book_recommendations' %}active{% endif %}"
+                               href="{{ url_for('book_recommendations') }}">
+                                Recommendations
+                            </a>
+                        </li>
+                    </ul>
+                    {% endif %}
+                </li>
             </ul>
             <div class="mt-auto">
                 <a class="nav-link text-muted" href="{{ url_for('logout') }}">

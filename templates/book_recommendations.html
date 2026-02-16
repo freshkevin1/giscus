@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Recommendations - Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-stars"></i> Book Recommendations</h2>
+    <button id="btn-generate" class="btn btn-primary">
+        <i class="bi bi-magic"></i> Generate Recommendations
+    </button>
+</div>
+
+{% if recommendations %}
+<p class="text-muted mb-3">
+    Generated: {{ recommendations[0].generated_at.strftime('%Y-%m-%d %H:%M') }} UTC
+</p>
+
+<div class="row row-cols-1 row-cols-md-2 g-3">
+    {% for rec in recommendations %}
+    <div class="col">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title mb-0">{{ rec.title }}</h5>
+                    {% if rec.category %}
+                    <span class="badge bg-info text-dark ms-2" style="white-space: nowrap;">{{ rec.category }}</span>
+                    {% endif %}
+                </div>
+                <h6 class="card-subtitle text-muted mb-2">{{ rec.author }}</h6>
+                <p class="card-text" style="font-size: 0.9rem;">{{ rec.reason }}</p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-lightbulb" style="font-size: 3rem;"></i>
+    <p class="mt-2">No recommendations yet. Click "Generate Recommendations" to get AI-powered suggestions.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('btn-generate').addEventListener('click', async function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
+
+    try {
+        const resp = await fetch('/api/books/recommendations/generate', {method: 'POST'});
+        const data = await resp.json();
+        if (resp.ok) {
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Done (' + data.count + ' books)';
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            btn.innerHTML = '<i class="bi bi-x-lg"></i> ' + (data.message || 'Failed');
+            btn.classList.replace('btn-primary', 'btn-danger');
+            setTimeout(() => {
+                btn.innerHTML = '<i class="bi bi-magic"></i> Generate Recommendations';
+                btn.classList.replace('btn-danger', 'btn-primary');
+                btn.disabled = false;
+            }, 3000);
+        }
+    } catch (err) {
+        btn.innerHTML = '<i class="bi bi-x-lg"></i> Error';
+        btn.classList.replace('btn-primary', 'btn-danger');
+    }
+});
+</script>
+{% endblock %}

@@ -22,3 +22,6 @@ class Config:
 
     # Target URL
     MK_URL = "https://www.mk.co.kr/today-paper"
+
+    # Anthropic API
+    ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")

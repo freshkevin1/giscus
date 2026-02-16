@@ -34,6 +34,37 @@ class Article(db.Model):
         return f"<Article {self.title[:30]}>"
 
 
+class MyBook(db.Model):
+    """Tracks books the user has read or wants to read, with ratings."""
+    id = db.Column(db.Integer, primary_key=True)
+    goodreads_id = db.Column(db.String(20), unique=True, nullable=True)
+    title = db.Column(db.String(500), nullable=False)
+    author = db.Column(db.String(300), nullable=False)
+    isbn = db.Column(db.String(20), default="")
+    isbn13 = db.Column(db.String(20), default="")
+    my_rating = db.Column(db.Integer, default=0)  # 0-5
+    average_rating = db.Column(db.Float, default=0.0)
+    publisher = db.Column(db.String(200), default="")
+    num_pages = db.Column(db.Integer, default=0)
+    year_published = db.Column(db.Integer, default=0)
+    date_read = db.Column(db.String(20), default="")
+    shelf = db.Column(db.String(20), default="read")
+    added_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f"<MyBook {self.title[:30]}>"
+
+
+class Recommendation(db.Model):
+    """Cached book recommendations from Claude API."""
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(500), nullable=False)
+    author = db.Column(db.String(300), nullable=False)
+    reason = db.Column(db.Text, default="")
+    category = db.Column(db.String(100), default="")
+    generated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class ReadArticle(db.Model):
     """Tracks URLs of articles marked as read, so they are not re-imported."""
     id = db.Column(db.Integer, primary_key=True)
