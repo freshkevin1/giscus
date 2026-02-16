@@ -215,6 +215,7 @@ def generate_recommendations(books, num_recommendations=10):
     response = client.chat.completions.create(
         model="gpt-5-mini",
         max_completion_tokens=2048,
+        response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -222,12 +223,16 @@ def generate_recommendations(books, num_recommendations=10):
     )
 
     # Parse response
-    response_text = response.choices[0].message.content.strip()
+    raw = response.choices[0].message.content
+    if not raw:
+        raise ValueError(f"OpenAI returned empty content. finish_reason={response.choices[0].finish_reason}")
+    response_text = raw.strip()
     # Remove markdown fences if present
     response_text = re.sub(r"^```(?:json)?\s*", "", response_text)
     response_text = re.sub(r"\s*```$", "", response_text)
 
-    recommendations = json.loads(response_text)
+    parsed = json.loads(response_text)
+    recommendations = parsed if isinstance(parsed, list) else parsed.get("recommendations", parsed.get("books", []))
 
     # Filter out any books already in library using fuzzy matching
     filtered = []
