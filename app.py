@@ -286,11 +286,13 @@ def api_book_search():
     params = {"q": q, "maxResults": 10, "printType": "books"}
     try:
         r = http_requests.get("https://www.googleapis.com/books/v1/volumes",
-                              params=params, timeout=5)
+                              params=params, timeout=10)
         r.raise_for_status()
-        items = r.json().get("items", [])
-    except Exception:
-        return jsonify({"results": []})
+        data = r.json()
+        items = data.get("items", [])
+    except Exception as e:
+        logger.error("Google Books API error: %s", e)
+        return jsonify({"results": [], "error": str(e)})
 
     results = []
     for item in items:
