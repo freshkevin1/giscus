@@ -105,7 +105,7 @@ def generate_recommendations(books, num_recommendations=10):
     Returns:
         list of dicts with keys: title, author, reason, category
     """
-    import anthropic
+    from openai import OpenAI
 
     # Build structured prompt
     profile = build_reader_profile(books)
@@ -134,16 +134,18 @@ def generate_recommendations(books, num_recommendations=10):
 
     all_titles = {b.title.lower() for b in books}
 
-    client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
-    message = client.messages.create(
-        model="claude-sonnet-4-5-20250929",
+    client = OpenAI()  # reads OPENAI_API_KEY from env
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
         max_tokens=2048,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
     )
 
     # Parse response
-    response_text = message.content[0].text.strip()
+    response_text = response.choices[0].message.content.strip()
     # Remove markdown fences if present
     response_text = re.sub(r"^```(?:json)?\s*", "", response_text)
     response_text = re.sub(r"\s*```$", "", response_text)
