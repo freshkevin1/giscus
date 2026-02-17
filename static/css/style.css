@@ -69,6 +69,9 @@
 /* Chat page layout (JS adds this class on chat pages) */
 .chat-page-layout {
     overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
 }
 .chat-page-layout .container-fluid {
     flex: 1;
@@ -76,6 +79,7 @@
     flex-direction: column;
     overflow: hidden;
     min-height: 0;
+    height: 0;
 }
 
 /* Login page */
