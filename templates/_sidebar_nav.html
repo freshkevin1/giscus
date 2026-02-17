@@ -124,6 +124,11 @@
     </li>
 </ul>
 <div class="mt-auto">
+    <hr style="border-color: rgba(255,255,255,0.1); margin: 8px 0;">
+    <a class="nav-link {% if request.endpoint == 'admin_security' %}active{% endif %}"
+       href="{{ url_for('admin_security') }}">
+        <i class="bi bi-shield-lock"></i> Admin
+    </a>
     <a class="nav-link text-muted" href="{{ url_for('logout') }}">
         <i class="bi bi-box-arrow-left"></i> 로그아웃
     </a>

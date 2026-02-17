@@ -351,6 +351,16 @@
     display: none;
 }
 
+/* Security dashboard badges */
+.security-badge-success {
+    background-color: #198754;
+    color: #fff;
+}
+.security-badge-fail {
+    background-color: #dc3545;
+    color: #fff;
+}
+
 /* ===== Touch feedback (touch devices) ===== */
 @media (hover: none) and (pointer: coarse) {
     .btn:active { transform: scale(0.96); transition: transform 0.1s; }

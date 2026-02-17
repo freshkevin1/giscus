@@ -17,7 +17,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 from config import Config
 import json
 
-from models import Article, ChatMessage, ContactChatMessage, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+from models import Article, ChatMessage, ContactChatMessage, LoginLog, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
 from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_irobotnews, scrape_mk_today, scrape_robotreport, scrape_yes24_bestseller
@@ -175,6 +175,14 @@ def service_worker():
     return send_from_directory("static", "sw.js", mimetype="application/javascript")
 
 
+def _get_client_ip():
+    """Get client IP, preferring X-Forwarded-For for reverse proxies."""
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -184,12 +192,19 @@ def login():
         username = request.form.get("username", "")
         password = request.form.get("password", "")
         user = User.query.filter_by(username=username).first()
+        ip = _get_client_ip()
+        ua = request.headers.get("User-Agent", "")[:500]
 
         if user and user.check_password(password):
+            db.session.add(LoginLog(username=username, ip_address=ip, user_agent=ua, success=True))
+            db.session.commit()
             login_user(user)
             next_page = request.args.get("next")
             return redirect(next_page or url_for("daily_news"))
 
+        failure_reason = "unknown_user" if not user else "invalid_password"
+        db.session.add(LoginLog(username=username, ip_address=ip, user_agent=ua, success=False, failure_reason=failure_reason))
+        db.session.commit()
         flash("아이디 또는 비밀번호가 올바르지 않습니다.", "danger")
 
     return render_template("login.html")
@@ -1023,6 +1038,83 @@ def api_contact_chat_clear():
     return jsonify({"success": True})
 
 
+@app.route("/admin/security")
+@login_required
+def admin_security():
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+
+    # Recent 50 login logs
+    recent_logs = LoginLog.query.order_by(LoginLog.created_at.desc()).limit(50).all()
+
+    # Today stats
+    today_success = LoginLog.query.filter(LoginLog.created_at >= today_start, LoginLog.success == True).count()
+    today_fail = LoginLog.query.filter(LoginLog.created_at >= today_start, LoginLog.success == False).count()
+
+    # This week stats
+    week_success = LoginLog.query.filter(LoginLog.created_at >= week_start, LoginLog.success == True).count()
+    week_fail = LoginLog.query.filter(LoginLog.created_at >= week_start, LoginLog.success == False).count()
+
+    # This month stats
+    month_success = LoginLog.query.filter(LoginLog.created_at >= month_start, LoginLog.success == True).count()
+    month_fail = LoginLog.query.filter(LoginLog.created_at >= month_start, LoginLog.success == False).count()
+
+    # Last 7 days chart data
+    chart_labels = []
+    chart_success = []
+    chart_fail = []
+    for i in range(6, -1, -1):
+        day = today_start - timedelta(days=i)
+        next_day = day + timedelta(days=1)
+        chart_labels.append(day.strftime("%m/%d"))
+        chart_success.append(LoginLog.query.filter(
+            LoginLog.created_at >= day, LoginLog.created_at < next_day, LoginLog.success == True
+        ).count())
+        chart_fail.append(LoginLog.query.filter(
+            LoginLog.created_at >= day, LoginLog.created_at < next_day, LoginLog.success == False
+        ).count())
+
+    # Unique IPs
+    unique_ips = db.session.query(db.func.count(db.distinct(LoginLog.ip_address))).scalar() or 0
+
+    # Total logs
+    total_logs = LoginLog.query.count()
+
+    # Recent failures (last 10)
+    recent_failures = LoginLog.query.filter_by(success=False).order_by(LoginLog.created_at.desc()).limit(10).all()
+
+    # Security checklist
+    secret_key_set = os.environ.get("SECRET_KEY", "") != ""
+    db_url_set = os.environ.get("DATABASE_URL", "") != ""
+    dashboard_user_set = os.environ.get("DASHBOARD_USER", "") != ""
+
+    return render_template("admin_security.html",
+        recent_logs=recent_logs,
+        today_success=today_success, today_fail=today_fail,
+        week_success=week_success, week_fail=week_fail,
+        month_success=month_success, month_fail=month_fail,
+        chart_labels=chart_labels, chart_success=chart_success, chart_fail=chart_fail,
+        unique_ips=unique_ips, total_logs=total_logs,
+        recent_failures=recent_failures,
+        secret_key_set=secret_key_set, db_url_set=db_url_set,
+        dashboard_user_set=dashboard_user_set,
+    )
+
+
+@app.route("/api/admin/clear-logs", methods=["POST"])
+@login_required
+def clear_old_logs():
+    """Delete login logs older than 90 days."""
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    count = LoginLog.query.filter(LoginLog.created_at < cutoff).delete()
+    db.session.commit()
+    return jsonify({"status": "ok", "cleared": count})
+
+
 @app.route("/api/admin/clear-read/<keyword>", methods=["POST"])
 @login_required
 def clear_read_history(keyword):
@@ -1051,6 +1143,11 @@ with app.app_context():
         if "hall_of_fame" not in mb_columns:
             conn.execute(sqlalchemy.text("ALTER TABLE my_book ADD COLUMN hall_of_fame BOOLEAN DEFAULT 0"))
             conn.commit()
+    # Migrate: create login_log table if missing
+    from sqlalchemy import inspect as sa_inspect
+    inspector = sa_inspect(db.engine)
+    if "login_log" not in inspector.get_table_names():
+        LoginLog.__table__.create(db.engine)
     init_default_user()
 
     # One-time: fill missing date_read from year_published

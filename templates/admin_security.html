@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block title %}Admin Security — Executive Dashboard{% endblock %}
+{% block mobile_title %}Admin Security{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0"><i class="bi bi-shield-lock"></i> Security Monitor</h2>
+</div>
+
+<!-- Stats Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Today Logins</div>
+                <div class="fs-3 fw-bold text-primary">{{ today_success }}</div>
+                {% if today_fail > 0 %}
+                <span class="badge bg-danger">{{ today_fail }} failed</span>
+                {% else %}
+                <span class="badge bg-success">0 failed</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Failed Attempts</div>
+                <div class="fs-3 fw-bold {% if week_fail > 5 %}text-danger{% else %}text-secondary{% endif %}">{{ week_fail }}</div>
+                <span class="text-muted small">this week</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Unique IPs</div>
+                <div class="fs-3 fw-bold text-info">{{ unique_ips }}</div>
+                <span class="text-muted small">all time</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Total Logs</div>
+                <div class="fs-3 fw-bold text-secondary">{{ total_logs }}</div>
+                <span class="text-muted small">all time</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Period Summary -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">Today</h6>
+                <span class="badge bg-success me-1">{{ today_success }} success</span>
+                <span class="badge bg-danger">{{ today_fail }} fail</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">This Week</h6>
+                <span class="badge bg-success me-1">{{ week_success }} success</span>
+                <span class="badge bg-danger">{{ week_fail }} fail</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">This Month</h6>
+                <span class="badge bg-success me-1">{{ month_success }} success</span>
+                <span class="badge bg-danger">{{ month_fail }} fail</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3">7-Day Login Activity</h5>
+        <canvas id="loginChart" height="80"></canvas>
+    </div>
+</div>
+
+<!-- Recent Failures -->
+{% if recent_failures %}
+<div class="card border-0 shadow-sm mb-4 border-start border-danger border-3">
+    <div class="card-body">
+        <h5 class="card-title text-danger mb-3"><i class="bi bi-exclamation-triangle"></i> Recent Failed Attempts</h5>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead><tr><th>Time (UTC)</th><th>Username</th><th>IP</th><th>Reason</th></tr></thead>
+                <tbody>
+                {% for log in recent_failures %}
+                <tr>
+                    <td class="text-nowrap small">{{ log.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td><code>{{ log.username }}</code></td>
+                    <td><code>{{ log.ip_address }}</code></td>
+                    <td><span class="badge bg-warning text-dark">{{ log.failure_reason or 'unknown' }}</span></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Login Log Table -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="card-title mb-0">Login History (Recent 50)</h5>
+            <button class="btn btn-outline-secondary btn-sm" id="btnClearLogs">
+                <i class="bi bi-trash"></i> Clear 90d+ Logs
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Time (UTC)</th>
+                        <th>User</th>
+                        <th>IP</th>
+                        <th>Result</th>
+                        <th class="d-none d-md-table-cell">User Agent</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for log in recent_logs %}
+                <tr>
+                    <td class="text-nowrap small">{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td><code>{{ log.username }}</code></td>
+                    <td><code>{{ log.ip_address }}</code></td>
+                    <td>
+                        {% if log.success %}
+                        <span class="badge security-badge-success">Success</span>
+                        {% else %}
+                        <span class="badge security-badge-fail">Failed</span>
+                        {% endif %}
+                    </td>
+                    <td class="d-none d-md-table-cell small text-muted" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ log.user_agent }}</td>
+                    <td>
+                        {% if log.failure_reason %}
+                        <span class="badge bg-warning text-dark">{{ log.failure_reason }}</span>
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not recent_logs %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No login records yet.</td></tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Security Checklist -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3"><i class="bi bi-check2-circle"></i> Security Checklist</h5>
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex align-items-center">
+                {% if secret_key_set %}
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                {% else %}
+                <i class="bi bi-x-circle-fill text-danger me-2"></i>
+                {% endif %}
+                <span>SECRET_KEY environment variable {% if secret_key_set %}is set{% else %}not set (using default — insecure!){% endif %}</span>
+            </li>
+            <li class="list-group-item d-flex align-items-center">
+                {% if db_url_set %}
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                {% else %}
+                <i class="bi bi-dash-circle-fill text-warning me-2"></i>
+                {% endif %}
+                <span>DATABASE_URL {% if db_url_set %}is set{% else %}not set (using local SQLite){% endif %}</span>
+            </li>
+            <li class="list-group-item d-flex align-items-center">
+                {% if dashboard_user_set %}
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                {% else %}
+                <i class="bi bi-x-circle-fill text-danger me-2"></i>
+                {% endif %}
+                <span>DASHBOARD_USER {% if dashboard_user_set %}is set{% else %}not set{% endif %}</span>
+            </li>
+            <li class="list-group-item d-flex align-items-center">
+                <i class="bi bi-dash-circle-fill text-warning me-2"></i>
+                <span>CSRF protection not enabled (Flask-WTF not installed)</span>
+            </li>
+            <li class="list-group-item d-flex align-items-center">
+                <i class="bi bi-dash-circle-fill text-warning me-2"></i>
+                <span>Rate limiting not configured on /login</span>
+            </li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+// 7-day chart
+const ctx = document.getElementById('loginChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: {{ chart_labels | tojson }},
+        datasets: [
+            {
+                label: 'Success',
+                data: {{ chart_success | tojson }},
+                backgroundColor: 'rgba(25, 135, 84, 0.7)',
+                borderRadius: 4,
+            },
+            {
+                label: 'Failed',
+                data: {{ chart_fail | tojson }},
+                backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                borderRadius: 4,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom' } },
+        scales: {
+            x: { stacked: true },
+            y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } }
+        }
+    }
+});
+
+// Clear old logs
+document.getElementById('btnClearLogs').addEventListener('click', async () => {
+    if (!confirm('90일 이상 된 로그를 삭제합니다. 계속하시겠습니까?')) return;
+    const res = await fetch('/api/admin/clear-logs', { method: 'POST' });
+    const data = await res.json();
+    alert(`${data.cleared}건의 로그가 삭제되었습니다.`);
+    location.reload();
+});
+</script>
+{% endblock %}

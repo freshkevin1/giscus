@@ -84,6 +84,17 @@ class ChatMessage(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class LoginLog(db.Model):
+    """Tracks login attempts with IP, user agent, and success/failure."""
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)  # IPv6 support
+    user_agent = db.Column(db.String(500), default="")
+    success = db.Column(db.Boolean, nullable=False)
+    failure_reason = db.Column(db.String(100), default="")  # "invalid_password", "unknown_user"
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class ReadArticle(db.Model):
     """Tracks URLs of articles marked as read, so they are not re-imported."""
     id = db.Column(db.Integer, primary_key=True)
