@@ -15,7 +15,9 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, url
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 
 from config import Config
-from models import Article, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+import json
+
+from models import Article, ChatMessage, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
 from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_irobotnews, scrape_mk_today, scrape_robotreport, scrape_yes24_bestseller
@@ -517,16 +519,58 @@ def api_books_chat():
     if not data or not data.get("message", "").strip():
         return jsonify({"status": "error", "message": "메시지를 입력해 주세요."}), 400
 
+    user_message = data["message"].strip()
     books = MyBook.query.all()
-    history = data.get("history", [])
+    saved_books = SavedBook.query.all()
+
+    # Load conversation history from DB (last 50 messages for context window management)
+    db_messages = (
+        ChatMessage.query
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    history = [{"role": m.role, "content": m.content} for m in db_messages[-50:]]
 
     try:
-        result = chat_recommendation(data["message"].strip(), history, books)
+        result = chat_recommendation(user_message, history, books, saved_books=saved_books)
     except Exception as e:
         logger.error("Chat recommendation failed: %s", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
+    # Persist user message
+    db.session.add(ChatMessage(role="user", content=user_message))
+    # Persist assistant message with recommendations JSON
+    recs_json = json.dumps(result.get("recommendations", []), ensure_ascii=False) if result.get("recommendations") else ""
+    db.session.add(ChatMessage(role="assistant", content=result["message"], recommendations_json=recs_json))
+    db.session.commit()
+
     return jsonify(result)
+
+
+@app.route("/api/books/chat/history", methods=["GET"])
+@login_required
+def api_chat_history():
+    """Return full chat history for page reload restoration."""
+    messages = ChatMessage.query.order_by(ChatMessage.created_at.asc()).all()
+    result = []
+    for m in messages:
+        entry = {"role": m.role, "content": m.content}
+        if m.recommendations_json:
+            try:
+                entry["recommendations"] = json.loads(m.recommendations_json)
+            except (json.JSONDecodeError, TypeError):
+                entry["recommendations"] = []
+        result.append(entry)
+    return jsonify({"messages": result})
+
+
+@app.route("/api/books/chat/clear", methods=["POST"])
+@login_required
+def api_chat_clear():
+    """Clear all chat history for a fresh conversation."""
+    count = ChatMessage.query.delete()
+    db.session.commit()
+    return jsonify({"status": "ok", "cleared": count})
 
 
 @app.route("/api/books/saved", methods=["POST"])

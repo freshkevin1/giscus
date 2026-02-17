@@ -96,6 +96,24 @@ def build_book_sections(books):
             else:
                 lines.append(f'- "{b.title}" by {b.author} (unrated{year_str})')
 
+    # Want-to-read section
+    want_to_read = [b for b in books if b.shelf == "want-to-read"]
+    if want_to_read:
+        lines.append("\n## Want to Read (읽고 싶은 책)")
+        for b in want_to_read:
+            lines.append(f'- "{b.title}" by {b.author}')
+
+    return "\n".join(lines)
+
+
+def build_saved_books_section(saved_books):
+    """Format saved/wishlisted books as a context section for the AI."""
+    if not saved_books:
+        return ""
+    lines = ["\n## Wishlist / Saved Books (찜한 책)"]
+    for b in saved_books:
+        cat = f" [{b.category}]" if b.category else ""
+        lines.append(f'- "{b.title}" by {b.author}{cat}')
     return "\n".join(lines)
 
 
@@ -251,39 +269,53 @@ def generate_recommendations(books, num_recommendations=10):
     return filtered[:num_recommendations]
 
 
-def chat_recommendation(user_message, conversation_history, books):
+def chat_recommendation(user_message, conversation_history, books, saved_books=None):
     """Interactive chat-based book recommendation using Claude API.
 
     Args:
         user_message: the user's current message
         conversation_history: list of {"role": "user"|"assistant", "content": "..."}
         books: list of MyBook model instances
+        saved_books: list of SavedBook model instances (optional)
 
     Returns:
         dict with keys: message (str), recommendations (list of dicts)
     """
     profile = build_reader_profile(books)
     sections = build_book_sections(books)
+    saved_section = build_saved_books_section(saved_books) if saved_books else ""
 
     system_prompt = (
-        "You are a friendly, knowledgeable book recommendation assistant. "
-        "You have access to the reader's complete book library and reading history.\n\n"
+        "You are a world-class book recommendation assistant — friendly, deeply knowledgeable, "
+        "and passionate about connecting readers with transformative books.\n\n"
+        "You have access to the reader's complete book library, reading history, and wishlist.\n\n"
         f"{profile}\n"
-        f"{sections}\n\n"
+        f"{sections}\n"
+        f"{saved_section}\n\n"
+        "## Recommendation Philosophy\n"
+        "- **Prioritize truly great books**: award winners (Pulitzer, Nobel, Booker, National Book Award), "
+        "timeless classics, and modern masterpieces that have stood the test of time.\n"
+        "- **Go beyond obvious bestsellers** — surface hidden gems, international literature, "
+        "and critically acclaimed works the reader may not have encountered.\n"
+        "- Recommend books with real depth, substance, and lasting impact.\n"
+        "- Balance between the reader's demonstrated taste and expanding their horizons.\n\n"
+        "## Context Rules\n"
+        "- Books in the reader's library (read/want-to-read): Do NOT recommend these.\n"
+        "- Wishlist/Saved books (찜한 책): Do NOT re-recommend these. Use them as taste signals.\n"
+        "- Base your recommendations on the reader's demonstrated preferences from their library.\n\n"
         "## Your Role\n"
         "- Answer questions about books, reading, and provide personalized recommendations.\n"
-        "- Base your recommendations on the reader's demonstrated taste from their library.\n"
-        "- Always respond in Korean (\ud55c\uad6d\uc5b4).\n"
-        "- Be conversational and helpful.\n\n"
+        "- Always respond in Korean (한국어).\n"
+        "- Be conversational, insightful, and helpful.\n\n"
         "## Response Format\n"
         "When you recommend specific books, include them at the END of your response "
         f"after the marker '{_REC_MARKER}' as a JSON array. Example:\n\n"
-        "\ub9d0\uc94d\ud558\uc2e0 \uc8fc\uc81c\uc5d0 \ub531 \ub9de\ub294 \ucc45\ub4e4\uc744 \ucd94\ucc9c\ub4dc\ub9bd\ub2c8\ub2e4!\n\n"
+        "말씀하신 주제에 딱 맞는 책들을 추천드립니다!\n\n"
         f"{_REC_MARKER}\n"
-        '[{"title": "Book Title", "author": "Author Name", "reason": "\ucd94\ucc9c \uc774\uc720", "category": "category"}]\n\n'
+        '[{"title": "Book Title", "author": "Author Name", "reason": "추천 이유", "category": "category"}]\n\n'
         "If your response is just conversational (no book recommendations), do NOT include the marker.\n"
-        "- Do NOT recommend books that are already in the reader's library.\n"
-        '- Use specific categories (e.g. "behavioral economics", "leadership") instead of broad ones.'
+        '- Use specific categories (e.g. "behavioral economics", "leadership", "Korean modern literature") '
+        'instead of broad ones (e.g. "business", "fiction").'
     )
 
     # Build messages list from history + current message

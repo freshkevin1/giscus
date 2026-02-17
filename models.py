@@ -75,6 +75,15 @@ class SavedBook(db.Model):
     saved_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class ChatMessage(db.Model):
+    """Persisted chat messages for the book recommendation conversation."""
+    id = db.Column(db.Integer, primary_key=True)
+    role = db.Column(db.String(20), nullable=False)  # "user" or "assistant"
+    content = db.Column(db.Text, nullable=False)
+    recommendations_json = db.Column(db.Text, default="")  # 추천 카드 재렌더링용
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class ReadArticle(db.Model):
     """Tracks URLs of articles marked as read, so they are not re-imported."""
     id = db.Column(db.Integer, primary_key=True)
