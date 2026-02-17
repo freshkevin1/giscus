@@ -324,11 +324,35 @@ def chat_recommendation(user_message, conversation_history, books, saved_books=N
         messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": user_message})
 
+    # Prompt Caching: mark last assistant message as cache breakpoint
+    # so the conversation prefix is cached across consecutive turns
+    last_assistant_idx = None
+    for i in range(len(messages) - 1, -1, -1):
+        if messages[i]["role"] == "assistant":
+            last_assistant_idx = i
+            break
+
+    if last_assistant_idx is not None:
+        prior_content = messages[last_assistant_idx]["content"]
+        messages[last_assistant_idx]["content"] = [
+            {
+                "type": "text",
+                "text": prior_content,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+
     client = anthropic.Anthropic()
     response = client.messages.create(
         model="claude-opus-4-6",
         max_tokens=4096,
-        system=system_prompt,
+        system=[
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
         messages=messages,
     )
 
