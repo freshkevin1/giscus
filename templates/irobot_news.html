@@ -1,15 +1,16 @@
 {% extends "base.html" %}
 {% block title %}로봇신문 - Dashboard{% endblock %}
+{% block mobile_title %}로봇신문{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-robot"></i> 로봇신문</h2>
-    <div>
-        <button id="btn-read-all" class="btn btn-outline-success me-2">
-            <i class="bi bi-check-all"></i> 모두 읽음
+    <div class="d-flex gap-2 flex-shrink-0">
+        <button id="btn-read-all" class="btn btn-outline-success btn-sm">
+            <i class="bi bi-check-all"></i><span class="d-none d-sm-inline"> 모두 읽음</span>
         </button>
-        <button id="btn-scrape" class="btn btn-primary">
-            <i class="bi bi-arrow-clockwise"></i> 스크래핑 실행
+        <button id="btn-scrape" class="btn btn-primary btn-sm">
+            <i class="bi bi-arrow-clockwise"></i><span class="d-none d-sm-inline"> 스크래핑</span>
         </button>
     </div>
 </div>
@@ -34,7 +35,7 @@
         </div>
         <button class="btn btn-sm btn-outline-success flex-shrink-0 btn-read"
                 data-id="{{ article.id }}">
-            <i class="bi bi-check-lg"></i> 읽음
+            <i class="bi bi-check-lg"></i><span class="d-none d-sm-inline"> 읽음</span>
         </button>
     </div>
     {% endfor %}

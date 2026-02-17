@@ -1,3 +1,9 @@
+/* === CSS Variables === */
+:root {
+    --sat: env(safe-area-inset-top);
+    --sab: env(safe-area-inset-bottom);
+}
+
 /* Sidebar */
 .sidebar {
     width: 250px;
@@ -237,6 +243,7 @@
     position: sticky;
     top: 0;
     z-index: 1030;
+    padding-top: var(--sat);
 }
 
 /* Offcanvas sidebar nav styling (reuse sidebar styles) */
@@ -273,6 +280,31 @@
     background-color: rgba(13, 110, 253, 0.6);
 }
 
+/* Bestseller images */
+.bestseller-img {
+    height: 220px;
+    object-fit: contain;
+}
+
+/* Book recommendations chat container */
+.book-chat-container {
+    height: calc(100vh - 3rem);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Contact cards (desktop: hidden) */
+.contact-cards {
+    display: none;
+}
+
+/* ===== Touch feedback (touch devices) ===== */
+@media (hover: none) and (pointer: coarse) {
+    .btn:active { transform: scale(0.96); transition: transform 0.1s; }
+    .list-group-item:active { background-color: #e9ecef; }
+    .card:active { transform: scale(0.98); transition: transform 0.1s; }
+}
+
 /* ===== Mobile (<768px) ===== */
 @media (max-width: 767.98px) {
     /* Main content padding */
@@ -280,10 +312,32 @@
         padding: 1rem !important;
     }
 
-    /* Chat height adjustment */
+    /* Touch target minimum sizes */
+    .btn-sm { min-height: 44px; min-width: 44px; }
+    .nav-pills .nav-link { min-height: 44px; display: inline-flex; align-items: center; }
+    .form-control, .form-select { min-height: 44px; font-size: 16px; }
+
+    /* Heading size reduction */
+    h2 { font-size: 1.25rem; }
+    h4 { font-size: 1.1rem; }
+
+    /* Chat height — dvh for mobile keyboard */
     .chat-card {
-        height: calc(100vh - 140px);
+        height: calc(100dvh - 130px);
     }
+    .chat-card .card-footer {
+        position: sticky; bottom: 0;
+        background: #fff; z-index: 10;
+        padding-bottom: calc(0.75rem + var(--sab));
+    }
+
+    /* Suggestion chips horizontal scroll */
+    #suggestionChips {
+        display: flex; overflow-x: auto; flex-wrap: nowrap;
+        gap: 8px; padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+    }
+    #suggestionChips .suggestion-chip { flex-shrink: 0; white-space: nowrap; }
 
     /* Chat bubble wider on mobile */
     .chat-bubble {
@@ -294,15 +348,76 @@
     #contactTable th { font-size: 0.75rem; }
     #contactTable td { font-size: 0.8rem; }
 
-    /* Modal margin */
-    .modal-dialog { margin: 0.5rem; }
-    .modal-lg { max-width: calc(100vw - 1rem); }
+    /* Modal → Bottom sheet */
+    .modal-dialog {
+        margin: 0;
+        max-width: 100%;
+        display: flex;
+        align-items: flex-end;
+        min-height: 100vh;
+    }
+    .modal-content {
+        border-radius: 16px 16px 0 0;
+        border: none;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding-bottom: var(--sab);
+    }
+    .modal-lg { max-width: 100%; }
+    .modal.fade .modal-dialog {
+        transform: translateY(100%);
+        transition: transform 0.3s ease-out;
+    }
+    .modal.show .modal-dialog {
+        transform: translateY(0);
+    }
+    /* Drag indicator */
+    .modal-header::before {
+        content: '';
+        display: block;
+        width: 36px; height: 4px;
+        background: #dee2e6; border-radius: 2px;
+        position: absolute; top: 8px; left: 50%;
+        transform: translateX(-50%);
+    }
+    .modal-header { position: relative; padding-top: 20px; }
+    /* Force full-width columns in modals */
+    .modal-body .col-md-6,
+    .modal-body .col-md-4,
+    .modal-body .col-md-8 { flex: 0 0 100%; max-width: 100%; }
+
+    /* News header buttons wrap */
+    .d-flex.justify-content-between.align-items-center.mb-4 {
+        flex-wrap: wrap; gap: 8px;
+    }
 
     /* News card grid single column */
     .menu-card { margin-bottom: 0.75rem; }
 
-    /* Bestseller card */
-    .bestseller-card img {
-        max-height: 120px;
+    /* Bestseller images smaller on mobile */
+    .bestseller-img { height: 150px; }
+    .card-body .card-title { font-size: 0.8rem; }
+    .bestseller-card img { max-height: 120px; }
+
+    /* Book recommendations chat */
+    .book-chat-container { height: calc(100dvh - 2rem); }
+
+    /* Book Library table optimization */
+    #book-table th:nth-child(2), #book-table td:nth-child(2) { display: none; }
+    #book-table .star-icon { font-size: 1.4rem !important; padding: 2px; }
+    #book-table .text-nowrap .btn { min-width: 40px; min-height: 40px; padding: 6px; }
+
+    /* Contact cards (mobile: show cards, hide table) */
+    #contactTable { display: none; }
+    .contact-cards { display: block !important; }
+    .contact-card {
+        background: #fff; border-radius: 10px;
+        padding: 12px 14px; margin-bottom: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
+    .contact-card.overdue-card { border-left: 3px solid #dc3545; }
+    .contact-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .contact-card-name { font-weight: 600; font-size: 0.95rem; }
+    .contact-card-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 0.8rem; color: #6c757d; }
+    .contact-card-actions { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f0f0f0; }
 }

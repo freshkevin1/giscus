@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}국내 Bestsellers - Dashboard{% endblock %}
+{% block mobile_title %}국내 Bestsellers{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -20,12 +21,10 @@
                 <span class="badge bg-dark position-absolute top-0 start-0 m-2"
                       style="font-size: 0.9rem; z-index: 1;">#{{ article.section }}</span>
                 {% if article.image_url %}
-                <img src="{{ article.image_url }}" class="card-img-top p-2"
-                     alt="{{ article.title }}"
-                     style="height: 220px; object-fit: contain;">
+                <img src="{{ article.image_url }}" class="card-img-top p-2 bestseller-img"
+                     alt="{{ article.title }}">
                 {% else %}
-                <div class="d-flex align-items-center justify-content-center bg-light"
-                     style="height: 220px;">
+                <div class="d-flex align-items-center justify-content-center bg-light bestseller-img">
                     <i class="bi bi-book" style="font-size: 3rem; color: #ccc;"></i>
                 </div>
                 {% endif %}

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Contact List - Dashboard{% endblock %}
+{% block mobile_title %}Contact List{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -54,6 +55,9 @@
         </div>
     </div>
 </div>
+
+<!-- Mobile card view -->
+<div id="contactCards" class="contact-cards"></div>
 
 <!-- Add Contact Modal -->
 <div class="modal fade" id="addContactModal" tabindex="-1">
@@ -356,12 +360,40 @@ function renderContacts() {
             <td><i class="bi bi-chevron-right text-muted"></i></td>
         </tr>`;
     }).join('');
+
+    // Render mobile cards
+    const cardsContainer = document.getElementById('contactCards');
+    if (cardsContainer) {
+        cardsContainer.innerHTML = filtered.map(c => {
+            const overdueCard = isOverdue(c) ? 'overdue-card' : '';
+            return `<div class="contact-card ${overdueCard}" onclick="openEdit('${c.name_hmac}')">
+                <div class="contact-card-header">
+                    <span class="contact-card-name">${c.name}</span>
+                    <span class="badge ${getScoreBadgeClass(c.score)} score-badge">${c.score}</span>
+                </div>
+                <div class="contact-card-meta">
+                    ${c.employer ? `<span><i class="bi bi-building"></i> ${c.employer}</span>` : ''}
+                    ${c.contact_priority ? `<span><i class="bi bi-flag"></i> ${c.contact_priority}</span>` : ''}
+                    ${c.follow_up_date ? `<span class="${isOverdue(c)?'text-danger fw-bold':''}"><i class="bi bi-calendar"></i> ${c.follow_up_date}</span>` : ''}
+                    ${c.tag ? `<span class="badge bg-light text-dark">${c.tag}</span>` : ''}
+                </div>
+                <div class="contact-card-actions">
+                    ${c.phone ? `<a href="tel:${c.phone}" onclick="event.stopPropagation()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-telephone"></i></a>` : ''}
+                    ${c.email ? `<a href="mailto:${c.email}" onclick="event.stopPropagation()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-envelope"></i></a>` : ''}
+                    <span class="ms-auto"><i class="bi bi-chevron-right text-muted"></i></span>
+                </div>
+            </div>`;
+        }).join('');
+    }
 }
 
 function renderDeletedContacts() {
     const tbody = document.getElementById('contactBody');
     if (deletedContacts.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">휴지통이 비어 있습니다.</td></tr>';
+        // Clear mobile cards too
+        const cardsContainer = document.getElementById('contactCards');
+        if (cardsContainer) cardsContainer.innerHTML = '<div class="text-center text-muted py-4">휴지통이 비어 있습니다.</div>';
         return;
     }
 
@@ -383,6 +415,31 @@ function renderDeletedContacts() {
             </td>
         </tr>`;
     }).join('');
+
+    // Render mobile cards for deleted contacts
+    const cardsContainer = document.getElementById('contactCards');
+    if (cardsContainer) {
+        cardsContainer.innerHTML = deletedContacts.map(c => {
+            return `<div class="contact-card">
+                <div class="contact-card-header">
+                    <span class="contact-card-name">${c.name}</span>
+                    <span class="badge ${c.deleted_by === 'AI' ? 'bg-info' : 'bg-secondary'}">${c.deleted_by || '-'}</span>
+                </div>
+                <div class="contact-card-meta">
+                    ${c.employer ? `<span><i class="bi bi-building"></i> ${c.employer}</span>` : ''}
+                    ${c.deleted_date ? `<span><i class="bi bi-calendar-x"></i> ${c.deleted_date}</span>` : ''}
+                </div>
+                <div class="contact-card-actions">
+                    <button class="btn btn-sm btn-outline-success" onclick="restoreContact('${c.name_hmac}')">
+                        <i class="bi bi-arrow-counterclockwise"></i> 복원
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="permanentDelete('${c.name_hmac}')">
+                        <i class="bi bi-x-lg"></i> 영구삭제
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+    }
 }
 
 // Filter tabs
