@@ -230,3 +230,79 @@
     border-radius: 20px;
     font-size: 0.8rem;
 }
+
+/* Mobile top bar */
+.mobile-topbar {
+    background-color: #1a1d23;
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+}
+
+/* Offcanvas sidebar nav styling (reuse sidebar styles) */
+.offcanvas .nav-link {
+    color: #8b929a;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    padding: 0.6rem 0.8rem;
+    transition: all 0.2s;
+}
+
+.offcanvas .nav-link:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.offcanvas .nav-link.active {
+    color: #fff;
+    background-color: #0d6efd;
+}
+
+.offcanvas .nav-link i {
+    margin-right: 0.5rem;
+    width: 1.2em;
+    text-align: center;
+}
+
+.offcanvas .sub-link {
+    font-size: 0.875rem;
+    padding: 0.35rem 0.8rem;
+}
+
+.offcanvas .sub-link.active {
+    background-color: rgba(13, 110, 253, 0.6);
+}
+
+/* ===== Mobile (<768px) ===== */
+@media (max-width: 767.98px) {
+    /* Main content padding */
+    .main-content .container-fluid {
+        padding: 1rem !important;
+    }
+
+    /* Chat height adjustment */
+    .chat-card {
+        height: calc(100vh - 140px);
+    }
+
+    /* Chat bubble wider on mobile */
+    .chat-bubble {
+        max-width: 88%;
+    }
+
+    /* Contact table font size */
+    #contactTable th { font-size: 0.75rem; }
+    #contactTable td { font-size: 0.8rem; }
+
+    /* Modal margin */
+    .modal-dialog { margin: 0.5rem; }
+    .modal-lg { max-width: calc(100vw - 1rem); }
+
+    /* News card grid single column */
+    .menu-card { margin-bottom: 0.75rem; }
+
+    /* Bestseller card */
+    .bestseller-card img {
+        max-height: 120px;
+    }
+}

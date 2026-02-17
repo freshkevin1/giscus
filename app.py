@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parent / ".env"
 if _env_path.exists():
     load_dotenv(_env_path)
-from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 
 from config import Config
@@ -169,6 +169,11 @@ scheduler.add_job(
 
 
 # --- Auth Routes ---
+
+@app.route("/sw.js")
+def service_worker():
+    return send_from_directory("static", "sw.js", mimetype="application/javascript")
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():

@@ -1,0 +1,129 @@
+<ul class="nav flex-column flex-grow-1">
+    <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ('contact_list', 'contact_chat') %}active{% endif %}"
+           href="{{ url_for('contact_list') }}">
+            <i class="bi bi-people"></i> Contact List
+        </a>
+        {% if request.endpoint in ('contact_list', 'contact_chat') %}
+        <ul class="nav flex-column ms-3">
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'contact_list' %}active{% endif %}"
+                   href="{{ url_for('contact_list') }}">
+                    연락처 목록
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'contact_chat' %}active{% endif %}"
+                   href="{{ url_for('contact_chat') }}">
+                    AI Chat
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news') %}active{% endif %}"
+           href="{{ url_for('daily_news') }}">
+            <i class="bi bi-newspaper"></i> Daily News
+        </a>
+        {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news') %}
+        <ul class="nav flex-column ms-3">
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'mk_news' %}active{% endif %}"
+                   href="{{ url_for('mk_news') }}">
+                    매일경제
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'irobot_news' %}active{% endif %}"
+                   href="{{ url_for('irobot_news') }}">
+                    로봇신문
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'robotreport_news' %}active{% endif %}"
+                   href="{{ url_for('robotreport_news') }}">
+                    Robot Report
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ('ai_news', 'ai_companies_news') %}active{% endif %}"
+           href="{{ url_for('ai_news') }}">
+            <i class="bi bi-cpu"></i> AI News
+        </a>
+        {% if request.endpoint in ('ai_news', 'ai_companies_news') %}
+        <ul class="nav flex-column ms-3">
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'ai_companies_news' %}active{% endif %}"
+                   href="{{ url_for('ai_companies_news') }}">
+                    AI Companies
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ('bestsellers', 'bestsellers_global', 'bestsellers_kr') %}active{% endif %}"
+           href="{{ url_for('bestsellers') }}">
+            <i class="bi bi-book"></i> Bestsellers
+        </a>
+        {% if request.endpoint in ('bestsellers', 'bestsellers_global', 'bestsellers_kr') %}
+        <ul class="nav flex-column ms-3">
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'bestsellers_kr' %}active{% endif %}"
+                   href="{{ url_for('bestsellers_kr') }}">
+                    국내 Bestsellers
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'bestsellers_global' %}active{% endif %}"
+                   href="{{ url_for('bestsellers_global') }}">
+                    해외 Bestsellers
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ('my_books', 'book_library', 'book_hall_of_fame', 'book_recommendations', 'book_saved') %}active{% endif %}"
+           href="{{ url_for('my_books') }}">
+            <i class="bi bi-journal-bookmark"></i> My Books
+        </a>
+        {% if request.endpoint in ('my_books', 'book_library', 'book_hall_of_fame', 'book_recommendations', 'book_saved') %}
+        <ul class="nav flex-column ms-3">
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'book_library' %}active{% endif %}"
+                   href="{{ url_for('book_library') }}">
+                    Library
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'book_hall_of_fame' %}active{% endif %}"
+                   href="{{ url_for('book_hall_of_fame') }}">
+                    Hall of Fame
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'book_recommendations' %}active{% endif %}"
+                   href="{{ url_for('book_recommendations') }}">
+                    Recommendations
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'book_saved' %}active{% endif %}"
+                   href="{{ url_for('book_saved') }}">
+                    Saved Books
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+    </li>
+</ul>
+<div class="mt-auto">
+    <a class="nav-link text-muted" href="{{ url_for('logout') }}">
+        <i class="bi bi-box-arrow-left"></i> 로그아웃
+    </a>
+</div>

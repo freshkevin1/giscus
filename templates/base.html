@@ -3,147 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1d23">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
     <title>{% block title %}Executive Dashboard{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 </head>
 <body>
+    <!-- Mobile top bar -->
+    <nav class="navbar d-md-none mobile-topbar">
+        <div class="container-fluid">
+            <button class="btn btn-link text-white p-0" type="button"
+                    data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
+                <i class="bi bi-list" style="font-size:1.5rem"></i>
+            </button>
+            <span class="navbar-brand text-white mb-0">Dashboard</span>
+            <div style="width:40px"></div>
+        </div>
+    </nav>
+
+    <!-- Offcanvas sidebar (mobile) -->
+    <div class="offcanvas offcanvas-start d-md-none" id="sidebarOffcanvas"
+         style="width:250px; background-color:#1a1d23">
+        <div class="offcanvas-header">
+            <a href="{{ url_for('index') }}" class="sidebar-brand">
+                <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body p-0 d-flex flex-column">
+            {% include "_sidebar_nav.html" %}
+        </div>
+    </div>
+
     <div class="d-flex">
-        <!-- Sidebar -->
-        <nav id="sidebar" class="sidebar d-flex flex-column p-3">
+        <!-- Desktop sidebar -->
+        <nav id="sidebar" class="sidebar d-none d-md-flex flex-column p-3">
             <a href="{{ url_for('index') }}" class="sidebar-brand mb-4">
                 <i class="bi bi-speedometer2"></i> Dashboard
             </a>
-            <ul class="nav flex-column flex-grow-1">
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint in ('contact_list', 'contact_chat') %}active{% endif %}"
-                       href="{{ url_for('contact_list') }}">
-                        <i class="bi bi-people"></i> Contact List
-                    </a>
-                    {% if request.endpoint in ('contact_list', 'contact_chat') %}
-                    <ul class="nav flex-column ms-3">
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'contact_list' %}active{% endif %}"
-                               href="{{ url_for('contact_list') }}">
-                                연락처 목록
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'contact_chat' %}active{% endif %}"
-                               href="{{ url_for('contact_chat') }}">
-                                AI Chat
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news') %}active{% endif %}"
-                       href="{{ url_for('daily_news') }}">
-                        <i class="bi bi-newspaper"></i> Daily News
-                    </a>
-                    {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news') %}
-                    <ul class="nav flex-column ms-3">
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'mk_news' %}active{% endif %}"
-                               href="{{ url_for('mk_news') }}">
-                                매일경제
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'irobot_news' %}active{% endif %}"
-                               href="{{ url_for('irobot_news') }}">
-                                로봇신문
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'robotreport_news' %}active{% endif %}"
-                               href="{{ url_for('robotreport_news') }}">
-                                Robot Report
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint in ('ai_news', 'ai_companies_news') %}active{% endif %}"
-                       href="{{ url_for('ai_news') }}">
-                        <i class="bi bi-cpu"></i> AI News
-                    </a>
-                    {% if request.endpoint in ('ai_news', 'ai_companies_news') %}
-                    <ul class="nav flex-column ms-3">
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'ai_companies_news' %}active{% endif %}"
-                               href="{{ url_for('ai_companies_news') }}">
-                                AI Companies
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint in ('bestsellers', 'bestsellers_global', 'bestsellers_kr') %}active{% endif %}"
-                       href="{{ url_for('bestsellers') }}">
-                        <i class="bi bi-book"></i> Bestsellers
-                    </a>
-                    {% if request.endpoint in ('bestsellers', 'bestsellers_global', 'bestsellers_kr') %}
-                    <ul class="nav flex-column ms-3">
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'bestsellers_kr' %}active{% endif %}"
-                               href="{{ url_for('bestsellers_kr') }}">
-                                국내 Bestsellers
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'bestsellers_global' %}active{% endif %}"
-                               href="{{ url_for('bestsellers_global') }}">
-                                해외 Bestsellers
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint in ('my_books', 'book_library', 'book_hall_of_fame', 'book_recommendations', 'book_saved') %}active{% endif %}"
-                       href="{{ url_for('my_books') }}">
-                        <i class="bi bi-journal-bookmark"></i> My Books
-                    </a>
-                    {% if request.endpoint in ('my_books', 'book_library', 'book_hall_of_fame', 'book_recommendations', 'book_saved') %}
-                    <ul class="nav flex-column ms-3">
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'book_library' %}active{% endif %}"
-                               href="{{ url_for('book_library') }}">
-                                Library
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'book_hall_of_fame' %}active{% endif %}"
-                               href="{{ url_for('book_hall_of_fame') }}">
-                                Hall of Fame
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'book_recommendations' %}active{% endif %}"
-                               href="{{ url_for('book_recommendations') }}">
-                                Recommendations
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link sub-link {% if request.endpoint == 'book_saved' %}active{% endif %}"
-                               href="{{ url_for('book_saved') }}">
-                                Saved Books
-                            </a>
-                        </li>
-                    </ul>
-                    {% endif %}
-                </li>
-            </ul>
-            <div class="mt-auto">
-                <a class="nav-link text-muted" href="{{ url_for('logout') }}">
-                    <i class="bi bi-box-arrow-left"></i> 로그아웃
-                </a>
-            </div>
+            {% include "_sidebar_nav.html" %}
         </nav>
 
         <!-- Main Content -->
@@ -167,5 +70,10 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     {% block scripts %}{% endblock %}
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+    }
+    </script>
 </body>
 </html>
