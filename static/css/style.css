@@ -63,6 +63,19 @@
 .main-content {
     min-height: 100vh;
     background-color: #f5f6fa;
+    overflow-y: auto;
+}
+
+/* Chat page layout (JS adds this class on chat pages) */
+.chat-page-layout {
+    overflow: hidden !important;
+}
+.chat-page-layout .container-fluid {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
 }
 
 /* Login page */
@@ -116,10 +129,16 @@
 }
 
 #article-list .list-group-item {
-    border-left: none;
+    border-left: 3px solid transparent;
     border-right: none;
     padding: 0.75rem 1rem;
+    transition: background-color 0.15s, border-left-color 0.15s;
 }
+#article-list .list-group-item:hover {
+    background-color: #eef3ff;
+    border-left-color: #0d6efd;
+}
+#article-list { max-width: 900px; }
 
 #article-list .list-group-item:first-child {
     border-top: none;
@@ -152,7 +171,8 @@
 
 /* Chat (Contact AI Chat) */
 .chat-card {
-    height: calc(100vh - 200px);
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
 }
@@ -284,11 +304,40 @@
 .bestseller-img {
     height: 220px;
     object-fit: contain;
+    width: 100%;
+}
+
+/* Bestseller card hover */
+#book-grid .card {
+    transition: transform 0.18s, box-shadow 0.18s;
+}
+#book-grid .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
+/* Contact table row hover */
+#contactTable tbody tr {
+    transition: background-color 0.12s;
+}
+#contactTable tbody tr:hover {
+    background-color: #eef3ff;
+}
+
+/* Book Library sort header hover */
+#book-table th.sortable:hover { background-color: #e7f0ff; }
+#book-table th .sort-icon { transition: color 0.15s; }
+
+/* Global focus-visible */
+:focus-visible {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
 }
 
 /* Book recommendations chat container */
 .book-chat-container {
-    height: calc(100vh - 3rem);
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
 }
@@ -321,10 +370,7 @@
     h2 { font-size: 1.25rem; }
     h4 { font-size: 1.1rem; }
 
-    /* Chat height — dvh for mobile keyboard */
-    .chat-card {
-        height: calc(100dvh - 130px);
-    }
+    /* Chat card footer sticky on mobile */
     .chat-card .card-footer {
         position: sticky; bottom: 0;
         background: #fff; z-index: 10;
@@ -399,8 +445,7 @@
     .card-body .card-title { font-size: 0.8rem; }
     .bestseller-card img { max-height: 120px; }
 
-    /* Book recommendations chat */
-    .book-chat-container { height: calc(100dvh - 2rem); }
+    /* Book recommendations chat — flex inherited from desktop */
 
     /* Book Library table optimization */
     #book-table th:nth-child(2), #book-table td:nth-child(2) { display: none; }

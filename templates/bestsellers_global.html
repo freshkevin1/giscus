@@ -22,7 +22,7 @@
                       style="font-size: 0.9rem; z-index: 1;">#{{ article.section }}</span>
                 {% if article.image_url %}
                 <img src="{{ article.image_url }}" class="card-img-top p-2 bestseller-img"
-                     alt="{{ article.title }}">
+                     alt="{{ article.title }}" loading="lazy">
                 {% else %}
                 <div class="d-flex align-items-center justify-content-center bg-light bestseller-img">
                     <i class="bi bi-book" style="font-size: 3rem; color: #ccc;"></i>

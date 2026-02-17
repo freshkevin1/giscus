@@ -3,6 +3,7 @@
 {% block mobile_title %}AI Chat{% endblock %}
 
 {% block content %}
+<div class="d-flex flex-column h-100">
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0"><i class="bi bi-chat-dots"></i> AI Chat</h4>
     <button class="btn btn-outline-secondary btn-sm" id="clearChatBtn">
@@ -55,9 +56,12 @@
         </div>
     </div>
 </div>
+
+</div>
 {% endblock %}
 
 {% block scripts %}
+<script>document.querySelector('.main-content').classList.add('chat-page-layout');</script>
 <script>
 let pendingAction = null;
 
