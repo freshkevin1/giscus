@@ -144,6 +144,10 @@ function appendActionResult(actions, type) {
                 div.innerHTML = `<div class="alert alert-success py-2 small mb-0">
                     <i class="bi bi-plus-circle"></i> <strong>${a.name}</strong> 연락처 추가 완료
                 </div>`;
+            } else if (a.type === 'delete') {
+                div.innerHTML = `<div class="alert alert-warning py-2 small mb-0">
+                    <i class="bi bi-trash"></i> <strong>${a.name}</strong> 휴지통으로 이동 완료
+                </div>`;
             } else if (a.type === 'search') {
                 const results = (a.results || []).map(r => {
                     const display = r.employer ? `${r.name}(${r.employer})` : r.name;

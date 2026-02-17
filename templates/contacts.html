@@ -20,6 +20,11 @@
     <li class="nav-item">
         <a class="nav-link" href="#" data-filter="high">High Priority</a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link" href="#" data-filter="deleted">
+            <i class="bi bi-trash"></i> 휴지통 <span class="badge bg-secondary" id="deletedCount" style="display:none">0</span>
+        </a>
+    </li>
 </ul>
 
 <!-- Contact table -->
@@ -246,7 +251,18 @@
 {% block scripts %}
 <script>
 let allContacts = [];
+let deletedContacts = [];
 let currentFilter = 'all';
+
+const NORMAL_HEADERS = `<tr>
+    <th>Score</th><th>이름</th><th>소속/직급</th><th>Contact Priority</th>
+    <th>FU Priority</th><th>FU Date</th><th>Last Contact</th><th>태그</th>
+    <th>전화</th><th>이메일</th><th></th>
+</tr>`;
+const DELETED_HEADERS_HTML = `<tr>
+    <th>이름</th><th>소속</th><th>Contact Priority</th>
+    <th>삭제일</th><th>삭제자</th><th>액션</th>
+</tr>`;
 
 const FU_LABELS = {
     'FU0': 'FU0 (Critical)',
@@ -298,6 +314,17 @@ function copyEmail(email, el) {
 }
 
 function renderContacts() {
+    const thead = document.querySelector('#contactTable thead');
+    const tbody = document.getElementById('contactBody');
+
+    if (currentFilter === 'deleted') {
+        thead.innerHTML = DELETED_HEADERS_HTML;
+        renderDeletedContacts();
+        return;
+    }
+
+    thead.innerHTML = NORMAL_HEADERS;
+
     let filtered = allContacts;
     if (currentFilter === 'overdue') {
         filtered = allContacts.filter(c => isOverdue(c));
@@ -307,7 +334,6 @@ function renderContacts() {
         );
     }
 
-    const tbody = document.getElementById('contactBody');
     if (filtered.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">연락처가 없습니다.</td></tr>';
         return;
@@ -328,6 +354,33 @@ function renderContacts() {
             <td>${c.phone ? `<a href="tel:${c.phone}" onclick="event.stopPropagation()" class="text-decoration-none">${c.phone}</a>` : '-'}</td>
             <td>${c.email ? `<span class="email-copy" onclick="event.stopPropagation(); copyEmail('${c.email}', this)" style="cursor:pointer" title="클릭하여 복사"><i class="bi bi-clipboard"></i> ${c.email}</span>` : '-'}</td>
             <td><i class="bi bi-chevron-right text-muted"></i></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderDeletedContacts() {
+    const tbody = document.getElementById('contactBody');
+    if (deletedContacts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">휴지통이 비어 있습니다.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = deletedContacts.map(c => {
+        const displayName = c.employer ? `${c.name}(${c.employer})` : c.name;
+        return `<tr>
+            <td class="fw-semibold">${displayName}</td>
+            <td class="text-muted small">${c.employer || '-'}</td>
+            <td><small>${c.contact_priority || '-'}</small></td>
+            <td class="small">${c.deleted_date || '-'}</td>
+            <td><span class="badge ${c.deleted_by === 'AI' ? 'bg-info' : 'bg-secondary'}">${c.deleted_by || '-'}</span></td>
+            <td>
+                <button class="btn btn-outline-success btn-sm me-1" onclick="restoreContact('${c.name_hmac}')">
+                    <i class="bi bi-arrow-counterclockwise"></i> 복원
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="permanentDelete('${c.name_hmac}')">
+                    <i class="bi bi-x-lg"></i> 영구삭제
+                </button>
+            </td>
         </tr>`;
     }).join('');
 }
@@ -470,7 +523,7 @@ document.getElementById('updateContactBtn').addEventListener('click', async () =
 
 // Delete contact
 document.getElementById('deleteContactBtn').addEventListener('click', async () => {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    if (!confirm('휴지통으로 이동하시겠습니까?')) return;
     const nameHmac = document.getElementById('editNameHmac').value;
     try {
         const res = await fetch(`/api/contacts/${nameHmac}`, { method: 'DELETE' });
@@ -481,13 +534,60 @@ document.getElementById('deleteContactBtn').addEventListener('click', async () =
         }
         bootstrap.Modal.getInstance(document.getElementById('editContactModal')).hide();
         loadContacts();
+        loadDeletedContacts();
     } catch (e) {
         alert('오류: ' + e.message);
     }
 });
 
+// Load deleted contacts
+async function loadDeletedContacts() {
+    try {
+        const res = await fetch('/api/contacts/deleted');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        deletedContacts = data.contacts || [];
+        const badge = document.getElementById('deletedCount');
+        if (deletedContacts.length > 0) {
+            badge.textContent = deletedContacts.length;
+            badge.style.display = 'inline';
+        } else {
+            badge.style.display = 'none';
+        }
+        if (currentFilter === 'deleted') renderContacts();
+    } catch (e) {
+        console.error('Failed to load deleted contacts:', e);
+    }
+}
+
+async function restoreContact(nameHmac) {
+    if (!confirm('이 연락처를 복원하시겠습니까?')) return;
+    try {
+        const res = await fetch(`/api/contacts/${nameHmac}/restore`, { method: 'POST' });
+        const result = await res.json();
+        if (result.error) { alert(result.error); return; }
+        loadContacts();
+        loadDeletedContacts();
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+}
+
+async function permanentDelete(nameHmac) {
+    if (!confirm('영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
+    try {
+        const res = await fetch(`/api/contacts/${nameHmac}/permanent`, { method: 'DELETE' });
+        const result = await res.json();
+        if (result.error) { alert(result.error); return; }
+        loadDeletedContacts();
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+}
+
 // Init
 loadContacts();
 loadTags();
+loadDeletedContacts();
 </script>
 {% endblock %}

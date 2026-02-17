@@ -58,7 +58,7 @@ def _build_system_prompt():
 ## 사용 가능한 태그
 {tags_str}
 
-## 3가지 모드
+## 4가지 모드
 
 1. **Quick Log** — "만남", "통화", "미팅", "식사" 등 만남 관련 키워드 감지 시:
    - Last Contact 업데이트
@@ -72,6 +72,10 @@ def _build_system_prompt():
 3. **Auto-Update** — 이직, 새 관심사, 직급 변경 등 감지 시:
    - 해당 필드 업데이트 제안
 
+4. **Delete** — "삭제", "지워줘", "제거" 등 삭제 키워드 감지 시:
+   - 연락처를 휴지통으로 이동 (복원 가능)
+   - 반드시 confidence="low"로 설정 (사용자 확인 필수)
+
 ## 핵심 규칙
 
 1. **매칭 확신도**: 연락처 매칭이 불확실하면 반드시 확인 질문. confidence="low"로 설정하여 자동 실행 방지.
@@ -79,6 +83,7 @@ def _build_system_prompt():
 3. **Interaction Context 포맷**: `[날짜] 만남유형 @장소 | 핵심내용 | → 다음 액션`
 4. **태그**: 기존 태그 목록에서만 선택. 새 태그 필요 시 사용자에게 승인 요청.
 5. **Key Value & Interest**: 대화에서 관심사/레버리지 정보 감지 시 자동 업데이트.
+6. **삭제 안전장치**: delete_contact은 반드시 confidence="low". fields 불필요, name만 포함.
 
 ## 응답 형식
 
@@ -88,7 +93,7 @@ def _build_system_prompt():
 
 {_ACTION_MARKER}
 {{
-  "action": "update_contact" | "add_contact" | "search",
+  "action": "update_contact" | "add_contact" | "search" | "delete_contact",
   "name": "대상 이름",
   "confidence": "high" | "low",
   "fields": {{

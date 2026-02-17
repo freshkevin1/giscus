@@ -37,6 +37,8 @@ CHANGE_LOG_HEADERS = [
 
 TAGS_HEADERS = ["Tag Name"]
 
+DELETED_HEADERS = MASTER_HEADERS + ["Deleted Date", "Deleted By"]
+
 DEFAULT_TAGS = ["Tuck", "McKinsey", "Toss", "Doosan"]
 
 # In-memory cache
@@ -45,6 +47,8 @@ _cache = {
     "contacts_time": 0,
     "tags": None,
     "tags_time": 0,
+    "deleted": None,
+    "deleted_time": 0,
 }
 CACHE_TTL = 300  # 5 minutes
 
@@ -76,6 +80,8 @@ def _invalidate_cache(key=None):
         _cache["contacts_time"] = 0
         _cache["tags"] = None
         _cache["tags_time"] = 0
+        _cache["deleted"] = None
+        _cache["deleted_time"] = 0
 
 
 def _is_cached(key):
@@ -94,6 +100,7 @@ def ensure_sheet_headers():
         "Interaction Log": INTERACTION_LOG_HEADERS,
         "Change Log": CHANGE_LOG_HEADERS,
         "Tags": TAGS_HEADERS,
+        "Deleted": DELETED_HEADERS,
     }
 
     for tab_name, headers in tabs.items():
@@ -364,15 +371,115 @@ def update_contact(name_hmac, fields, changed_by="User"):
     return True
 
 
-def delete_contact(name_hmac):
-    """Delete a contact from Master tab."""
+def delete_contact(name_hmac, deleted_by="User"):
+    """Soft-delete: move a contact from Master to Deleted tab."""
     sp = _get_spreadsheet()
-    ws = sp.worksheet("Master")
-    row_idx = _find_row_index(ws, name_hmac)
+    ws_master = sp.worksheet("Master")
+    row_idx = _find_row_index(ws_master, name_hmac)
     if not row_idx:
         return False
-    ws.delete_rows(row_idx)
+
+    # Read the row from Master
+    row_data = ws_master.row_values(row_idx)
+    # Pad to MASTER_HEADERS length
+    while len(row_data) < len(MASTER_HEADERS):
+        row_data.append("")
+
+    # Append Deleted Date and Deleted By
+    deleted_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    row_data.append(deleted_date)
+    row_data.append(deleted_by)
+
+    # Append to Deleted tab
+    ws_deleted = sp.worksheet("Deleted")
+    ws_deleted.append_row(row_data, value_input_option="USER_ENTERED")
+
+    # Delete from Master
+    ws_master.delete_rows(row_idx)
+
     _invalidate_cache("contacts")
+    _invalidate_cache("deleted")
+    logger.info("Soft-deleted contact %s by %s", name_hmac, deleted_by)
+    return True
+
+
+def get_deleted_contacts():
+    """Get all contacts from Deleted tab. Uses cache."""
+    if _is_cached("deleted"):
+        return _cache["deleted"]
+
+    sp = _get_spreadsheet()
+    ws = sp.worksheet("Deleted")
+    all_rows = ws.get_all_values()
+
+    if len(all_rows) <= 1:
+        _cache["deleted"] = []
+        _cache["deleted_time"] = time.time()
+        return []
+
+    headers = all_rows[0]
+    contacts = []
+    for row in all_rows[1:]:
+        try:
+            contact = _row_to_contact(row, headers)
+            # Add deleted-specific fields
+            deleted_date_idx = len(MASTER_HEADERS)
+            deleted_by_idx = len(MASTER_HEADERS) + 1
+            contact["deleted_date"] = row[deleted_date_idx] if deleted_date_idx < len(row) else ""
+            contact["deleted_by"] = row[deleted_by_idx] if deleted_by_idx < len(row) else ""
+            contacts.append(contact)
+        except Exception as e:
+            logger.warning("Failed to parse deleted row: %s", e)
+            continue
+
+    _cache["deleted"] = contacts
+    _cache["deleted_time"] = time.time()
+    return contacts
+
+
+def restore_contact(name_hmac):
+    """Restore a contact from Deleted tab back to Master."""
+    sp = _get_spreadsheet()
+    ws_deleted = sp.worksheet("Deleted")
+    row_idx = _find_row_index(ws_deleted, name_hmac)
+    if not row_idx:
+        return False
+
+    # Read the row from Deleted
+    row_data = ws_deleted.row_values(row_idx)
+
+    # Take only the first len(MASTER_HEADERS) columns (strip Deleted Date/By)
+    master_row = row_data[:len(MASTER_HEADERS)]
+    while len(master_row) < len(MASTER_HEADERS):
+        master_row.append("")
+
+    # Update Last Modified to today
+    lm_idx = MASTER_HEADERS.index("Last Modified")
+    master_row[lm_idx] = datetime.now().strftime("%Y-%m-%d")
+
+    # Append to Master
+    ws_master = sp.worksheet("Master")
+    ws_master.append_row(master_row, value_input_option="USER_ENTERED")
+
+    # Delete from Deleted tab
+    ws_deleted.delete_rows(row_idx)
+
+    _invalidate_cache("contacts")
+    _invalidate_cache("deleted")
+    logger.info("Restored contact %s", name_hmac)
+    return True
+
+
+def permanent_delete(name_hmac):
+    """Permanently delete a contact from the Deleted tab."""
+    sp = _get_spreadsheet()
+    ws_deleted = sp.worksheet("Deleted")
+    row_idx = _find_row_index(ws_deleted, name_hmac)
+    if not row_idx:
+        return False
+    ws_deleted.delete_rows(row_idx)
+    _invalidate_cache("deleted")
+    logger.info("Permanently deleted contact %s", name_hmac)
     return True
 
 

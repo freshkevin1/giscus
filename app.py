@@ -675,13 +675,56 @@ def api_update_contact(name_hmac):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/contacts/deleted", methods=["GET"])
+@login_required
+def api_get_deleted_contacts():
+    """Get all soft-deleted contacts."""
+    try:
+        from sheets import get_deleted_contacts
+        contacts = get_deleted_contacts()
+        return jsonify({"contacts": contacts})
+    except Exception as e:
+        logger.error("Failed to get deleted contacts: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/contacts/<name_hmac>/restore", methods=["POST"])
+@login_required
+def api_restore_contact(name_hmac):
+    """Restore a contact from Deleted tab back to Master."""
+    try:
+        from sheets import restore_contact
+        success = restore_contact(name_hmac)
+        if not success:
+            return jsonify({"error": "Contact not found in trash"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to restore contact: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/contacts/<name_hmac>/permanent", methods=["DELETE"])
+@login_required
+def api_permanent_delete(name_hmac):
+    """Permanently delete a contact from Deleted tab."""
+    try:
+        from sheets import permanent_delete
+        success = permanent_delete(name_hmac)
+        if not success:
+            return jsonify({"error": "Contact not found in trash"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to permanently delete contact: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/contacts/<name_hmac>", methods=["DELETE"])
 @login_required
 def api_delete_contact(name_hmac):
-    """Delete a contact."""
+    """Soft-delete a contact (move to trash)."""
     try:
         from sheets import delete_contact
-        success = delete_contact(name_hmac)
+        success = delete_contact(name_hmac, deleted_by="User")
         if not success:
             return jsonify({"error": "Contact not found"}), 404
         return jsonify({"success": True})
@@ -924,6 +967,20 @@ def api_contact_chat_confirm():
             new_contact = {"name": name, **fields}
             name_hmac = add_contact(new_contact)
             return jsonify({"success": True, "type": "add", "name_hmac": name_hmac})
+
+        elif action_type == "delete_contact":
+            from sheets import find_contact_by_name, delete_contact
+            name_hmac = selected_hmac
+            if not name_hmac:
+                matches = find_contact_by_name(name)
+                if len(matches) == 1:
+                    name_hmac = matches[0]["name_hmac"]
+                else:
+                    return jsonify({"error": "연락처를 특정할 수 없습니다."}), 400
+            success = delete_contact(name_hmac, deleted_by="AI")
+            if not success:
+                return jsonify({"error": "연락처를 찾을 수 없습니다."}), 404
+            return jsonify({"success": True, "type": "delete"})
 
         return jsonify({"error": "Unknown action type"}), 400
 
