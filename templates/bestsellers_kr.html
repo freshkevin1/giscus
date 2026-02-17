@@ -35,10 +35,16 @@
                     {{ article.title }}
                 </h6>
                 <small class="text-muted mb-2">{{ article.scraped_at.strftime('%Y-%m-%d') }}</small>
-                <a href="{{ article.url }}" target="_blank"
-                   class="btn btn-sm btn-outline-primary mt-auto">
-                    <i class="bi bi-cart"></i> YES24
-                </a>
+                <div class="mt-auto d-flex gap-1">
+                    <a href="{{ article.url }}" target="_blank"
+                       class="btn btn-sm btn-outline-primary flex-fill">
+                        <i class="bi bi-cart"></i> YES24
+                    </a>
+                    <button class="btn btn-sm btn-outline-danger btn-save-book"
+                            data-title="{{ article.title }}">
+                        <i class="bi bi-heart"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -54,6 +60,34 @@
 
 {% block scripts %}
 <script>
+document.querySelectorAll('.btn-save-book').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const title = this.dataset.title;
+        this.disabled = true;
+        try {
+            const resp = await fetch('/api/books/saved', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title: title, author: '', category: '국내 베스트셀러'})
+            });
+            if (resp.ok) {
+                this.innerHTML = '<i class="bi bi-heart-fill"></i>';
+                this.classList.replace('btn-outline-danger', 'btn-danger');
+            } else {
+                const data = await resp.json();
+                if (data.error && data.error.includes('이미')) {
+                    this.innerHTML = '<i class="bi bi-heart-fill"></i>';
+                    this.classList.replace('btn-outline-danger', 'btn-danger');
+                } else {
+                    this.disabled = false;
+                }
+            }
+        } catch (e) {
+            this.disabled = false;
+        }
+    });
+});
+
 document.getElementById('btn-scrape').addEventListener('click', async function() {
     const btn = this;
     btn.disabled = true;
