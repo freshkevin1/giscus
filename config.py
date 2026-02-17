@@ -25,3 +25,11 @@ class Config:
 
     # Anthropic API
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
+    # Google Sheets (Contact List)
+    GOOGLE_SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    GOOGLE_SHEET_NAME = os.environ.get("GOOGLE_SHEET_NAME", "Contact List")
+
+    # Encryption keys (Contact List PII)
+    FERNET_KEY = os.environ.get("FERNET_KEY", "")
+    HMAC_KEY = os.environ.get("HMAC_KEY", "")

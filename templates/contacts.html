@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+{% block title %}Contact List - Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-people"></i> Contact List</h4>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addContactModal">
+        <i class="bi bi-plus-lg"></i> 연락처 추가
+    </button>
+</div>
+
+<!-- Filter tabs -->
+<ul class="nav nav-pills mb-3" id="filterTabs">
+    <li class="nav-item">
+        <a class="nav-link active" href="#" data-filter="all">전체</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="#" data-filter="overdue">Overdue</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="#" data-filter="high">High Priority</a>
+    </li>
+</ul>
+
+<!-- Contact table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="contactTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Score</th>
+                        <th>이름</th>
+                        <th>소속/직급</th>
+                        <th>Contact Priority</th>
+                        <th>FU Priority</th>
+                        <th>FU Date</th>
+                        <th>Last Contact</th>
+                        <th>태그</th>
+                        <th>전화</th>
+                        <th>이메일</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="contactBody">
+                    <tr><td colspan="11" class="text-center text-muted py-4">로딩 중...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Contact Modal -->
+<div class="modal fade" id="addContactModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">연락처 추가</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addContactForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">이름 *</label>
+                            <input type="text" class="form-control" name="name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Priority</label>
+                            <select class="form-select" name="contact_priority">
+                                <option value="">선택</option>
+                                <option>1A-인생관계</option>
+                                <option>1M-Mentor, 은인</option>
+                                <option>1F-Family</option>
+                                <option>2A-비즈니스 우선순위</option>
+                                <option>2C-비즈니스</option>
+                                <option>3A-인적 우선순위</option>
+                                <option>3C-인적 네트워킹</option>
+                                <option>4A-Passive</option>
+                                <option>5A-Inactive</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">소속</label>
+                            <input type="text" class="form-control" name="employer">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">직급</label>
+                            <input type="text" class="form-control" name="title">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Follow-up Priority</label>
+                            <select class="form-select" name="follow_up_priority">
+                                <option value="FU9">FU9 (None)</option>
+                                <option value="FU5">FU5 (Low)</option>
+                                <option value="FU3">FU3 (Medium)</option>
+                                <option value="FU1">FU1 (High)</option>
+                                <option value="FU0">FU0 (Critical)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Follow-up Date</label>
+                            <input type="date" class="form-control" name="follow_up_date">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Last Contact</label>
+                            <input type="date" class="form-control" name="last_contact">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Follow-up Note</label>
+                            <input type="text" class="form-control" name="follow_up_note">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-control" name="phone">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">태그</label>
+                            <select class="form-select" name="tag" id="addTagSelect">
+                                <option value="">선택</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Referred by</label>
+                            <input type="text" class="form-control" name="referred_by">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Key Value & Interest</label>
+                            <input type="text" class="form-control" name="key_value_interest">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="saveContactBtn">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Contact Modal -->
+<div class="modal fade" id="editContactModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">연락처 편집</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editContactForm">
+                    <input type="hidden" name="name_hmac" id="editNameHmac">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">이름</label>
+                            <input type="text" class="form-control" name="name" id="editName" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Priority</label>
+                            <select class="form-select" name="contact_priority" id="editCP">
+                                <option value="">선택</option>
+                                <option>1A-인생관계</option>
+                                <option>1M-Mentor, 은인</option>
+                                <option>1F-Family</option>
+                                <option>2A-비즈니스 우선순위</option>
+                                <option>2C-비즈니스</option>
+                                <option>3A-인적 우선순위</option>
+                                <option>3C-인적 네트워킹</option>
+                                <option>4A-Passive</option>
+                                <option>5A-Inactive</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">소속</label>
+                            <input type="text" class="form-control" name="employer" id="editEmployer">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">직급</label>
+                            <input type="text" class="form-control" name="title" id="editTitle">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Follow-up Priority</label>
+                            <select class="form-select" name="follow_up_priority" id="editFU">
+                                <option value="FU9">FU9 (None)</option>
+                                <option value="FU5">FU5 (Low)</option>
+                                <option value="FU3">FU3 (Medium)</option>
+                                <option value="FU1">FU1 (High)</option>
+                                <option value="FU0">FU0 (Critical)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Follow-up Date</label>
+                            <input type="date" class="form-control" name="follow_up_date" id="editFUDate">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Last Contact</label>
+                            <input type="date" class="form-control" name="last_contact" id="editLastContact">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Follow-up Note</label>
+                            <input type="text" class="form-control" name="follow_up_note" id="editFUNote">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email" id="editEmail">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-control" name="phone" id="editPhone">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">태그</label>
+                            <select class="form-select" name="tag" id="editTag">
+                                <option value="">선택</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Referred by</label>
+                            <input type="text" class="form-control" name="referred_by" id="editReferredBy">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Key Value & Interest</label>
+                            <input type="text" class="form-control" name="key_value_interest" id="editKVI">
+                        </div>
+                    </div>
+                </form>
+                <!-- Interaction Logs -->
+                <hr>
+                <h6>Interaction Log</h6>
+                <div id="interactionLogs" class="small text-muted">로딩 중...</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger btn-sm" id="deleteContactBtn">삭제</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="updateContactBtn">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allContacts = [];
+let currentFilter = 'all';
+
+const FU_LABELS = {
+    'FU0': 'FU0 (Critical)',
+    'FU1': 'FU1 (High)',
+    'FU3': 'FU3 (Medium)',
+    'FU5': 'FU5 (Low)',
+    'FU9': 'FU9 (None)',
+};
+
+function formatFU(val) {
+    if (!val) return '-';
+    return FU_LABELS[val] || val;
+}
+
+// Load contacts
+async function loadContacts() {
+    try {
+        const res = await fetch('/api/contacts');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        allContacts = data.contacts;
+        renderContacts();
+    } catch (e) {
+        document.getElementById('contactBody').innerHTML =
+            `<tr><td colspan="11" class="text-center text-danger">${e.message}</td></tr>`;
+    }
+}
+
+function getScoreBadgeClass(score) {
+    if (score >= 60) return 'bg-danger';
+    if (score >= 40) return 'bg-warning text-dark';
+    if (score >= 20) return 'bg-info text-dark';
+    return 'bg-secondary';
+}
+
+function isOverdue(contact) {
+    if (!contact.follow_up_date) return false;
+    return new Date(contact.follow_up_date) < new Date();
+}
+
+function copyEmail(email, el) {
+    navigator.clipboard.writeText(email).then(() => {
+        const orig = el.innerHTML;
+        el.innerHTML = '<i class="bi bi-check-lg text-success"></i> 복사됨!';
+        setTimeout(() => { el.innerHTML = orig; }, 1500);
+    }).catch(() => {
+        alert('복사 실패: ' + email);
+    });
+}
+
+function renderContacts() {
+    let filtered = allContacts;
+    if (currentFilter === 'overdue') {
+        filtered = allContacts.filter(c => isOverdue(c));
+    } else if (currentFilter === 'high') {
+        filtered = allContacts.filter(c =>
+            c.contact_priority && (c.contact_priority.startsWith('1') || c.contact_priority.startsWith('2A'))
+        );
+    }
+
+    const tbody = document.getElementById('contactBody');
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">연락처가 없습니다.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(c => {
+        const displayName = c.employer ? `${c.name}(${c.employer})` : c.name;
+        const overdueClass = isOverdue(c) ? 'table-warning overdue-row' : '';
+        return `<tr class="${overdueClass}" style="cursor:pointer" onclick="openEdit('${c.name_hmac}')">
+            <td><span class="badge ${getScoreBadgeClass(c.score)} score-badge">${c.score}</span></td>
+            <td class="fw-semibold">${displayName}</td>
+            <td class="text-muted small">${c.employer || ''} ${c.title || ''}</td>
+            <td><small>${c.contact_priority || '-'}</small></td>
+            <td><small>${formatFU(c.follow_up_priority)}</small></td>
+            <td class="${isOverdue(c) ? 'text-danger fw-bold' : ''}">${c.follow_up_date || '-'}</td>
+            <td>${c.last_contact || '-'}</td>
+            <td>${c.tag ? `<span class="badge bg-light text-dark">${c.tag}</span>` : ''}</td>
+            <td>${c.phone ? `<a href="tel:${c.phone}" onclick="event.stopPropagation()" class="text-decoration-none">${c.phone}</a>` : '-'}</td>
+            <td>${c.email ? `<span class="email-copy" onclick="event.stopPropagation(); copyEmail('${c.email}', this)" style="cursor:pointer" title="클릭하여 복사"><i class="bi bi-clipboard"></i> ${c.email}</span>` : '-'}</td>
+            <td><i class="bi bi-chevron-right text-muted"></i></td>
+        </tr>`;
+    }).join('');
+}
+
+// Filter tabs
+document.getElementById('filterTabs').addEventListener('click', e => {
+    if (e.target.dataset.filter) {
+        e.preventDefault();
+        document.querySelectorAll('#filterTabs .nav-link').forEach(n => n.classList.remove('active'));
+        e.target.classList.add('active');
+        currentFilter = e.target.dataset.filter;
+        renderContacts();
+    }
+});
+
+// Load tags for dropdowns
+async function loadTags() {
+    try {
+        const res = await fetch('/api/tags');
+        const data = await res.json();
+        const tags = data.tags || [];
+        ['addTagSelect', 'editTag'].forEach(id => {
+            const sel = document.getElementById(id);
+            const current = sel.value;
+            sel.innerHTML = '<option value="">선택</option>' +
+                tags.map(t => `<option value="${t}">${t}</option>`).join('');
+            sel.value = current;
+        });
+    } catch (e) {
+        console.error('Failed to load tags:', e);
+    }
+}
+
+// Add contact
+document.getElementById('saveContactBtn').addEventListener('click', async () => {
+    const form = document.getElementById('addContactForm');
+    const data = {};
+    new FormData(form).forEach((v, k) => { if (v) data[k] = v; });
+
+    if (!data.name) {
+        alert('이름은 필수입니다.');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/contacts', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data),
+        });
+        const result = await res.json();
+        if (result.error) {
+            alert(result.errors ? result.errors.join('\n') : result.error);
+            return;
+        }
+        bootstrap.Modal.getInstance(document.getElementById('addContactModal')).hide();
+        form.reset();
+        loadContacts();
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+});
+
+// Open edit modal
+async function openEdit(nameHmac) {
+    const contact = allContacts.find(c => c.name_hmac === nameHmac);
+    if (!contact) return;
+
+    document.getElementById('editNameHmac').value = nameHmac;
+    document.getElementById('editName').value = contact.name;
+    document.getElementById('editCP').value = contact.contact_priority || '';
+    document.getElementById('editEmployer').value = contact.employer || '';
+    document.getElementById('editTitle').value = contact.title || '';
+    document.getElementById('editFU').value = contact.follow_up_priority || 'FU9';
+    document.getElementById('editFUDate').value = contact.follow_up_date || '';
+    document.getElementById('editLastContact').value = contact.last_contact || '';
+    document.getElementById('editFUNote').value = contact.follow_up_note || '';
+    document.getElementById('editEmail').value = contact.email || '';
+    document.getElementById('editPhone').value = contact.phone || '';
+    document.getElementById('editTag').value = contact.tag || '';
+    document.getElementById('editReferredBy').value = contact.referred_by || '';
+    document.getElementById('editKVI').value = contact.key_value_interest || '';
+
+    // Load interaction logs
+    const logsDiv = document.getElementById('interactionLogs');
+    logsDiv.innerHTML = '로딩 중...';
+    try {
+        const res = await fetch(`/api/contacts/${nameHmac}/logs`);
+        const data = await res.json();
+        const logs = data.logs || [];
+        if (logs.length === 0) {
+            logsDiv.innerHTML = '<p class="text-muted">기록 없음</p>';
+        } else {
+            logsDiv.innerHTML = logs.map(l =>
+                `<div class="border-bottom py-2">
+                    <strong>${l.date}</strong> — ${l.context}
+                    ${l.key_value_extracted ? `<br><small class="text-primary">Key: ${l.key_value_extracted}</small>` : ''}
+                </div>`
+            ).join('');
+        }
+    } catch (e) {
+        logsDiv.innerHTML = '<p class="text-danger">로그 로딩 실패</p>';
+    }
+
+    new bootstrap.Modal(document.getElementById('editContactModal')).show();
+}
+
+// Update contact
+document.getElementById('updateContactBtn').addEventListener('click', async () => {
+    const nameHmac = document.getElementById('editNameHmac').value;
+    const data = {};
+    const fields = ['contact_priority', 'employer', 'title', 'follow_up_priority',
+                     'follow_up_date', 'follow_up_note', 'last_contact', 'email',
+                     'phone', 'tag', 'referred_by', 'key_value_interest'];
+
+    const form = document.getElementById('editContactForm');
+    const formData = new FormData(form);
+    fields.forEach(f => {
+        const val = formData.get(f);
+        if (val !== null) data[f] = val;
+    });
+
+    try {
+        const res = await fetch(`/api/contacts/${nameHmac}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data),
+        });
+        const result = await res.json();
+        if (result.error) {
+            alert(result.errors ? result.errors.join('\n') : result.error);
+            return;
+        }
+        bootstrap.Modal.getInstance(document.getElementById('editContactModal')).hide();
+        loadContacts();
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+});
+
+// Delete contact
+document.getElementById('deleteContactBtn').addEventListener('click', async () => {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    const nameHmac = document.getElementById('editNameHmac').value;
+    try {
+        const res = await fetch(`/api/contacts/${nameHmac}`, { method: 'DELETE' });
+        const result = await res.json();
+        if (result.error) {
+            alert(result.error);
+            return;
+        }
+        bootstrap.Modal.getInstance(document.getElementById('editContactModal')).hide();
+        loadContacts();
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+});
+
+// Init
+loadContacts();
+loadTags();
+</script>
+{% endblock %}

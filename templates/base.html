@@ -17,10 +17,26 @@
             </a>
             <ul class="nav flex-column flex-grow-1">
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'contact_list' %}active{% endif %}"
+                    <a class="nav-link {% if request.endpoint in ('contact_list', 'contact_chat') %}active{% endif %}"
                        href="{{ url_for('contact_list') }}">
                         <i class="bi bi-people"></i> Contact List
                     </a>
+                    {% if request.endpoint in ('contact_list', 'contact_chat') %}
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link sub-link {% if request.endpoint == 'contact_list' %}active{% endif %}"
+                               href="{{ url_for('contact_list') }}">
+                                연락처 목록
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link sub-link {% if request.endpoint == 'contact_chat' %}active{% endif %}"
+                               href="{{ url_for('contact_chat') }}">
+                                AI Chat
+                            </a>
+                        </li>
+                    </ul>
+                    {% endif %}
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news') %}active{% endif %}"

@@ -17,7 +17,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 from config import Config
 import json
 
-from models import Article, ChatMessage, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+from models import Article, ChatMessage, ContactChatMessage, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
 from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_irobotnews, scrape_mk_today, scrape_robotreport, scrape_yes24_bestseller
@@ -208,7 +208,13 @@ def index():
 @app.route("/contacts")
 @login_required
 def contact_list():
-    return render_template("contact_list.html")
+    return render_template("contacts.html")
+
+
+@app.route("/contacts/chat")
+@login_required
+def contact_chat():
+    return render_template("contact_chat.html")
 
 
 @app.route("/news")
@@ -602,6 +608,359 @@ def api_delete_saved_book(book_id):
     return jsonify({"status": "ok"})
 
 
+# --- Contact API ---
+
+@app.route("/api/contacts", methods=["GET"])
+@login_required
+def api_get_contacts():
+    """Get all contacts with scores."""
+    try:
+        from sheets import get_all_contacts
+        from scoring import sort_contacts_by_score
+        contacts = get_all_contacts()
+        scored = sort_contacts_by_score(contacts)
+        return jsonify({"contacts": scored})
+    except Exception as e:
+        logger.error("Failed to get contacts: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/contacts", methods=["POST"])
+@login_required
+def api_add_contact():
+    """Add a new contact."""
+    try:
+        from sheets import add_contact, get_valid_tags
+        from validation import validate_contact
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        valid_tags = get_valid_tags()
+        is_valid, errors = validate_contact(data, valid_tags)
+        if not is_valid:
+            return jsonify({"error": "Validation failed", "errors": errors}), 400
+
+        name_hmac = add_contact(data)
+        return jsonify({"success": True, "name_hmac": name_hmac})
+    except Exception as e:
+        logger.error("Failed to add contact: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/contacts/<name_hmac>", methods=["PUT"])
+@login_required
+def api_update_contact(name_hmac):
+    """Update a contact's fields."""
+    try:
+        from sheets import update_contact, get_valid_tags
+        from validation import validate_update_fields
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        valid_tags = get_valid_tags()
+        is_valid, errors = validate_update_fields(data, valid_tags)
+        if not is_valid:
+            return jsonify({"error": "Validation failed", "errors": errors}), 400
+
+        success = update_contact(name_hmac, data)
+        if not success:
+            return jsonify({"error": "Contact not found"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to update contact: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/contacts/<name_hmac>", methods=["DELETE"])
+@login_required
+def api_delete_contact(name_hmac):
+    """Delete a contact."""
+    try:
+        from sheets import delete_contact
+        success = delete_contact(name_hmac)
+        if not success:
+            return jsonify({"error": "Contact not found"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to delete contact: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# --- Interaction Log API ---
+
+@app.route("/api/contacts/<name_hmac>/logs", methods=["GET"])
+@login_required
+def api_get_contact_logs(name_hmac):
+    """Get interaction logs for a contact."""
+    try:
+        from sheets import get_interaction_logs
+        logs = get_interaction_logs(name_hmac)
+        return jsonify({"logs": logs})
+    except Exception as e:
+        logger.error("Failed to get logs: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# --- Tag API ---
+
+@app.route("/api/tags", methods=["GET"])
+@login_required
+def api_get_tags():
+    try:
+        from sheets import get_valid_tags
+        tags = get_valid_tags()
+        return jsonify({"tags": tags})
+    except Exception as e:
+        logger.error("Failed to get tags: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tags", methods=["POST"])
+@login_required
+def api_add_tag():
+    try:
+        from sheets import add_tag
+        data = request.get_json()
+        tag_name = data.get("tag_name", "").strip()
+        if not tag_name:
+            return jsonify({"error": "Tag name required"}), 400
+        add_tag(tag_name)
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to add tag: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# --- Contact Chat API ---
+
+@app.route("/api/chat", methods=["POST"])
+@login_required
+def api_contact_chat():
+    """Process a chat message with the contact AI agent."""
+    try:
+        from ai_agent import chat_contact
+        from sheets import (
+            add_contact, add_interaction_log, find_contact_by_name,
+            update_contact, get_valid_tags,
+        )
+        from validation import validate_update_fields
+
+        data = request.get_json()
+        user_message = data.get("message", "").strip()
+        if not user_message:
+            return jsonify({"error": "Message required"}), 400
+
+        # Get conversation history from DB
+        history_msgs = ContactChatMessage.query.order_by(
+            ContactChatMessage.created_at.asc()
+        ).all()
+        conversation_history = [
+            {"role": m.role, "content": m.content} for m in history_msgs
+        ]
+
+        # Call AI agent
+        result = chat_contact(user_message, conversation_history)
+
+        # Process actions
+        executed_actions = []
+        pending_actions = []
+
+        for action in result.get("actions", []):
+            action_type = action.get("action", "")
+            confidence = action.get("confidence", "low")
+            name = action.get("name", "")
+
+            if action_type == "search":
+                matches = find_contact_by_name(name) if name else []
+                executed_actions.append({
+                    "type": "search",
+                    "name": name,
+                    "results": matches,
+                })
+                continue
+
+            if confidence != "high":
+                pending_actions.append(action)
+                continue
+
+            if action_type == "update_contact":
+                matches = find_contact_by_name(name)
+                if len(matches) == 1:
+                    contact = matches[0]
+                    fields = action.get("fields", {})
+
+                    valid_tags = get_valid_tags()
+                    is_valid, errors = validate_update_fields(fields, valid_tags)
+                    if not is_valid:
+                        pending_actions.append({**action, "validation_errors": errors})
+                        continue
+
+                    update_contact(contact["name_hmac"], fields, changed_by="AI")
+
+                    interaction_log = action.get("interaction_log", "")
+                    if interaction_log:
+                        display = f"{contact['name']}({contact['employer']})" if contact.get("employer") else contact["name"]
+                        key_extract = action.get("key_value_extract", "")
+                        updated_fields_str = ", ".join(fields.keys())
+                        add_interaction_log(
+                            contact["name_hmac"], display, interaction_log,
+                            key_extract, updated_fields_str,
+                        )
+
+                    key_extract = action.get("key_value_extract", "")
+                    if key_extract and "key_value_interest" not in fields:
+                        existing = contact.get("key_value_interest", "")
+                        merged = f"{existing}, {key_extract}" if existing else key_extract
+                        update_contact(contact["name_hmac"],
+                                       {"key_value_interest": merged}, changed_by="AI")
+
+                    executed_actions.append({
+                        "type": "update",
+                        "name": contact["name"],
+                        "fields": fields,
+                    })
+                elif len(matches) > 1:
+                    pending_actions.append({
+                        **action,
+                        "confidence": "low",
+                        "reason": "동명이인 발견",
+                        "candidates": [
+                            {"name": m["name"], "employer": m.get("employer", ""), "name_hmac": m["name_hmac"]}
+                            for m in matches
+                        ],
+                    })
+                else:
+                    pending_actions.append({
+                        **action,
+                        "confidence": "low",
+                        "reason": "연락처를 찾을 수 없음",
+                    })
+
+            elif action_type == "add_contact":
+                fields = action.get("fields", {})
+                new_contact = {"name": name, **fields}
+                name_hmac = add_contact(new_contact)
+                executed_actions.append({
+                    "type": "add",
+                    "name": name,
+                    "name_hmac": name_hmac,
+                })
+
+        # Save messages to DB
+        user_msg = ContactChatMessage(role="user", content=user_message)
+        assistant_msg = ContactChatMessage(
+            role="assistant",
+            content=result["message"],
+            actions_json=json.dumps(result.get("actions", []), ensure_ascii=False),
+        )
+        db.session.add(user_msg)
+        db.session.add(assistant_msg)
+        db.session.commit()
+
+        return jsonify({
+            "message": result["message"],
+            "executed_actions": executed_actions,
+            "pending_actions": pending_actions,
+        })
+
+    except Exception as e:
+        logger.error("Contact chat error: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/chat/confirm", methods=["POST"])
+@login_required
+def api_contact_chat_confirm():
+    """Confirm and execute a pending contact chat action."""
+    try:
+        from sheets import (
+            add_contact, add_interaction_log, update_contact, get_valid_tags,
+        )
+        from validation import validate_update_fields
+
+        data = request.get_json()
+        action = data.get("action", {})
+        selected_hmac = data.get("selected_hmac", "")
+
+        action_type = action.get("action", "")
+        name = action.get("name", "")
+
+        if action_type == "update_contact":
+            name_hmac = selected_hmac
+            if not name_hmac:
+                from sheets import find_contact_by_name
+                matches = find_contact_by_name(name)
+                if len(matches) == 1:
+                    name_hmac = matches[0]["name_hmac"]
+                else:
+                    return jsonify({"error": "연락처를 특정할 수 없습니다."}), 400
+
+            fields = action.get("fields", {})
+            valid_tags = get_valid_tags()
+            is_valid, errors = validate_update_fields(fields, valid_tags)
+            if not is_valid:
+                return jsonify({"error": "Validation failed", "errors": errors}), 400
+
+            update_contact(name_hmac, fields, changed_by="AI")
+
+            interaction_log = action.get("interaction_log", "")
+            if interaction_log:
+                from sheets import find_contact_by_hmac
+                contact = find_contact_by_hmac(name_hmac)
+                display = f"{contact['name']}({contact['employer']})" if contact and contact.get("employer") else name
+                key_extract = action.get("key_value_extract", "")
+                updated_fields_str = ", ".join(fields.keys())
+                add_interaction_log(name_hmac, display, interaction_log,
+                                    key_extract, updated_fields_str)
+
+            return jsonify({"success": True, "type": "update"})
+
+        elif action_type == "add_contact":
+            fields = action.get("fields", {})
+            new_contact = {"name": name, **fields}
+            name_hmac = add_contact(new_contact)
+            return jsonify({"success": True, "type": "add", "name_hmac": name_hmac})
+
+        return jsonify({"error": "Unknown action type"}), 400
+
+    except Exception as e:
+        logger.error("Contact chat confirm error: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/chat/history", methods=["GET"])
+@login_required
+def api_contact_chat_history():
+    """Get contact chat history."""
+    messages = ContactChatMessage.query.order_by(
+        ContactChatMessage.created_at.asc()
+    ).all()
+    return jsonify({
+        "messages": [
+            {
+                "role": m.role,
+                "content": m.content,
+                "actions_json": m.actions_json,
+                "created_at": m.created_at.isoformat() if m.created_at else "",
+            }
+            for m in messages
+        ]
+    })
+
+
+@app.route("/api/chat/clear", methods=["POST"])
+@login_required
+def api_contact_chat_clear():
+    """Clear contact chat history."""
+    ContactChatMessage.query.delete()
+    db.session.commit()
+    return jsonify({"success": True})
+
+
 @app.route("/api/admin/clear-read/<keyword>", methods=["POST"])
 @login_required
 def clear_read_history(keyword):
@@ -646,6 +1005,31 @@ with app.app_context():
         app.logger.info(f"Backfilled date_read for {len(books_no_date)} books")
 
 scheduler.start()
+
+# --- Contact List Startup Tasks ---
+def _run_contact_startup_tasks():
+    """Run contact list startup tasks (sheet headers, auto-upgrade)."""
+    try:
+        from sheets import ensure_sheet_headers, get_all_contacts
+        from scoring import auto_upgrade_followup
+        ensure_sheet_headers()
+
+        contacts = get_all_contacts()
+        upgraded = auto_upgrade_followup(contacts)
+        if upgraded:
+            from sheets import update_contact
+            for contact, old_fu, new_fu in upgraded:
+                update_contact(
+                    contact["name_hmac"],
+                    {"follow_up_priority": new_fu},
+                    changed_by="AI",
+                )
+            logger.info("Auto-upgraded %d contacts' follow-up priority", len(upgraded))
+    except Exception as e:
+        logger.warning("Contact startup tasks failed (sheets may not be configured): %s", e)
+
+with app.app_context():
+    _run_contact_startup_tasks()
 
 if __name__ == "__main__":
     try:

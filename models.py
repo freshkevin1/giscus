@@ -91,6 +91,15 @@ class ReadArticle(db.Model):
     read_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class ContactChatMessage(db.Model):
+    """Chat messages for the contact AI assistant."""
+    id = db.Column(db.Integer, primary_key=True)
+    role = db.Column(db.String(20), nullable=False)  # "user" or "assistant"
+    content = db.Column(db.Text, nullable=False)
+    actions_json = db.Column(db.Text, default="")  # Parsed [ACTION] data for re-rendering
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 def init_default_user():
     """Create default user if not exists. Reads credentials from environment variables."""
     username = os.environ.get("DASHBOARD_USER")

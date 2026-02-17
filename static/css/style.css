@@ -118,3 +118,115 @@
 #article-list .list-group-item:first-child {
     border-top: none;
 }
+
+/* Score badge (Contact List) */
+.score-badge {
+    font-size: 0.8rem;
+    min-width: 40px;
+    display: inline-block;
+    text-align: center;
+}
+
+/* Overdue row (Contact List) */
+.overdue-row {
+    border-left: 3px solid #dc3545 !important;
+}
+
+/* Contact table */
+#contactTable th {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+#contactTable td {
+    vertical-align: middle;
+    font-size: 0.9rem;
+}
+
+/* Chat (Contact AI Chat) */
+.chat-card {
+    height: calc(100vh - 200px);
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+}
+
+.chat-bubble-wrapper {
+    display: flex;
+    margin-bottom: 12px;
+}
+
+.chat-bubble-wrapper.user-msg {
+    justify-content: flex-end;
+}
+
+.chat-bubble-wrapper.assistant-msg {
+    justify-content: flex-start;
+}
+
+.chat-bubble {
+    max-width: 75%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.bubble-user {
+    background-color: #0d6efd;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.bubble-assistant {
+    background-color: #fff;
+    color: #212529;
+    border: 1px solid #e0e0e0;
+    border-bottom-left-radius: 4px;
+}
+
+/* Typing indicator */
+.typing-dots {
+    display: flex;
+    gap: 4px;
+    padding: 4px 0;
+}
+
+.typing-dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #adb5bd;
+    animation: typing 1.4s infinite;
+}
+
+.typing-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing {
+    0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-4px); }
+}
+
+/* Action results */
+.action-result .alert {
+    border-radius: 12px;
+}
+
+/* Suggestion chips */
+.suggestion-chip {
+    border-radius: 20px;
+    font-size: 0.8rem;
+}
