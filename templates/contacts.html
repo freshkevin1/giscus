@@ -35,13 +35,13 @@
             <table class="table table-hover mb-0" id="contactTable">
                 <thead class="table-light">
                     <tr>
-                        <th>Score</th>
-                        <th>이름</th>
-                        <th>소속/직급</th>
-                        <th>Contact Priority</th>
-                        <th>FU Priority</th>
-                        <th>FU Date</th>
-                        <th>Last Contact</th>
+                        <th class="sortable" data-key="score" data-type="number" style="cursor:pointer">Score <i class="bi bi-chevron-down sort-icon"></i></th>
+                        <th class="sortable" data-key="name" data-type="string" style="cursor:pointer">이름 <i class="bi bi-chevron-expand sort-icon"></i></th>
+                        <th class="sortable" data-key="employer" data-type="string" style="cursor:pointer">소속/직급 <i class="bi bi-chevron-expand sort-icon"></i></th>
+                        <th class="sortable" data-key="contact_priority" data-type="string" style="cursor:pointer">Contact Priority <i class="bi bi-chevron-expand sort-icon"></i></th>
+                        <th class="sortable" data-key="follow_up_priority" data-type="string" style="cursor:pointer">FU Priority <i class="bi bi-chevron-expand sort-icon"></i></th>
+                        <th class="sortable" data-key="follow_up_date" data-type="date" style="cursor:pointer">FU Date <i class="bi bi-chevron-expand sort-icon"></i></th>
+                        <th class="sortable" data-key="last_contact" data-type="date" style="cursor:pointer">Last Contact <i class="bi bi-chevron-expand sort-icon"></i></th>
                         <th>태그</th>
                         <th>전화</th>
                         <th>이메일</th>
@@ -257,11 +257,38 @@
 let allContacts = [];
 let deletedContacts = [];
 let currentFilter = 'all';
+let sortKey = 'score';
+let sortAsc = false;
+
+function sortContacts(contacts) {
+    const th = document.querySelector(`#contactTable thead .sortable[data-key="${sortKey}"]`);
+    const type = th ? th.dataset.type : 'string';
+    return [...contacts].sort((a, b) => {
+        let aVal = a[sortKey] ?? '';
+        let bVal = b[sortKey] ?? '';
+        let cmp = 0;
+        if (type === 'number') {
+            cmp = (Number(aVal) || 0) - (Number(bVal) || 0);
+        } else if (type === 'date') {
+            const aTime = aVal ? new Date(aVal).getTime() : 0;
+            const bTime = bVal ? new Date(bVal).getTime() : 0;
+            cmp = aTime - bTime;
+        } else {
+            cmp = String(aVal).localeCompare(String(bVal), 'ko');
+        }
+        return sortAsc ? cmp : -cmp;
+    });
+}
 
 const NORMAL_HEADERS = `<tr>
-    <th>Score</th><th>이름</th><th>소속/직급</th><th>Contact Priority</th>
-    <th>FU Priority</th><th>FU Date</th><th>Last Contact</th><th>태그</th>
-    <th>전화</th><th>이메일</th><th></th>
+    <th class="sortable" data-key="score" data-type="number" style="cursor:pointer">Score <i class="bi bi-chevron-expand sort-icon"></i></th>
+    <th class="sortable" data-key="name" data-type="string" style="cursor:pointer">이름 <i class="bi bi-chevron-expand sort-icon"></i></th>
+    <th class="sortable" data-key="employer" data-type="string" style="cursor:pointer">소속/직급 <i class="bi bi-chevron-expand sort-icon"></i></th>
+    <th class="sortable" data-key="contact_priority" data-type="string" style="cursor:pointer">Contact Priority <i class="bi bi-chevron-expand sort-icon"></i></th>
+    <th class="sortable" data-key="follow_up_priority" data-type="string" style="cursor:pointer">FU Priority <i class="bi bi-chevron-expand sort-icon"></i></th>
+    <th class="sortable" data-key="follow_up_date" data-type="date" style="cursor:pointer">FU Date <i class="bi bi-chevron-expand sort-icon"></i></th>
+    <th class="sortable" data-key="last_contact" data-type="date" style="cursor:pointer">Last Contact <i class="bi bi-chevron-expand sort-icon"></i></th>
+    <th>태그</th><th>전화</th><th>이메일</th><th></th>
 </tr>`;
 const DELETED_HEADERS_HTML = `<tr>
     <th>이름</th><th>소속</th><th>Contact Priority</th>
@@ -337,6 +364,33 @@ function renderContacts() {
             c.contact_priority && (c.contact_priority.startsWith('1') || c.contact_priority.startsWith('2A'))
         );
     }
+
+    // Apply sorting
+    filtered = sortContacts(filtered);
+
+    // Update sort icons
+    document.querySelectorAll('#contactTable thead .sortable .sort-icon').forEach(icon => {
+        const th = icon.closest('th');
+        if (th.dataset.key === sortKey) {
+            icon.className = sortAsc ? 'bi bi-chevron-up sort-icon' : 'bi bi-chevron-down sort-icon';
+        } else {
+            icon.className = 'bi bi-chevron-expand sort-icon';
+        }
+    });
+
+    // Bind header click events
+    document.querySelectorAll('#contactTable thead .sortable').forEach(th => {
+        th.onclick = () => {
+            const key = th.dataset.key;
+            if (sortKey === key) {
+                sortAsc = !sortAsc;
+            } else {
+                sortKey = key;
+                sortAsc = th.dataset.type === 'number' ? false : true;
+            }
+            renderContacts();
+        };
+    });
 
     if (filtered.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">연락처가 없습니다.</td></tr>';
