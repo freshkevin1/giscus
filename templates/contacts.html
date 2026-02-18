@@ -28,6 +28,13 @@
     </li>
 </ul>
 
+<!-- Search -->
+<div class="input-group mb-3">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input type="text" id="contact-search" class="form-control"
+           placeholder="이름, 소속, 태그, 이메일로 검색...">
+</div>
+
 <!-- Contact table -->
 <div class="card">
     <div class="card-body p-0">
@@ -259,6 +266,7 @@ let deletedContacts = [];
 let currentFilter = 'all';
 let sortKey = 'score';
 let sortAsc = false;
+let searchQuery = '';
 
 function sortContacts(contacts) {
     const th = document.querySelector(`#contactTable thead .sortable[data-key="${sortKey}"]`);
@@ -357,6 +365,18 @@ function renderContacts() {
     thead.innerHTML = NORMAL_HEADERS;
 
     let filtered = allContacts;
+
+    // 검색 필터 적용
+    if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        filtered = filtered.filter(c =>
+            (c.name || '').toLowerCase().includes(q) ||
+            (c.employer || '').toLowerCase().includes(q) ||
+            (c.tag || '').toLowerCase().includes(q) ||
+            (c.email || '').toLowerCase().includes(q)
+        );
+    }
+
     if (currentFilter === 'overdue') {
         filtered = allContacts.filter(c => isOverdue(c));
     } else if (currentFilter === 'high') {
@@ -703,6 +723,12 @@ async function permanentDelete(nameHmac) {
         alert('오류: ' + e.message);
     }
 }
+
+// Search
+document.getElementById('contact-search').addEventListener('input', function() {
+    searchQuery = this.value.toLowerCase();
+    renderContacts();
+});
 
 // Init
 loadContacts();
