@@ -369,6 +369,13 @@ def book_library():
     return render_template("book_library.html", books=books)
 
 
+@app.route("/books/reading")
+@login_required
+def book_reading():
+    books = MyBook.query.filter_by(shelf="reading").order_by(MyBook.added_at.desc()).all()
+    return render_template("book_reading.html", books=books)
+
+
 @app.route("/books/hall-of-fame")
 @login_required
 def book_hall_of_fame():
@@ -449,6 +456,8 @@ def book_add():
     db.session.commit()
     auto_regenerate_recommendations()
     flash(f'"{title}" 추가 완료', "success")
+    if request.form.get("shelf", "read") == "reading":
+        return redirect(url_for("book_reading"))
     return redirect(url_for("book_library"))
 
 
@@ -527,6 +536,26 @@ def api_delete_book(book_id):
     if not book:
         return jsonify({"status": "not_found"}), 404
     db.session.delete(book)
+    db.session.commit()
+    auto_regenerate_recommendations()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/books/<int:book_id>/complete", methods=["POST"])
+@login_required
+def api_complete_book(book_id):
+    book = db.session.get(MyBook, book_id)
+    if not book:
+        return jsonify({"status": "not_found"}), 404
+    data = request.get_json()
+    rating = data.get("my_rating", 0)
+    if not isinstance(rating, int) or rating < 1 or rating > 5:
+        return jsonify({"status": "error", "message": "별점을 선택해 주세요."}), 400
+    date_raw = data.get("date_read", "").strip()
+    book.shelf = "read"
+    book.my_rating = rating
+    book.date_read = date_raw.replace("-", "/") if date_raw else ""
+    book.hall_of_fame = bool(data.get("hall_of_fame", False))
     db.session.commit()
     auto_regenerate_recommendations()
     return jsonify({"status": "ok"})
