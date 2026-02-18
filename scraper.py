@@ -535,13 +535,13 @@ def scrape_yes24_bestseller():
     return articles
 
 
-WEEKLY_EDITION_RE = re.compile(r"^/weekly/(202[5-9]\d{2}|20[3-9]\d{3})$")
+WEEKLY_EDITION_RE = re.compile(r"^/weekly/(202[6-9]\d{2}|20[3-9]\d{3})$")
 
 
 def scrape_geek_news_weekly():
     """Scrape articles from GeekNews Weekly (news.hada.io/weekly).
 
-    Fetches editions from 2025 onwards and extracts all topic links.
+    Fetches editions from 2026 onwards and extracts all topic links.
     Returns a list of dicts with keys: title, url, section.
     """
     base_url = "https://news.hada.io"
@@ -565,7 +565,7 @@ def scrape_geek_news_weekly():
         if href not in [e[0] for e in edition_links]:
             edition_links.append((href, a_tag.get_text(strip=True)))
 
-    logger.info("Found %d GeekNews Weekly editions (2025+)", len(edition_links))
+    logger.info("Found %d GeekNews Weekly editions (2026+)", len(edition_links))
 
     for edition_path, edition_title in edition_links:
         edition_url = base_url + edition_path
@@ -577,7 +577,17 @@ def scrape_geek_news_weekly():
             continue
 
         edition_soup = BeautifulSoup(resp.text, "html.parser")
-        section = edition_title[:30] if edition_title else edition_path
+        edition_id = edition_path.split("/")[-1]
+        section = f"{edition_id} | {edition_title[:30]}" if edition_title else edition_id
+
+        # Add edition page itself as an article
+        if edition_url not in seen_urls:
+            seen_urls.add(edition_url)
+            all_articles.append({
+                "title": f"\U0001f4cb {edition_title}" if edition_title else f"\U0001f4cb Weekly {edition_id}",
+                "url": edition_url,
+                "section": section,
+            })
 
         for topic_a in edition_soup.select('a[href*="/topic?id="]'):
             title = topic_a.get_text(strip=True)
