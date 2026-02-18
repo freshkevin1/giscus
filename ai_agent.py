@@ -153,12 +153,9 @@ def _build_system_prompt():
 
 ## ⚠️ 액션 포맷 필수 규칙
 
-연락처 수정/추가/삭제/기록 관련 내용을 처리할 때:
-1. 응답 작성 전 자문하세요: "이 내용을 실제로 저장해야 하는가?"
-2. "예"라면 응답 마지막에 반드시 [ACTION] 블록을 포함하세요.
-3. [ACTION] 블록이 없으면 데이터가 시스템에 저장되지 않습니다.
-
-절대로 "업데이트했습니다", "기록했습니다" 같은 말을 [ACTION] 없이 쓰지 마세요."""
+만남/통화/수정/추가/삭제 등 저장이 필요한 내용은 응답 마지막에
+반드시 액션 블록을 포함하세요. 액션 블록 없이는 데이터가 저장되지 않습니다.
+"업데이트했습니다" 같은 말도 액션 블록 없이는 쓰지 마세요."""
 
 
 def _parse_actions(text):
@@ -170,7 +167,9 @@ def _parse_actions(text):
     if _ACTION_MARKER not in text:
         return text.strip(), []
 
-    parts = text.split(_ACTION_MARKER)
+    # 줄 시작(혹은 문자열 시작)의 [ACTION]만 분리자로 사용
+    # 본문 중간에 "[ACTION]"이 언급돼도 파싱 오작동 없음
+    parts = re.split(r'(?:^|\n)\[ACTION\]', text)
     message_text = parts[0].strip()
     actions = []
 
