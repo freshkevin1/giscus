@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from datetime import date, timedelta
@@ -615,4 +616,55 @@ def scrape_ai_companies():
     all_articles.extend(scrape_meta_ai())
     all_articles.extend(scrape_openai())
     logger.info("Total AI companies articles: %d", len(all_articles))
+    return all_articles
+
+
+def scrape_figure_ai():
+    """Scrape news articles from figure.ai/news via __NEXT_DATA__ JSON."""
+    url = "https://www.figure.ai/news"
+    try:
+        resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+    except Exception as e:
+        logger.warning("figure.ai fetch failed: %s", e)
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    tag = soup.find("script", {"id": "__NEXT_DATA__"})
+    if not tag:
+        logger.warning("figure.ai: __NEXT_DATA__ not found")
+        return []
+
+    try:
+        data = json.loads(tag.string)
+        items = (
+            data["props"]["pageProps"]["page"]
+                ["contentCollection"]["items"][0]
+                ["articlePageCollection"]["items"]
+        )
+    except (KeyError, IndexError, TypeError) as e:
+        logger.warning("figure.ai: JSON path error: %s", e)
+        return []
+
+    articles = []
+    for item in items:
+        title = item.get("articleTitle", "").strip()
+        slug  = item.get("slug", "").strip()
+        if not title or not slug:
+            continue
+        articles.append({
+            "title":   title,
+            "url":     f"https://www.figure.ai/news/{slug}",
+            "section": "Figure AI",
+        })
+
+    logger.info("figure.ai: scraped %d articles", len(articles))
+    return articles
+
+
+def scrape_robotics_companies():
+    """Aggregate news from robotics companies (Figure AI, ...)."""
+    all_articles = []
+    all_articles.extend(scrape_figure_ai())
+    logger.info("Total robotics companies articles: %d", len(all_articles))
     return all_articles

@@ -23,11 +23,11 @@
     </li>
     <hr style="border-color: rgba(255,255,255,0.1); margin: 8px 0;">
     <li class="nav-item">
-        <a class="nav-link {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news', 'ai_companies_news', 'trends_news') %}active{% endif %}"
+        <a class="nav-link {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news', 'ai_companies_news', 'robotics_companies_news', 'trends_news') %}active{% endif %}"
            href="{{ url_for('daily_news') }}">
             <i class="bi bi-newspaper"></i> Daily News
         </a>
-        {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news', 'ai_companies_news', 'trends_news') %}
+        {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'robotreport_news', 'ai_companies_news', 'robotics_companies_news', 'trends_news') %}
         <ul class="nav flex-column ms-3">
             <li class="nav-item">
                 <a class="nav-link sub-link {% if request.endpoint == 'mk_news' %}active{% endif %}"
@@ -51,6 +51,12 @@
                 <a class="nav-link sub-link {% if request.endpoint == 'ai_companies_news' %}active{% endif %}"
                    href="{{ url_for('ai_companies_news') }}">
                     AI Companies
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'robotics_companies_news' %}active{% endif %}"
+                   href="{{ url_for('robotics_companies_news') }}">
+                    Robotics Companies
                 </a>
             </li>
             <li class="nav-item">
