@@ -12,6 +12,16 @@ logger = logging.getLogger(__name__)
 
 _ACTION_MARKER = "[ACTION]"
 
+_ACTION_KEYWORDS = [
+    '만났', '만나', '만남', '통화', '전화', '식사', '점심', '저녁',
+    '미팅', '회의', '추가', '삭제', '이직', '이사', '결혼', '승진',
+    '업데이트', '수정', '변경', '기록', '적어',
+]
+
+
+def _needs_action_retry(user_message: str) -> bool:
+    return any(kw in user_message for kw in _ACTION_KEYWORDS)
+
 
 def _build_contacts_summary():
     """Build a summary of all contacts for the system prompt."""
@@ -139,7 +149,16 @@ def _build_system_prompt():
 - 검색 시 action="search" (쓰기 없음)
 
 중요: 불필요한 필드는 포함하지 마세요. 변경할 필드만 fields에 포함합니다.
-항상 한국어로 응답하세요."""
+항상 한국어로 응답하세요.
+
+## ⚠️ 액션 포맷 필수 규칙
+
+연락처 수정/추가/삭제/기록 관련 내용을 처리할 때:
+1. 응답 작성 전 자문하세요: "이 내용을 실제로 저장해야 하는가?"
+2. "예"라면 응답 마지막에 반드시 [ACTION] 블록을 포함하세요.
+3. [ACTION] 블록이 없으면 데이터가 시스템에 저장되지 않습니다.
+
+절대로 "업데이트했습니다", "기록했습니다" 같은 말을 [ACTION] 없이 쓰지 마세요."""
 
 
 def _parse_actions(text):
@@ -206,6 +225,29 @@ def chat_contact(user_message, conversation_history):
 
     raw = response.content[0].text or ""
     message_text, actions = _parse_actions(raw)
+
+    if not actions and _needs_action_retry(user_message):
+        retry_messages = messages + [
+            {"role": "assistant", "content": raw},
+            {
+                "role": "user",
+                "content": (
+                    "[ACTION] 포맷이 누락되었습니다. "
+                    "위 대화에 맞는 [ACTION] 블록만 출력해주세요. "
+                    "설명 없이 [ACTION]으로 시작하는 JSON만 출력하세요."
+                ),
+            },
+        ]
+        retry_resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=512,
+            system=system_prompt,
+            messages=retry_messages,
+        )
+        _, retry_actions = _parse_actions(retry_resp.content[0].text or "")
+        if retry_actions:
+            actions = retry_actions
+            logger.info("Action retry succeeded for: %s", user_message[:50])
 
     return {
         "message": message_text,
