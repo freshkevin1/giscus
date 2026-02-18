@@ -12,6 +12,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
+    password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -118,7 +119,7 @@ def init_default_user():
     if not username or not password:
         return
     if not User.query.filter_by(username=username).first():
-        user = User(username=username)
+        user = User(username=username, password_changed_at=datetime.utcnow())
         user.set_password(password)
         db.session.add(user)
         db.session.commit()

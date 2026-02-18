@@ -41,6 +41,22 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
+PASSWORD_EXPIRY_DAYS = 30
+
+
+@app.before_request
+def enforce_password_change():
+    if not current_user.is_authenticated:
+        return
+    if request.endpoint in ("change_password", "logout", "static"):
+        return
+
+    changed_at = current_user.password_changed_at
+    if changed_at is None or (datetime.utcnow() - changed_at).days >= PASSWORD_EXPIRY_DAYS:
+        flash("보안을 위해 비밀번호를 변경해 주세요 (30일 경과).", "warning")
+        return redirect(url_for("change_password"))
+
+
 # --- Background Recommendation Regeneration ---
 
 def _regenerate_recommendations_background():
@@ -235,6 +251,34 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for("login"))
+
+
+@app.route("/change-password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    if request.method == "POST":
+        current_pw = request.form.get("current_password", "")
+        new_pw = request.form.get("new_password", "")
+        confirm_pw = request.form.get("confirm_password", "")
+
+        if not current_user.check_password(current_pw):
+            flash("현재 비밀번호가 올바르지 않습니다.", "danger")
+        elif len(new_pw) < 8:
+            flash("새 비밀번호는 8자 이상이어야 합니다.", "danger")
+        elif new_pw != confirm_pw:
+            flash("새 비밀번호가 일치하지 않습니다.", "danger")
+        else:
+            current_user.set_password(new_pw)
+            current_user.password_changed_at = datetime.utcnow()
+            db.session.commit()
+            flash("비밀번호가 변경되었습니다.", "success")
+            return redirect(url_for("daily_news"))
+
+    days_since = None
+    if current_user.password_changed_at:
+        days_since = (datetime.utcnow() - current_user.password_changed_at).days
+
+    return render_template("change_password.html", days_since=days_since)
 
 
 # --- Menu Routes ---
@@ -1203,6 +1247,11 @@ with app.app_context():
         mb_columns = [r[1] for r in conn.execute(sqlalchemy.text("PRAGMA table_info(my_book)"))]
         if "hall_of_fame" not in mb_columns:
             conn.execute(sqlalchemy.text("ALTER TABLE my_book ADD COLUMN hall_of_fame BOOLEAN DEFAULT 0"))
+            conn.commit()
+        # Migrate: add password_changed_at column to user if missing
+        user_columns = [r[1] for r in conn.execute(sqlalchemy.text("PRAGMA table_info(user)"))]
+        if "password_changed_at" not in user_columns:
+            conn.execute(sqlalchemy.text("ALTER TABLE user ADD COLUMN password_changed_at DATETIME"))
             conn.commit()
     # Migrate: create login_log table if missing
     from sqlalchemy import inspect as sa_inspect
