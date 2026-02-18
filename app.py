@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -832,7 +833,7 @@ def api_update_contact(name_hmac):
         if not is_valid:
             return jsonify({"error": "Validation failed", "errors": errors}), 400
 
-        success = update_contact(name_hmac, data)
+        success, _ = update_contact(name_hmac, data)
         if not success:
             return jsonify({"error": "Contact not found"}), 404
         return jsonify({"success": True})
@@ -1015,6 +1016,10 @@ def api_contact_chat():
 
                     # 2) fields가 있으면 validation 후 업데이트
                     if fields:
+                        # YYYY-MM → YYYY-MM-01 정규화 (일(day) 불명확할 때 1일로)
+                        for _df in ('last_contact', 'follow_up_date'):
+                            if _df in fields and re.match(r'^\d{4}-\d{2}$', str(fields[_df])):
+                                fields[_df] = fields[_df] + '-01'
                         valid_tags = get_valid_tags()
                         is_valid, errors = validate_update_fields(fields, valid_tags)
                         if not is_valid:
@@ -1025,7 +1030,7 @@ def api_contact_chat():
                                 "reason": errors,
                             })
                         else:
-                            update_contact(contact["name_hmac"], fields, changed_by="AI")
+                            success, any_changes = update_contact(contact["name_hmac"], fields, changed_by="AI")
 
                             # key_value_interest 병합 (fields에 없는 경우만)
                             if key_extract and "key_value_interest" not in fields:
@@ -1038,6 +1043,7 @@ def api_contact_chat():
                                 "type": "update",
                                 "name": contact["name"],
                                 "fields": fields,
+                                "no_changes": not any_changes,
                             })
                     elif key_extract:
                         # fields 없이 key_extract만 있는 경우 관심사 병합
@@ -1122,6 +1128,10 @@ def api_contact_chat_confirm():
                     return jsonify({"error": "연락처를 특정할 수 없습니다."}), 400
 
             fields = action.get("fields", {})
+            # YYYY-MM → YYYY-MM-01 정규화
+            for _df in ('last_contact', 'follow_up_date'):
+                if _df in fields and re.match(r'^\d{4}-\d{2}$', str(fields[_df])):
+                    fields[_df] = fields[_df] + '-01'
             valid_tags = get_valid_tags()
             is_valid, errors = validate_update_fields(fields, valid_tags)
             if not is_valid:

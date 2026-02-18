@@ -290,7 +290,7 @@ def update_contact(name_hmac, fields, changed_by="User"):
     ws = sp.worksheet("Master")
     row_idx = _find_row_index(ws, name_hmac)
     if not row_idx:
-        return False
+        return False, False  # (success, any_changes)
 
     # Get current row data
     current_row = ws.row_values(row_idx)
@@ -356,7 +356,7 @@ def update_contact(name_hmac, fields, changed_by="User"):
                 changes.append((header, old_value, new_value))
 
     if not cells_to_update:
-        return True  # No changes needed
+        return True, False  # (success, any_changes)
 
     # Update Last Modified
     today = datetime.now().strftime("%Y-%m-%d")
@@ -377,7 +377,7 @@ def update_contact(name_hmac, fields, changed_by="User"):
         log_change(name_hmac, field_name, old_val, new_val, changed_by)
 
     _invalidate_cache("contacts")
-    return True
+    return True, True  # (success, any_changes)
 
 
 def delete_contact(name_hmac, deleted_by="User"):
