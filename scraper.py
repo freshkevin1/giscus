@@ -639,7 +639,7 @@ def scrape_figure_ai():
         data = json.loads(tag.string)
         items = (
             data["props"]["pageProps"]["page"]
-                ["contentCollection"]["items"][0]
+                ["sectionsCollection"]["items"][0]
                 ["articlePageCollection"]["items"]
         )
     except (KeyError, IndexError, TypeError) as e:
@@ -650,11 +650,22 @@ def scrape_figure_ai():
     for item in items:
         title = item.get("articleTitle", "").strip()
         slug  = item.get("slug", "").strip()
+        pub_date = item.get("publicationDate", "")
+
         if not title or not slug:
             continue
+
+        # 2026년 이후 기사만 포함
+        if not pub_date.startswith("2026"):
+            continue
+
+        # 외부 링크가 있으면 우선 사용, 없으면 figure.ai URL 구성
+        external_url = item.get("externalArticleUrl", "") or ""
+        url = external_url.strip() if external_url.strip() else f"https://www.figure.ai/news/{slug}"
+
         articles.append({
             "title":   title,
-            "url":     f"https://www.figure.ai/news/{slug}",
+            "url":     url,
             "section": "Figure AI",
         })
 
