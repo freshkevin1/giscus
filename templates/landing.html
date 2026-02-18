@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block mobile_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-semibold">Executive Dashboard</h4>
+    <a href="/?fresh=1" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </a>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- 연락 Top 5 -->
+    <div class="col-12 col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-clipboard-check"></i>
+                <span class="fw-semibold">연락 Top 5</span>
+                <span class="badge bg-secondary ms-auto">Follow-up 필요</span>
+            </div>
+            <div class="card-body p-0">
+                {% if top5 %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>이름</th>
+                                <th>소속</th>
+                                <th>Priority</th>
+                                <th>Follow-up</th>
+                                <th class="text-end">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in top5 %}
+                            <tr>
+                                <td class="fw-medium">{{ c.name }}</td>
+                                <td class="text-muted small">{{ c.employer or '—' }}</td>
+                                <td>
+                                    <span class="badge
+                                        {% if c.follow_up_priority == 'FU0' %}bg-danger
+                                        {% elif c.follow_up_priority == 'FU1' %}bg-warning text-dark
+                                        {% elif c.follow_up_priority == 'FU3' %}bg-info text-dark
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ c.follow_up_priority or '—' }}
+                                    </span>
+                                </td>
+                                <td class="small">{{ c.follow_up_date or '—' }}</td>
+                                <td class="text-end fw-semibold">{{ c.score }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-check-circle fs-4 d-block mb-1"></i>
+                    Follow-up 대기 중인 연락처가 없습니다.
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer text-end">
+                <a href="{{ url_for('contact_list') }}" class="btn btn-sm btn-outline-primary">
+                    전체 연락처 <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 입사 예정자 -->
+    <div class="col-12 col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-person-badge"></i>
+                <span class="fw-semibold">입사 예정자</span>
+                <span class="badge bg-primary ms-auto">{{ incoming|length }}명</span>
+            </div>
+            <div class="card-body p-0">
+                {% if incoming %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>이름</th>
+                                <th>소속</th>
+                                <th>입사 예정일</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in incoming %}
+                            <tr>
+                                <td class="fw-medium">{{ c.name }}</td>
+                                <td class="text-muted small">{{ c.employer or '—' }}</td>
+                                <td class="small">{{ c.follow_up_date or '—' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-person-x fs-4 d-block mb-1"></i>
+                    입사 예정자가 없습니다.
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer text-end">
+                <a href="{{ url_for('contact_list') }}" class="btn btn-sm btn-outline-primary">
+                    전체 연락처 <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Books I am reading -->
+<div class="card">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-book-half"></i>
+        <span class="fw-semibold">Books I am reading</span>
+        <span class="badge bg-success ms-auto">{{ reading_books|length }}권</span>
+    </div>
+    <div class="card-body">
+        {% if reading_books %}
+        <div class="row g-3">
+            {% for book in reading_books %}
+            <div class="col-12 col-sm-6 col-lg-4">
+                <div class="d-flex align-items-start gap-2 p-2 border rounded">
+                    <i class="bi bi-bookmark-fill text-success mt-1 flex-shrink-0"></i>
+                    <div class="min-w-0">
+                        <div class="fw-medium text-truncate">{{ book.title }}</div>
+                        <div class="text-muted small">{{ book.author }}</div>
+                        {% if book.added_at %}
+                        <div class="text-muted" style="font-size: 0.75rem;">
+                            추가: {{ book.added_at.strftime('%Y-%m-%d') }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-3">
+            <i class="bi bi-book fs-4 d-block mb-1"></i>
+            현재 읽고 있는 책이 없습니다.
+        </div>
+        {% endif %}
+    </div>
+    <div class="card-footer text-end">
+        <a href="{{ url_for('book_reading') }}" class="btn btn-sm btn-outline-success">
+            Reading 목록 <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
+</div>
+{% endblock %}

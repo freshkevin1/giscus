@@ -1,5 +1,12 @@
 <ul class="nav flex-column flex-grow-1">
     <li class="nav-item">
+        <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}"
+           href="{{ url_for('index') }}">
+            <i class="bi bi-house"></i> Dashboard
+        </a>
+    </li>
+    <hr style="border-color: rgba(255,255,255,0.1); margin: 8px 0;">
+    <li class="nav-item">
         <a class="nav-link {% if request.endpoint in ('contact_list', 'contact_chat') %}active{% endif %}"
            href="{{ url_for('contact_list') }}">
             <i class="bi bi-people"></i> Contact List

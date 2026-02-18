@@ -225,7 +225,7 @@ def _get_client_ip():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("daily_news"))
+        return redirect(url_for("index"))
 
     if request.method == "POST":
         username = request.form.get("username", "")
@@ -239,7 +239,7 @@ def login():
             db.session.commit()
             login_user(user)
             next_page = request.args.get("next")
-            return redirect(next_page or url_for("daily_news"))
+            return redirect(next_page or url_for("index", fresh=1))
 
         failure_reason = "unknown_user" if not user else "invalid_password"
         db.session.add(LoginLog(username=username, ip_address=ip, user_agent=ua, success=False, failure_reason=failure_reason))
@@ -275,7 +275,7 @@ def change_password():
             current_user.password_changed_at = datetime.utcnow()
             db.session.commit()
             flash("비밀번호가 변경되었습니다.", "success")
-            return redirect(url_for("daily_news"))
+            return redirect(url_for("index"))
 
     days_since = None
     if current_user.password_changed_at:
@@ -289,7 +289,36 @@ def change_password():
 @app.route("/")
 @login_required
 def index():
-    return redirect(url_for("daily_news"))
+    fresh = request.args.get("fresh") == "1"
+    if fresh:
+        from sheets import invalidate_contacts_cache
+        invalidate_contacts_cache()
+
+    try:
+        from sheets import get_all_contacts
+        from scoring import sort_contacts_by_score
+        contacts = sort_contacts_by_score(get_all_contacts())
+    except Exception:
+        contacts = []
+
+    top5 = [
+        c for c in contacts
+        if c.get("follow_up_date") and c.get("follow_up_priority") != "FU9"
+    ][:5]
+
+    incoming = [
+        c for c in contacts
+        if "입사 예정자" in (c.get("follow_up_note") or "")
+    ]
+
+    reading_books = MyBook.query.filter_by(shelf="reading").order_by(MyBook.added_at.desc()).all()
+
+    return render_template(
+        "landing.html",
+        top5=top5,
+        incoming=incoming,
+        reading_books=reading_books,
+    )
 
 
 @app.route("/contacts")

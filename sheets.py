@@ -84,6 +84,11 @@ def _invalidate_cache(key=None):
         _cache["deleted_time"] = 0
 
 
+def invalidate_contacts_cache():
+    """Force next get_all_contacts() call to fetch fresh data from Sheets."""
+    _invalidate_cache("contacts")
+
+
 def _is_cached(key):
     return _cache[key] is not None and (time.time() - _cache[f"{key}_time"]) < CACHE_TTL
 
