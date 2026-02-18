@@ -536,7 +536,7 @@ def scrape_yes24_bestseller():
     return articles
 
 
-WEEKLY_EDITION_RE = re.compile(r"^/weekly/(202[6-9]\d{2}|20[3-9]\d{3})$")
+WEEKLY_EDITION_RE = re.compile(r"^/weekly/20\d{2,8}$")
 
 
 def scrape_geek_news_weekly():
@@ -566,7 +566,8 @@ def scrape_geek_news_weekly():
         if href not in [e[0] for e in edition_links]:
             edition_links.append((href, a_tag.get_text(strip=True)))
 
-    logger.info("Found %d GeekNews Weekly editions (2026+)", len(edition_links))
+    logger.info("Found %d GeekNews Weekly editions. Sample hrefs: %s",
+                len(edition_links), [e[0] for e in edition_links[:3]])
 
     for edition_path, edition_title in edition_links:
         edition_url = base_url + edition_path
