@@ -1069,13 +1069,11 @@ def api_contact_chat():
                     })
 
             elif action_type == "add_contact":
-                fields = action.get("fields", {})
-                new_contact = {"name": name, **fields}
-                name_hmac = add_contact(new_contact)
-                executed_actions.append({
-                    "type": "add",
-                    "name": name,
-                    "name_hmac": name_hmac,
+                # 새 연락처 추가는 항상 사용자 확인 필요 (중복 방지)
+                pending_actions.append({
+                    **action,
+                    "confidence": "low",
+                    "reason": "새 연락처 추가 — 확인 후 실행",
                 })
 
         # Save messages to DB
@@ -1152,6 +1150,16 @@ def api_contact_chat_confirm():
             return jsonify({"success": True, "type": "update"})
 
         elif action_type == "add_contact":
+            from sheets import find_contact_by_name
+            existing = find_contact_by_name(name)
+            if existing:
+                names_str = ", ".join(
+                    f"{c['name']}({c.get('employer', '')})" for c in existing
+                )
+                return jsonify({
+                    "error": f"이미 존재하는 연락처입니다: {names_str}",
+                    "duplicate": True,
+                }), 409
             fields = action.get("fields", {})
             new_contact = {"name": name, **fields}
             name_hmac = add_contact(new_contact)

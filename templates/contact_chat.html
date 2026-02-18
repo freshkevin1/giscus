@@ -296,8 +296,11 @@ document.getElementById('chatMessages').addEventListener('click', async (e) => {
                 if (data.success) {
                     alertDiv.className = 'alert alert-success py-2 small mb-0';
                     alertDiv.innerHTML = '<i class="bi bi-check-circle"></i> 실행 완료';
+                } else if (data.duplicate) {
+                    alertDiv.className = 'alert alert-danger py-2 small mb-0';
+                    alertDiv.innerHTML = `<i class="bi bi-exclamation-octagon"></i> ${data.error}`;
                 } else {
-                    alertDiv.innerHTML += `<br><small class="text-danger">${data.error}</small>`;
+                    alertDiv.innerHTML += `<br><small class="text-danger">오류: ${data.error}</small>`;
                 }
             } catch (err) {
                 alertDiv.innerHTML += `<br><small class="text-danger">오류: ${err.message}</small>`;
