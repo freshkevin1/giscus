@@ -31,6 +31,10 @@ def _build_contacts_summary():
             parts.append(c["contact_priority"])
         if c.get("follow_up_priority"):
             parts.append(c["follow_up_priority"])
+        if c.get("follow_up_date"):
+            parts.append(f"FU날짜: {c['follow_up_date']}")
+        if c.get("follow_up_note"):
+            parts.append(f"FU메모: {c['follow_up_note']}")
         if c.get("last_contact"):
             parts.append(f"최근연락: {c['last_contact']}")
         if c.get("key_value_interest"):
