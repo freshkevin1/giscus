@@ -535,6 +535,65 @@ def scrape_yes24_bestseller():
     return articles
 
 
+WEEKLY_EDITION_RE = re.compile(r"^/weekly/(202[5-9]\d{2}|20[3-9]\d{3})$")
+
+
+def scrape_geek_news_weekly():
+    """Scrape articles from GeekNews Weekly (news.hada.io/weekly).
+
+    Fetches editions from 2025 onwards and extracts all topic links.
+    Returns a list of dicts with keys: title, url, section.
+    """
+    base_url = "https://news.hada.io"
+    list_url = f"{base_url}/weekly"
+    all_articles = []
+    seen_urls = set()
+
+    try:
+        resp = requests.get(list_url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch geek news weekly list: %s", e)
+        return all_articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Find edition links matching 2025+
+    edition_links = []
+    for a_tag in soup.find_all("a", href=WEEKLY_EDITION_RE):
+        href = a_tag.get("href", "")
+        if href not in [e[0] for e in edition_links]:
+            edition_links.append((href, a_tag.get_text(strip=True)))
+
+    logger.info("Found %d GeekNews Weekly editions (2025+)", len(edition_links))
+
+    for edition_path, edition_title in edition_links:
+        edition_url = base_url + edition_path
+        try:
+            resp = requests.get(edition_url, headers=HEADERS, timeout=30)
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            logger.error("Failed to fetch edition %s: %s", edition_path, e)
+            continue
+
+        edition_soup = BeautifulSoup(resp.text, "html.parser")
+        section = edition_title[:30] if edition_title else edition_path
+
+        for topic_a in edition_soup.select('a[href*="/topic?id="]'):
+            title = topic_a.get_text(strip=True)
+            href = topic_a.get("href", "")
+            if not title or not href:
+                continue
+            full_url = href if href.startswith("http") else base_url + href
+            if full_url in seen_urls:
+                continue
+            seen_urls.add(full_url)
+            all_articles.append({"title": title, "url": full_url, "section": section})
+
+    logger.info("Scraped %d articles from GeekNews Weekly", len(all_articles))
+    return all_articles
+
+
 def scrape_ai_companies():
     """Scrape articles from Anthropic, DeepMind, Meta AI, and OpenAI.
 

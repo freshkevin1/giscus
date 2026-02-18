@@ -20,7 +20,7 @@ import json
 from models import Article, ChatMessage, ContactChatMessage, LoginLog, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
-from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_irobotnews, scrape_mk_today, scrape_robotreport, scrape_yes24_bestseller
+from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_geek_news_weekly, scrape_irobotnews, scrape_mk_today, scrape_robotreport, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,6 +71,23 @@ def auto_regenerate_recommendations():
     thread.start()
 
 
+# --- Background Scraping ---
+
+def _scrape_background(source):
+    with app.app_context():
+        try:
+            count = run_scrape(source)
+            logger.info("Background scrape for %s: %d new articles", source, count)
+        except Exception as e:
+            logger.error("Background scrape failed for %s: %s", source, e)
+
+
+def auto_scrape(source):
+    """Trigger scraping in a background thread (non-blocking)."""
+    thread = threading.Thread(target=_scrape_background, args=(source,), daemon=True)
+    thread.start()
+
+
 # --- Scheduler ---
 
 def scheduled_scrape():
@@ -80,6 +97,7 @@ def scheduled_scrape():
         run_scrape("irobot")
         run_scrape("robotreport")
         run_scrape("aicompanies")
+        run_scrape("geek_weekly")
         run_scrape("bestseller")
         run_scrape("bestseller_kr")
 
@@ -94,6 +112,8 @@ def run_scrape(source="mk"):
         articles = scrape_robotreport()
     elif source == "aicompanies":
         articles = scrape_ai_companies()
+    elif source == "geek_weekly":
+        articles = scrape_geek_news_weekly()
     elif source == "bestseller":
         articles = scrape_amazon_charts()
     elif source == "bestseller_kr":
@@ -246,6 +266,7 @@ def daily_news():
 @app.route("/news/mk")
 @login_required
 def mk_news():
+    auto_scrape("mk")
     articles = Article.query.filter_by(source="mk").order_by(Article.scraped_at.desc()).all()
     return render_template("mk_news.html", articles=articles)
 
@@ -253,6 +274,7 @@ def mk_news():
 @app.route("/news/irobot")
 @login_required
 def irobot_news():
+    auto_scrape("irobot")
     articles = Article.query.filter_by(source="irobot").order_by(Article.scraped_at.desc()).all()
     return render_template("irobot_news.html", articles=articles)
 
@@ -260,6 +282,7 @@ def irobot_news():
 @app.route("/news/robotreport")
 @login_required
 def robotreport_news():
+    auto_scrape("robotreport")
     articles = Article.query.filter_by(source="robotreport").order_by(Article.scraped_at.desc()).all()
     return render_template("robotreport_news.html", articles=articles)
 
@@ -267,14 +290,23 @@ def robotreport_news():
 @app.route("/news/ai")
 @login_required
 def ai_news():
-    return render_template("ai_news.html")
+    return redirect(url_for("daily_news"))
 
 
 @app.route("/news/ai/companies")
 @login_required
 def ai_companies_news():
+    auto_scrape("aicompanies")
     articles = Article.query.filter_by(source="aicompanies").order_by(Article.scraped_at.desc()).all()
     return render_template("ai_companies_news.html", articles=articles)
+
+
+@app.route("/news/trends")
+@login_required
+def trends_news():
+    auto_scrape("geek_weekly")
+    articles = Article.query.filter_by(source="geek_weekly").order_by(Article.scraped_at.desc()).all()
+    return render_template("trends_news.html", articles=articles)
 
 
 @app.route("/bestsellers")
@@ -438,7 +470,7 @@ def book_saved():
 @app.route("/api/scrape/<source>", methods=["POST"])
 @login_required
 def api_scrape(source):
-    if source not in ("mk", "irobot", "robotreport", "aicompanies", "bestseller", "bestseller_kr"):
+    if source not in ("mk", "irobot", "robotreport", "aicompanies", "geek_weekly", "bestseller", "bestseller_kr"):
         return jsonify({"status": "error", "message": "Unknown source"}), 400
     count = run_scrape(source)
     return jsonify({"status": "ok", "new_articles": count})
