@@ -308,7 +308,8 @@ def index():
 
     incoming = [
         c for c in contacts
-        if "입사 예정자" in (c.get("follow_up_note") or "")
+        if "입사 후보자" in (c.get("key_value_interest") or "")
+        or "입사 후보자" in (c.get("tag") or "")
     ]
 
     reading_books = MyBook.query.filter_by(shelf="reading").order_by(MyBook.added_at.desc()).all()
