@@ -128,6 +128,9 @@ def _build_system_prompt():
    "2C-비즈니스", "3A-인적 우선순위", "3C-인적 네트워킹", "4A-Passive", "5A-Inactive"]
 - **key_value_interest**: fields에 절대 포함하지 마세요. 관심사 추출은 key_value_extract만 사용.
   (key_value_extract는 기존 값과 병합됩니다. fields.key_value_interest는 덮어씁니다.)
+- **last_contact / follow_up_date**: 반드시 YYYY-MM-DD 형식으로 일(day)까지 포함.
+  예: "2026-02-18" (O) / "2026-02" (X) / "2026-02-00" (X)
+  날짜를 모를 때는 해당 필드를 fields에 포함하지 마세요.
 - **tag**: 사용 가능한 태그 목록에 없는 값은 절대 사용 금지.
 
 - confidence="high": 매칭 확실, 자동 실행 가능

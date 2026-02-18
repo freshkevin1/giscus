@@ -364,9 +364,13 @@ def update_contact(name_hmac, fields, changed_by="User"):
     if lm_col:
         cells_to_update.append((row_idx, lm_col, today))
 
-    # Apply all cell updates
-    for r, c, v in cells_to_update:
-        ws.update_cell(r, c, v)
+    # Apply all cell updates in a single batch (RAW prevents date serial conversion)
+    if cells_to_update:
+        from gspread.utils import rowcol_to_a1
+        ws.batch_update(
+            [{"range": rowcol_to_a1(r, c), "values": [[v]]} for r, c, v in cells_to_update],
+            value_input_option="RAW",
+        )
 
     # Log changes
     for field_name, old_val, new_val in changes:
