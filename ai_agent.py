@@ -109,17 +109,26 @@ def _build_system_prompt():
   "fields": {{
     "last_contact": "YYYY-MM-DD",
     "follow_up_note": "...",
-    "follow_up_priority": "FU0-FU9",
+    "follow_up_priority": "FU0|FU1|FU3|FU5|FU9 중 하나",
     "follow_up_date": "YYYY-MM-DD",
     "employer": "...",
     "title": "...",
-    "key_value_interest": "...",
-    "contact_priority": "...",
-    "tag": "..."
+    "contact_priority": "아래 유효값 목록 중 하나",
+    "tag": "Tags 시트에 있는 값만 사용"
   }},
   "interaction_log": "[날짜] 만남유형 @장소 | 핵심내용 | → 다음 액션",
   "key_value_extract": "추출된 관심사/레버리지"
 }}
+
+## 필드 유효값 제약
+
+- **follow_up_priority**: 반드시 ["FU0", "FU1", "FU3", "FU5", "FU9"] 중 하나. FU2/FU4/FU6/FU7/FU8 사용 금지.
+- **contact_priority**: 반드시 아래 목록 중 하나.
+  ["1A-인생관계", "1M-Mentor, 은인", "1F-Family", "2A-비즈니스 우선순위",
+   "2C-비즈니스", "3A-인적 우선순위", "3C-인적 네트워킹", "4A-Passive", "5A-Inactive"]
+- **key_value_interest**: fields에 절대 포함하지 마세요. 관심사 추출은 key_value_extract만 사용.
+  (key_value_extract는 기존 값과 병합됩니다. fields.key_value_interest는 덮어씁니다.)
+- **tag**: 사용 가능한 태그 목록에 없는 값은 절대 사용 금지.
 
 - confidence="high": 매칭 확실, 자동 실행 가능
 - confidence="low": 확인 질문만 표시, 자동 실행 안 함

@@ -1001,37 +1001,50 @@ def api_contact_chat():
                 if len(matches) == 1:
                     contact = matches[0]
                     fields = action.get("fields", {})
-
-                    valid_tags = get_valid_tags()
-                    is_valid, errors = validate_update_fields(fields, valid_tags)
-                    if not is_valid:
-                        pending_actions.append({**action, "validation_errors": errors})
-                        continue
-
-                    update_contact(contact["name_hmac"], fields, changed_by="AI")
-
                     interaction_log = action.get("interaction_log", "")
+                    key_extract = action.get("key_value_extract", "")
+
+                    # 1) Interaction Log는 validation과 무관하게 항상 먼저 기록
                     if interaction_log:
                         display = f"{contact['name']}({contact['employer']})" if contact.get("employer") else contact["name"]
-                        key_extract = action.get("key_value_extract", "")
-                        updated_fields_str = ", ".join(fields.keys())
+                        updated_fields_str = ", ".join(fields.keys()) if fields else ""
                         add_interaction_log(
                             contact["name_hmac"], display, interaction_log,
                             key_extract, updated_fields_str,
                         )
 
-                    key_extract = action.get("key_value_extract", "")
-                    if key_extract and "key_value_interest" not in fields:
+                    # 2) fields가 있으면 validation 후 업데이트
+                    if fields:
+                        valid_tags = get_valid_tags()
+                        is_valid, errors = validate_update_fields(fields, valid_tags)
+                        if not is_valid:
+                            # validation 실패는 fields 업데이트만 skip (로그는 이미 기록됨)
+                            executed_actions.append({
+                                "type": "update_skipped",
+                                "name": contact["name"],
+                                "reason": errors,
+                            })
+                        else:
+                            update_contact(contact["name_hmac"], fields, changed_by="AI")
+
+                            # key_value_interest 병합 (fields에 없는 경우만)
+                            if key_extract and "key_value_interest" not in fields:
+                                existing = contact.get("key_value_interest", "")
+                                merged = f"{existing}, {key_extract}" if existing else key_extract
+                                update_contact(contact["name_hmac"],
+                                               {"key_value_interest": merged}, changed_by="AI")
+
+                            executed_actions.append({
+                                "type": "update",
+                                "name": contact["name"],
+                                "fields": fields,
+                            })
+                    elif key_extract:
+                        # fields 없이 key_extract만 있는 경우 관심사 병합
                         existing = contact.get("key_value_interest", "")
                         merged = f"{existing}, {key_extract}" if existing else key_extract
                         update_contact(contact["name_hmac"],
                                        {"key_value_interest": merged}, changed_by="AI")
-
-                    executed_actions.append({
-                        "type": "update",
-                        "name": contact["name"],
-                        "fields": fields,
-                    })
                 elif len(matches) > 1:
                     pending_actions.append({
                         **action,
