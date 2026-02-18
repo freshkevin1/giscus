@@ -41,6 +41,12 @@ def _build_contacts_summary():
             parts.append(f"관심사: {c['key_value_interest']}")
         if c.get("tag"):
             parts.append(f"태그: {c['tag']}")
+        if c.get("referred_by"):
+            parts.append(f"소개자: {c['referred_by']}")
+        if c.get("email"):
+            parts.append(f"이메일: {c['email']}")
+        if c.get("phone"):
+            parts.append(f"전화: {c['phone']}")
         lines.append("- " + " | ".join(parts))
 
     return "\n".join(lines)
