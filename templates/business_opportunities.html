@@ -41,7 +41,7 @@
                         <th class="sortable" data-key="follow_up_priority" data-type="string" style="cursor:pointer">FU <i class="bi bi-chevron-expand sort-icon"></i></th>
                         <th class="sortable" data-key="follow_up_date" data-type="date" style="cursor:pointer">FU Date <i class="bi bi-chevron-expand sort-icon"></i></th>
                         <th class="sortable" data-key="last_contact" data-type="date" style="cursor:pointer">Last Contact <i class="bi bi-chevron-expand sort-icon"></i></th>
-                        <th>태그</th>
+                        <th>담당자</th>
                         <th>#</th>
                         <th></th>
                     </tr>
@@ -392,7 +392,7 @@ function renderEntities() {
         <th class="sortable" data-key="follow_up_priority" data-type="string" style="cursor:pointer">FU <i class="bi bi-chevron-expand sort-icon"></i></th>
         <th class="sortable" data-key="follow_up_date" data-type="date" style="cursor:pointer">FU Date <i class="bi bi-chevron-expand sort-icon"></i></th>
         <th class="sortable" data-key="last_contact" data-type="date" style="cursor:pointer">Last Contact <i class="bi bi-chevron-expand sort-icon"></i></th>
-        <th>태그</th><th>#</th><th></th>
+        <th>담당자</th><th>#</th><th></th>
     </tr>`;
 
     let filtered = allEntities;
@@ -444,7 +444,7 @@ function renderEntities() {
             <td><small>${e.follow_up_priority || '-'}</small></td>
             <td class="${isEntityOverdue(e) ? 'text-danger fw-bold' : ''}">${e.follow_up_date || '-'}</td>
             <td>${e.last_contact || '-'}</td>
-            <td>${e.tag ? `<span class="badge bg-light text-dark">${e.tag}</span>` : ''}</td>
+            <td>${e.assignee || ''}</td>
             <td class="opp-count" data-hmac="${e.entity_hmac}"><span class="text-muted">-</span></td>
             <td><i class="bi bi-chevron-right text-muted"></i></td>
         </tr>`;
