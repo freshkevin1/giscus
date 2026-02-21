@@ -21,7 +21,7 @@ import json
 from models import Article, ChatMessage, ContactChatMessage, HabitLog, LoginLog, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
-from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_geek_news_weekly, scrape_irobotnews, scrape_mk_today, scrape_robotics_companies, scrape_robotreport, scrape_yes24_bestseller
+from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_deeplearning_batch, scrape_geek_news_weekly, scrape_irobotnews, scrape_mk_today, scrape_robotics_companies, scrape_robotreport, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -148,6 +148,7 @@ def scheduled_scrape():
         run_scrape("aicompanies")
         run_scrape("robotics_companies")
         run_scrape("geek_weekly")
+        run_scrape("dl_batch")
         run_scrape("bestseller")
         run_scrape("bestseller_kr")
 
@@ -166,6 +167,8 @@ def run_scrape(source="mk"):
         articles = scrape_robotics_companies()
     elif source == "geek_weekly":
         articles = scrape_geek_news_weekly()
+    elif source == "dl_batch":
+        articles = scrape_deeplearning_batch()
     elif source == "bestseller":
         articles = scrape_amazon_charts()
     elif source == "bestseller_kr":
@@ -485,6 +488,17 @@ def trends_news():
     return render_template("trends_news.html", articles=articles)
 
 
+@app.route("/news/deeplearning")
+@login_required
+def deeplearning_news():
+    if Article.query.filter_by(source="dl_batch").count() == 0:
+        run_scrape("dl_batch")
+    else:
+        auto_scrape("dl_batch")
+    articles = Article.query.filter_by(source="dl_batch").order_by(Article.id.desc()).all()
+    return render_template("deeplearning_news.html", articles=articles)
+
+
 @app.route("/bestsellers")
 @login_required
 def bestsellers():
@@ -655,7 +669,7 @@ def book_saved():
 @app.route("/api/scrape/<source>", methods=["POST"])
 @login_required
 def api_scrape(source):
-    if source not in ("mk", "irobot", "robotreport", "aicompanies", "robotics_companies", "geek_weekly", "bestseller", "bestseller_kr"):
+    if source not in ("mk", "irobot", "robotreport", "aicompanies", "robotics_companies", "geek_weekly", "dl_batch", "bestseller", "bestseller_kr"):
         return jsonify({"status": "error", "message": "Unknown source"}), 400
     count = run_scrape(source)
     return jsonify({"status": "ok", "new_articles": count})

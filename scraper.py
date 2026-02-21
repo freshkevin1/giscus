@@ -679,3 +679,35 @@ def scrape_robotics_companies():
     all_articles.extend(scrape_figure_ai())
     logger.info("Total robotics companies articles: %d", len(all_articles))
     return all_articles
+
+
+def scrape_deeplearning_batch():
+    """Scrape weekly newsletter issues from DeepLearning.AI — The Batch.
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://www.deeplearning.ai/the-batch/"
+    articles = []
+
+    try:
+        resp = requests.get(url, timeout=15, headers=HEADERS)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch deeplearning batch: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    for article in soup.find_all("article"):
+        h2 = article.find("h2")
+        a = article.find("a", href=True)
+        if not h2 or not a:
+            continue
+        title = h2.get_text(strip=True)
+        href = a["href"]
+        if href.startswith("/"):
+            href = "https://www.deeplearning.ai" + href
+        articles.append({"title": title, "url": href, "section": "The Batch"})
+
+    logger.info("Scraped %d issues from DeepLearning.AI The Batch", len(articles))
+    return articles
