@@ -18,7 +18,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 from config import Config
 import json
 
-from models import Article, ChatMessage, ContactChatMessage, LoginLog, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+from models import Article, ChatMessage, ContactChatMessage, HabitLog, LoginLog, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
 from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_geek_news_weekly, scrape_irobotnews, scrape_mk_today, scrape_robotics_companies, scrape_robotreport, scrape_yes24_bestseller
@@ -43,6 +43,31 @@ def load_user(user_id):
 
 
 PASSWORD_EXPIRY_DAYS = 30
+
+HABITS = ["아침 조깅/테니스/골프 + 스트레칭/명상"]
+_WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def _habit_stats(habit_name):
+    today = date.today()
+    days = []
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        done = HabitLog.query.filter_by(habit_name=habit_name, logged_date=d).first() is not None
+        days.append({
+            "date": d.strftime("%m/%d"),
+            "weekday": _WEEKDAY_KO[d.weekday()],
+            "done": done,
+            "is_today": d == today,
+        })
+    streak = 0
+    d = today
+    while HabitLog.query.filter_by(habit_name=habit_name, logged_date=d).first():
+        streak += 1
+        d -= timedelta(days=1)
+    total = HabitLog.query.filter_by(habit_name=habit_name).count()
+    today_done = days[-1]["done"]
+    return {"name": habit_name, "today_done": today_done, "streak": streak, "total": total, "days": days}
 
 
 @app.before_request
@@ -352,6 +377,7 @@ def index():
     ]
 
     reading_books = MyBook.query.filter_by(shelf="reading").order_by(MyBook.added_at.desc()).all()
+    habits_data = [_habit_stats(h) for h in HABITS]
 
     return render_template(
         "landing.html",
@@ -364,6 +390,8 @@ def index():
         total_contacts=total_contacts,
         fu0_count=fu0_count,
         overdue_count=overdue_count,
+        habits_data=habits_data,
+        today_str=date.today().strftime("%Y년 %m월 %d일"),
     )
 
 
@@ -817,6 +845,27 @@ def api_delete_saved_book(book_id):
     db.session.delete(book)
     db.session.commit()
     return jsonify({"status": "ok"})
+
+
+# --- Habit Log API ---
+
+@app.route("/api/habits/toggle", methods=["POST"])
+@login_required
+def api_toggle_habit():
+    habit_name = request.json.get("habit_name", "")
+    if not habit_name:
+        return jsonify({"error": "habit_name required"}), 400
+    today = date.today()
+    existing = HabitLog.query.filter_by(habit_name=habit_name, logged_date=today).first()
+    if existing:
+        db.session.delete(existing)
+        db.session.commit()
+        action = "undone"
+    else:
+        db.session.add(HabitLog(habit_name=habit_name, logged_date=today))
+        db.session.commit()
+        action = "done"
+    return jsonify({"action": action, **_habit_stats(habit_name)})
 
 
 # --- Contact API ---

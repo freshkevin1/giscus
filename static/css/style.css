@@ -367,6 +367,12 @@
     color: #fff;
 }
 
+/* Habit Log bar chart */
+.habit-bar-today {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 1px;
+}
+
 /* ===== Touch feedback (touch devices) ===== */
 @media (hover: none) and (pointer: coarse) {
     .btn:active { transform: scale(0.96); transition: transform 0.1s; }

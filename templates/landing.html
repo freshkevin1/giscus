@@ -4,6 +4,50 @@
 {% block mobile_title %}Dashboard{% endblock %}
 
 {% block content %}
+<!-- ===== HABIT LOG ===== -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-lightning-charge-fill text-warning"></i>
+        <span class="fw-semibold">Habit Log</span>
+        <small class="text-muted ms-auto">{{ today_str }}</small>
+      </div>
+      <div class="card-body">
+        {% for habit in habits_data %}
+        <div class="habit-item" data-habit="{{ habit.name | e }}">
+          <!-- 상단: 이름 + 배지 + 버튼 -->
+          <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+            <span class="fw-semibold flex-grow-1" style="font-size:0.95rem">{{ habit.name }}</span>
+            <span class="badge bg-warning text-dark streak-badge">🔥 {{ habit.streak }}일 연속</span>
+            <span class="badge bg-secondary total-badge">총 {{ habit.total }}일</span>
+            <button class="btn btn-sm habit-toggle-btn
+              {% if habit.today_done %}btn-success{% else %}btn-outline-primary{% endif %}"
+              onclick="toggleHabit(this)">
+              {% if habit.today_done %}<i class="bi bi-check-lg"></i> 완료{% else %}기록하기{% endif %}
+            </button>
+          </div>
+          <!-- 하단: 7일 바 차트 -->
+          <div class="d-flex gap-1 align-items-end" style="height:48px">
+            {% for day in habit.days %}
+            <div class="flex-fill d-flex flex-column align-items-center justify-content-end">
+              <div class="rounded-top habit-bar
+                {% if day.done %}bg-primary{% else %}bg-secondary bg-opacity-25{% endif %}
+                {% if day.is_today %}habit-bar-today{% endif %}"
+                style="width:100%;height:{% if day.done %}28px{% else %}8px{% endif %}"
+                title="{{ day.date }} ({{ day.weekday }}){% if day.done %} ✓{% endif %}">
+              </div>
+              <small class="text-muted mt-1" style="font-size:9px">{{ day.weekday }}</small>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4 class="mb-0 fw-semibold">Executive Dashboard</h4>
     <a href="/?fresh=1" class="btn btn-outline-secondary btn-sm">
@@ -200,4 +244,37 @@
         </a>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleHabit(btn) {
+    const item = btn.closest('.habit-item');
+    const habitName = item.dataset.habit;
+    btn.disabled = true;
+
+    fetch('/api/habits/toggle', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({habit_name: habitName})
+    })
+    .then(r => r.json())
+    .then(data => {
+        const done = data.action === 'done';
+        btn.className = 'btn btn-sm habit-toggle-btn ' + (done ? 'btn-success' : 'btn-outline-primary');
+        btn.innerHTML = done ? '<i class="bi bi-check-lg"></i> 완료' : '기록하기';
+        item.querySelector('.streak-badge').textContent = '🔥 ' + data.streak + '일 연속';
+        item.querySelector('.total-badge').textContent = '총 ' + data.total + '일';
+        const bars = item.querySelectorAll('.habit-bar');
+        data.days.forEach((day, i) => {
+            bars[i].className = 'rounded-top habit-bar ' +
+                (day.done ? 'bg-primary' : 'bg-secondary bg-opacity-25') +
+                (day.is_today ? ' habit-bar-today' : '');
+            bars[i].style.height = day.done ? '28px' : '8px';
+        });
+        btn.disabled = false;
+    })
+    .catch(() => { btn.disabled = false; });
+}
+</script>
 {% endblock %}
