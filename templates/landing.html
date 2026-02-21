@@ -120,6 +120,46 @@
     </div>
 </div>
 
+<!-- 연락 주간 활동 통계 -->
+<div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-bar-chart-line"></i>
+        <span class="fw-semibold">연락 활동 · 최근 7일</span>
+        <span class="badge bg-primary ms-auto">이번 주 {{ weekly_total }}건</span>
+    </div>
+    <div class="card-body">
+        <!-- 요약 지표 -->
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            <span class="badge bg-secondary fs-6">전체 연락처 {{ total_contacts }}명</span>
+            <span class="badge bg-danger fs-6">FU0 긴급 {{ fu0_count }}명</span>
+            <span class="badge bg-warning text-dark fs-6">기한 초과 {{ overdue_count }}명</span>
+        </div>
+        <!-- CSS 막대 차트 -->
+        <div class="d-flex justify-content-around align-items-flex-end" style="height: 120px;">
+            {% for s in weekly_stats %}
+            <div class="d-flex flex-column align-items-center" style="flex: 1; max-width: 60px;">
+                <!-- 막대 위 숫자 -->
+                <div class="small fw-semibold mb-1" style="min-height: 1.2em;">
+                    {% if s.count > 0 %}{{ s.count }}{% endif %}
+                </div>
+                <!-- 막대 컨테이너 -->
+                <div class="w-100 d-flex align-items-flex-end" style="height: 80px;">
+                    <div class="w-100 rounded-top
+                        {% if s.count == 0 %}bg-light border{% elif s.is_today %}bg-primary{% else %}bg-secondary{% endif %}"
+                        style="height: {{ (s.count / max_daily * 100)|int }}%; min-height: {% if s.count > 0 %}4px{% else %}0{% endif %};">
+                    </div>
+                </div>
+                <!-- 날짜 레이블 -->
+                <div class="text-center mt-1" style="font-size: 0.7rem; line-height: 1.2;">
+                    <div class="{% if s.is_today %}fw-bold text-primary{% else %}text-muted{% endif %}">{{ s.label }}</div>
+                    <div class="{% if s.is_today %}fw-bold text-primary{% else %}text-muted{% endif %}">{{ s.weekday }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
 <!-- Books I am reading -->
 <div class="card">
     <div class="card-header d-flex align-items-center gap-2">

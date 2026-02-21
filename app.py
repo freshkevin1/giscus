@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import threading
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -303,6 +303,33 @@ def index():
         contacts = []
 
     today_str = date.today().isoformat()
+
+    # 최근 7일 일별 last_contact 집계
+    last_contact_counts = {}
+    for c in contacts:
+        lc = c.get("last_contact", "")
+        if lc:
+            last_contact_counts[lc] = last_contact_counts.get(lc, 0) + 1
+
+    weekly_stats = []
+    for i in range(6, -1, -1):
+        d = date.today() - timedelta(days=i)
+        d_str = d.isoformat()
+        weekly_stats.append({
+            "date": d_str,
+            "label": d.strftime("%-m/%-d"),
+            "weekday": ["월", "화", "수", "목", "금", "토", "일"][d.weekday()],
+            "count": last_contact_counts.get(d_str, 0),
+            "is_today": i == 0,
+        })
+
+    weekly_total = sum(s["count"] for s in weekly_stats)
+    max_daily = max((s["count"] for s in weekly_stats), default=1) or 1
+
+    total_contacts = len(contacts)
+    fu0_count = sum(1 for c in contacts if c.get("follow_up_priority") == "FU0")
+    overdue_count = sum(1 for c in contacts if c.get("follow_up_date", "") and c.get("follow_up_date", "") < today_str)
+
     eligible = [
         c for c in contacts
         if c.get("follow_up_date") and c.get("follow_up_priority") != "FU9"
@@ -331,6 +358,12 @@ def index():
         top5=top5,
         incoming=incoming,
         reading_books=reading_books,
+        weekly_stats=weekly_stats,
+        weekly_total=weekly_total,
+        max_daily=max_daily,
+        total_contacts=total_contacts,
+        fu0_count=fu0_count,
+        overdue_count=overdue_count,
     )
 
 
