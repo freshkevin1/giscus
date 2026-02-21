@@ -558,16 +558,16 @@ async function loadSuggestedContacts(entityHmac, relatedRaw) {
 
         let html = '';
         if (data.suggested && data.suggested.length > 0) {
-            html += '<div class="mb-2"><small class="text-muted fw-semibold">추천 (Employer/Tag 매칭)</small></div>';
+            html += '<div class="mb-2"><small class="text-muted fw-semibold">추천 (Employer 매칭)</small></div>';
             html += data.suggested.map(renderContact).join('');
-            if (data.others && data.others.length > 0) {
+        }
+        if (data.others && data.others.length > 0) {
+            if (data.suggested && data.suggested.length > 0) {
                 html += '<hr class="my-2">';
-                html += '<details><summary class="small text-muted" style="cursor:pointer">기타 연락처 더보기</summary><div class="mt-1">';
-                html += data.others.map(renderContact).join('');
-                html += '</div></details>';
             }
-        } else {
-            html += (data.others || []).map(renderContact).join('');
+            html += '<details><summary class="small text-muted" style="cursor:pointer">기타 연락처 더보기</summary><div class="mt-1">';
+            html += data.others.map(renderContact).join('');
+            html += '</div></details>';
         }
 
         area.innerHTML = html || '<small class="text-muted">연락처 없음</small>';
