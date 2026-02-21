@@ -186,7 +186,8 @@ def _build_system_prompt():
     "follow_up_note": "...",
     "last_contact": "YYYY-MM-DD",
     "tag": "태그 목록에 있는 값만",
-    "key_value_interest": "..."
+    "key_value_interest": "...",
+    "assignee": "담당자 이름"
   }},
   "opp_title": "기회/딜 이름 (add_opp_to_entity, update_opp 시 사용)",
   "opp_details": "세부사항 (add_opp_to_entity, update_opp 시 선택)",
