@@ -454,15 +454,27 @@ def get_entity_opportunities(entity_hmac):
 
 
 def add_opportunity(entity_hmac, title, details=""):
-    """Add a new opportunity for an entity. Returns opp_id."""
+    """Add a new opportunity for an entity. Returns (opp_id, created).
+
+    created=False means a duplicate title already exists for this entity.
+    """
     sp = _get_spreadsheet()
     ws = sp.worksheet("Entity Opportunities")
+
+    # Duplicate check: same entity + same title (case-insensitive)
+    existing = get_entity_opportunities(entity_hmac)
+    title_lower = title.strip().lower()
+    for opp in existing:
+        if opp["title"].strip().lower() == title_lower:
+            logger.info("Duplicate opportunity '%s' for entity %s — skipped", title, entity_hmac)
+            return opp["opp_id"], False
+
     opp_id = str(uuid.uuid4())[:8]
     today = datetime.now().strftime("%Y-%m-%d")
     row = [entity_hmac, opp_id, title, details, today]
     ws.append_row(row, value_input_option="USER_ENTERED")
     logger.info("Added opportunity '%s' for entity %s", title, entity_hmac)
-    return opp_id
+    return opp_id, True
 
 
 def update_opportunity(entity_hmac, opp_id, title=None, details=None):

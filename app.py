@@ -1025,7 +1025,9 @@ def api_add_opportunity(entity_hmac):
         data = request.get_json()
         if not data or not data.get("title"):
             return jsonify({"error": "Title is required"}), 400
-        opp_id = add_opportunity(entity_hmac, data["title"], data.get("details", ""))
+        opp_id, created = add_opportunity(entity_hmac, data["title"], data.get("details", ""))
+        if not created:
+            return jsonify({"error": "같은 제목의 Opportunity가 이미 존재합니다."}), 409
         return jsonify({"success": True, "opp_id": opp_id})
     except Exception as e:
         logger.error("Failed to add opportunity: %s", e)
@@ -1358,12 +1360,13 @@ def api_contact_chat():
                         opp_title = action.get("opp_title", "")
                         opp_details = action.get("opp_details", "")
                         if opp_title:
-                            opp_id = add_opportunity(entity["entity_hmac"], opp_title, opp_details)
+                            opp_id, created = add_opportunity(entity["entity_hmac"], opp_title, opp_details)
                             executed_actions.append({
                                 "type": "add_opp_to_entity",
                                 "name": entity["name"],
                                 "opp_id": opp_id,
                                 "opp_title": opp_title,
+                                "duplicate": not created,
                             })
                         else:
                             pending_actions.append({**action, "confidence": "low",

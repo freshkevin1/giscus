@@ -744,7 +744,10 @@ function openEditOpp(entityHmac, oppId, title, details) {
 }
 
 // Save Opportunity
-document.getElementById('saveOppBtn').addEventListener('click', async () => {
+document.getElementById('saveOppBtn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled) return;
+
     const entityHmac = document.getElementById('oppEntityHmac').value;
     const oppId = document.getElementById('oppId').value;
     const title = document.getElementById('oppTitle').value.trim();
@@ -752,6 +755,7 @@ document.getElementById('saveOppBtn').addEventListener('click', async () => {
 
     if (!title) { alert('Title은 필수입니다.'); return; }
 
+    btn.disabled = true;
     try {
         let res;
         if (oppId) {
@@ -773,6 +777,8 @@ document.getElementById('saveOppBtn').addEventListener('click', async () => {
         loadOpportunities(entityHmac);
     } catch (e) {
         alert('오류: ' + e.message);
+    } finally {
+        btn.disabled = false;
     }
 });
 
