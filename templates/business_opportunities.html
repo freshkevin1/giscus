@@ -111,6 +111,10 @@
                             <label class="form-label">Referred by</label>
                             <input type="text" class="form-control" name="referred_by">
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">담당자</label>
+                            <input type="text" class="form-control" name="assignee">
+                        </div>
                         <div class="col-12">
                             <label class="form-label">Key Value & Interest</label>
                             <input type="text" class="form-control" name="key_value_interest">
@@ -183,9 +187,13 @@
                                     <label class="form-label fw-semibold">Key Value & Interest</label>
                                     <input type="text" class="form-control" name="key_value_interest" id="editEntityKVI">
                                 </div>
-                                <div class="col-12">
+                                <div class="col-md-6">
                                     <label class="form-label fw-semibold">Referred by</label>
                                     <input type="text" class="form-control" name="referred_by" id="editEntityReferredBy">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">담당자</label>
+                                    <input type="text" class="form-control" name="assignee" id="editEntityAssignee">
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label fw-semibold">Related Individuals</label>
@@ -516,6 +524,7 @@ async function openEntityView(entityHmac) {
     document.getElementById('editEntityFUNote').value = entity.follow_up_note || '';
     document.getElementById('editEntityKVI').value = entity.key_value_interest || '';
     document.getElementById('editEntityReferredBy').value = entity.referred_by || '';
+    document.getElementById('editEntityAssignee').value = entity.assignee || '';
     document.getElementById('editEntityTag').value = entity.tag || '';
     document.getElementById('editEntityRelated').value = entity.related_individuals || '';
 
@@ -662,7 +671,7 @@ document.getElementById('updateEntityBtn').addEventListener('click', async () =>
     const data = {};
     const fields = ['business_priority', 'follow_up_priority', 'follow_up_date',
                     'follow_up_note', 'last_contact', 'tag', 'referred_by',
-                    'key_value_interest', 'related_individuals'];
+                    'assignee', 'key_value_interest', 'related_individuals'];
     fields.forEach(f => {
         const val = formData.get(f);
         if (val !== null) data[f] = val;

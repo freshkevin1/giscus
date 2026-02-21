@@ -18,7 +18,7 @@ ENTITY_HEADERS = [
     "Name", "Entity_hmac", "Business Priority",
     "Follow-up Priority", "Follow-up Date", "Follow-up Note",
     "Last Contact", "Key Value & Interest", "Interaction Context",
-    "Tag", "Related Individuals", "Referred by",
+    "Tag", "Related Individuals", "Referred by", "Assignee",
     "Last Modified", "Created Date",
 ]
 
@@ -111,6 +111,7 @@ def _row_to_entity(row, headers):
         "tag": data.get("Tag", ""),
         "related_individuals": data.get("Related Individuals", ""),
         "referred_by": data.get("Referred by", ""),
+        "assignee": data.get("Assignee", ""),
         "last_modified": data.get("Last Modified", ""),
         "created_date": data.get("Created Date", ""),
     }
@@ -134,6 +135,7 @@ def _entity_to_row(entity):
         entity.get("tag", ""),
         entity.get("related_individuals", ""),
         entity.get("referred_by", ""),
+        entity.get("assignee", ""),
         today,
         entity.get("created_date", today),
     ]
@@ -230,6 +232,7 @@ def update_entity(entity_hmac, fields, changed_by="User"):
         "tag": "Tag",
         "related_individuals": "Related Individuals",
         "referred_by": "Referred by",
+        "assignee": "Assignee",
     }
 
     changes = []
