@@ -2,6 +2,13 @@
 
 from datetime import datetime, date
 
+BP_WEIGHTS = {
+    "0-Critical": 100,
+    "1-High": 75,
+    "2-Medium": 50,
+    "3-Low": 25,
+}
+
 CP_WEIGHTS = {
     "1A-인생관계": 100,
     "1M-Mentor, 은인": 100,
@@ -71,6 +78,63 @@ def sort_contacts_by_score(contacts):
     for c in contacts:
         c["score"] = score_contact(c)
     return sorted(contacts, key=lambda x: x["score"], reverse=True)
+
+
+def score_entity(entity):
+    """Calculate entity score.
+
+    Score = (BP × 0.35) + (FU × 0.30) + (Overdue × 0.35)
+    """
+    bp = BP_WEIGHTS.get(entity.get("business_priority", ""), 0)
+    fu = FU_WEIGHTS.get(entity.get("follow_up_priority", ""), 0)
+
+    overdue = 0
+    fu_date_str = entity.get("follow_up_date", "")
+    if fu_date_str:
+        try:
+            fu_date = datetime.strptime(fu_date_str, "%Y-%m-%d").date()
+            days_overdue = (date.today() - fu_date).days
+            if days_overdue > 0:
+                overdue = min(days_overdue * OVERDUE_MULTIPLIER, OVERDUE_CAP)
+        except ValueError:
+            pass
+
+    score = (bp * 0.35) + (fu * 0.30) + (overdue * 0.35)
+    return round(score, 1)
+
+
+def sort_entities_by_score(entities):
+    """Sort entities list by score descending."""
+    for e in entities:
+        e["score"] = score_entity(e)
+    return sorted(entities, key=lambda x: x["score"], reverse=True)
+
+
+def auto_upgrade_entity_followup(entities):
+    """Auto-upgrade entity follow-up priority if overdue > 7 days."""
+    today = date.today()
+    upgraded = []
+
+    for entity in entities:
+        fu = entity.get("follow_up_priority", "")
+        fu_date_str = entity.get("follow_up_date", "")
+
+        if fu not in FU_UPGRADE or not fu_date_str:
+            continue
+
+        try:
+            fu_date = datetime.strptime(fu_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+
+        days_overdue = (today - fu_date).days
+        if days_overdue > 7:
+            new_fu = FU_UPGRADE[fu]
+            old_fu = fu
+            entity["follow_up_priority"] = new_fu
+            upgraded.append((entity, old_fu, new_fu))
+
+    return upgraded
 
 
 def auto_upgrade_followup(contacts):

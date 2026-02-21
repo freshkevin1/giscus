@@ -401,6 +401,12 @@ def contact_list():
     return render_template("contacts.html")
 
 
+@app.route("/business-opportunities")
+@login_required
+def business_opportunities_page():
+    return render_template("business_opportunities.html")
+
+
 @app.route("/contacts/chat")
 @login_required
 def contact_chat():
@@ -866,6 +872,192 @@ def api_toggle_habit():
         db.session.commit()
         action = "done"
     return jsonify({"action": action, **_habit_stats(habit_name)})
+
+
+# --- Entity API ---
+
+@app.route("/api/entities", methods=["GET"])
+@login_required
+def api_get_entities():
+    try:
+        from sheets_entities import get_all_entities
+        from scoring import sort_entities_by_score
+        entities = get_all_entities()
+        scored = sort_entities_by_score(entities)
+        return jsonify({"entities": scored})
+    except Exception as e:
+        logger.error("Failed to get entities: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities", methods=["POST"])
+@login_required
+def api_add_entity():
+    try:
+        from sheets_entities import add_entity
+        data = request.get_json()
+        if not data or not data.get("name"):
+            return jsonify({"error": "Name is required"}), 400
+        entity_hmac = add_entity(data)
+        return jsonify({"success": True, "entity_hmac": entity_hmac})
+    except Exception as e:
+        logger.error("Failed to add entity: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/deleted", methods=["GET"])
+@login_required
+def api_get_deleted_entities():
+    try:
+        from sheets_entities import get_deleted_entities
+        entities = get_deleted_entities()
+        return jsonify({"entities": entities})
+    except Exception as e:
+        logger.error("Failed to get deleted entities: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/<entity_hmac>", methods=["PUT"])
+@login_required
+def api_update_entity(entity_hmac):
+    try:
+        from sheets_entities import update_entity
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        success = update_entity(entity_hmac, data)
+        if not success:
+            return jsonify({"error": "Entity not found"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to update entity: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/<entity_hmac>", methods=["DELETE"])
+@login_required
+def api_delete_entity(entity_hmac):
+    try:
+        from sheets_entities import delete_entity
+        success = delete_entity(entity_hmac, deleted_by="User")
+        if not success:
+            return jsonify({"error": "Entity not found"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to delete entity: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/<entity_hmac>/restore", methods=["POST"])
+@login_required
+def api_restore_entity(entity_hmac):
+    try:
+        from sheets_entities import restore_entity
+        success = restore_entity(entity_hmac)
+        if not success:
+            return jsonify({"error": "Entity not found in trash"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to restore entity: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/<entity_hmac>/permanent", methods=["DELETE"])
+@login_required
+def api_permanent_delete_entity(entity_hmac):
+    try:
+        from sheets_entities import permanent_delete_entity
+        success = permanent_delete_entity(entity_hmac)
+        if not success:
+            return jsonify({"error": "Entity not found in trash"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to permanently delete entity: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/<entity_hmac>/logs", methods=["GET"])
+@login_required
+def api_get_entity_logs(entity_hmac):
+    try:
+        from sheets_entities import get_entity_logs
+        logs = get_entity_logs(entity_hmac)
+        return jsonify({"logs": logs})
+    except Exception as e:
+        logger.error("Failed to get entity logs: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/<entity_hmac>/opportunities", methods=["GET"])
+@login_required
+def api_get_opportunities(entity_hmac):
+    try:
+        from sheets_entities import get_entity_opportunities
+        opps = get_entity_opportunities(entity_hmac)
+        return jsonify({"opportunities": opps})
+    except Exception as e:
+        logger.error("Failed to get opportunities: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/<entity_hmac>/opportunities", methods=["POST"])
+@login_required
+def api_add_opportunity(entity_hmac):
+    try:
+        from sheets_entities import add_opportunity
+        data = request.get_json()
+        if not data or not data.get("title"):
+            return jsonify({"error": "Title is required"}), 400
+        opp_id = add_opportunity(entity_hmac, data["title"], data.get("details", ""))
+        return jsonify({"success": True, "opp_id": opp_id})
+    except Exception as e:
+        logger.error("Failed to add opportunity: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/<entity_hmac>/opportunities/<opp_id>", methods=["PUT"])
+@login_required
+def api_update_opportunity(entity_hmac, opp_id):
+    try:
+        from sheets_entities import update_opportunity
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        success = update_opportunity(entity_hmac, opp_id,
+                                     title=data.get("title"),
+                                     details=data.get("details"))
+        if not success:
+            return jsonify({"error": "Opportunity not found"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to update opportunity: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/<entity_hmac>/opportunities/<opp_id>", methods=["DELETE"])
+@login_required
+def api_delete_opportunity(entity_hmac, opp_id):
+    try:
+        from sheets_entities import delete_opportunity
+        success = delete_opportunity(entity_hmac, opp_id)
+        if not success:
+            return jsonify({"error": "Opportunity not found"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to delete opportunity: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/entities/<entity_hmac>/suggested-contacts", methods=["GET"])
+@login_required
+def api_get_suggested_contacts(entity_hmac):
+    try:
+        from sheets_entities import get_suggested_contacts
+        result = get_suggested_contacts(entity_hmac)
+        return jsonify(result)
+    except Exception as e:
+        logger.error("Failed to get suggested contacts: %s", e)
+        return jsonify({"error": str(e)}), 500
 
 
 # --- Contact API ---
@@ -1450,8 +1642,10 @@ def _run_contact_startup_tasks():
     """Run contact list startup tasks (sheet headers, auto-upgrade)."""
     try:
         from sheets import ensure_sheet_headers, get_all_contacts
-        from scoring import auto_upgrade_followup
+        from sheets_entities import ensure_entity_sheet_headers, get_all_entities
+        from scoring import auto_upgrade_followup, auto_upgrade_entity_followup
         ensure_sheet_headers()
+        ensure_entity_sheet_headers()
 
         contacts = get_all_contacts()
         upgraded = auto_upgrade_followup(contacts)
@@ -1464,6 +1658,18 @@ def _run_contact_startup_tasks():
                     changed_by="AI",
                 )
             logger.info("Auto-upgraded %d contacts' follow-up priority", len(upgraded))
+
+        entities = get_all_entities()
+        upgraded_entities = auto_upgrade_entity_followup(entities)
+        if upgraded_entities:
+            from sheets_entities import update_entity
+            for entity, old_fu, new_fu in upgraded_entities:
+                update_entity(
+                    entity["entity_hmac"],
+                    {"follow_up_priority": new_fu},
+                    changed_by="AI",
+                )
+            logger.info("Auto-upgraded %d entities' follow-up priority", len(upgraded_entities))
     except Exception as e:
         logger.warning("Contact startup tasks failed (sheets may not be configured): %s", e)
 

@@ -7,6 +7,12 @@
     </li>
     <hr style="border-color: rgba(255,255,255,0.1); margin: 8px 0;">
     <li class="nav-item">
+        <a class="nav-link {% if request.endpoint == 'business_opportunities_page' %}active{% endif %}"
+           href="{{ url_for('business_opportunities_page') }}">
+            <i class="bi bi-briefcase"></i> Business Opportunities
+        </a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link {% if request.endpoint in ('contact_list', 'contact_chat') %}active{% endif %}"
            href="{{ url_for('contact_list') }}">
             <i class="bi bi-people"></i> Contact List

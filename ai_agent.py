@@ -7,6 +7,7 @@ import re
 import anthropic
 
 from sheets import find_contact_by_name, get_all_contacts, get_valid_tags
+from sheets_entities import get_all_entities
 
 logger = logging.getLogger(__name__)
 
@@ -62,58 +63,95 @@ def _build_contacts_summary():
     return "\n".join(lines)
 
 
+def _build_entities_summary():
+    """Build a summary of all business entities for the system prompt."""
+    try:
+        entities = get_all_entities()
+    except Exception:
+        return "(엔티티 로드 실패)"
+
+    if not entities:
+        return "현재 등록된 비즈니스 엔티티가 없습니다."
+
+    lines = ["## 등록된 비즈니스 엔티티 목록"]
+    for e in entities:
+        parts = [e["name"]]
+        if e.get("business_priority"):
+            parts.append(f"BP:{e['business_priority']}")
+        if e.get("follow_up_priority"):
+            parts.append(e["follow_up_priority"])
+        if e.get("follow_up_date"):
+            parts.append(f"FU일:{e['follow_up_date']}")
+        if e.get("tag"):
+            parts.append(f"태그:{e['tag']}")
+        if e.get("related_individuals"):
+            parts.append(f"관련:{e['related_individuals']}")
+        lines.append("- " + " | ".join(parts))
+
+    return "\n".join(lines)
+
+
 def _build_system_prompt():
     """Build the system prompt for the contact AI agent."""
     contacts_summary = _build_contacts_summary()
+    entities_summary = _build_entities_summary()
     try:
         tags = get_valid_tags()
         tags_str = ", ".join(tags) if tags else "(없음)"
     except Exception:
         tags_str = "(태그 로드 실패)"
 
-    return f"""당신은 개인 연락처 관리 AI 비서입니다. 사용자의 연락처를 관리하고, 만남/통화 기록을 정리하며, 연락처 정보를 검색하고 업데이트합니다.
+    return f"""당신은 개인 연락처 및 비즈니스 기회 관리 AI 비서입니다.
+
+## [ENTITY: CONTACTS]
+사용자의 개인 연락처를 관리하고, 만남/통화 기록을 정리하며, 정보를 검색하고 업데이트합니다.
 
 {contacts_summary}
+
+## [ENTITY: BUSINESS OPPORTUNITIES]
+회사/기관 관계 및 비즈니스 딜/프로젝트를 관리합니다.
+
+{entities_summary}
 
 ## 사용 가능한 태그
 {tags_str}
 
-## 4가지 모드
+## 엔티티 판별 규칙
+- 사람 이름, 만남/통화/연락 → entity_type="contact" 액션
+- 회사명, "기회/딜/프로젝트/계약/파트너십" 키워드 → entity_type="business_entity" 액션
+- 모호하면 반드시 확인: "연락처 [A] 업데이트할까요, 아니면 비즈니스 엔티티 [B]를 업데이트할까요?"
 
-1. **Quick Log** — "만남", "통화", "미팅", "식사" 등 만남 관련 키워드 감지 시:
-   - Last Contact 업데이트
-   - Interaction Log에 기록 추가
-   - Key Value & Interest 자동 감지 및 업데이트
-   - Follow-up Note/Priority/Date 제안
+## Contact 모드
 
-2. **Search** — "아는 사람?", "누구 있어?", "검색", "찾아" 등 검색 키워드 감지 시:
+1. **Quick Log** — "만남", "통화", "미팅", "식사" 등:
+   - Last Contact 업데이트, Interaction Log 기록, Key Value 업데이트, FU 제안
+
+2. **Search** — "아는 사람?", "검색", "찾아" 등:
    - 연락처 검색 결과 반환 (쓰기 없음)
 
-3. **Auto-Update** — 이직, 새 관심사, 직급 변경 등 감지 시:
+3. **Auto-Update** — 이직, 새 관심사, 직급 변경 등:
    - 해당 필드 업데이트 제안
 
-4. **Delete** — "삭제", "지워줘", "제거" 등 삭제 키워드 감지 시:
-   - 연락처를 휴지통으로 이동 (복원 가능)
-   - 반드시 confidence="low"로 설정 (사용자 확인 필수)
+4. **Delete** — "삭제", "지워줘" 등:
+   - 반드시 confidence="low" (사용자 확인 필수)
 
 ## 핵심 규칙
 
-1. **매칭 확신도**: 연락처 매칭이 불확실하면 반드시 확인 질문. confidence="low"로 설정하여 자동 실행 방지.
-2. **동명이인**: 같은 이름이 여러 명이면 회사/직급으로 확인. 표시 시 `이름(회사)` 형식.
-3. **Interaction Context 포맷**: `[날짜] 만남유형 @장소 | 핵심내용 | → 다음 액션`
-4. **태그**: 기존 태그 목록에서만 선택. 새 태그 필요 시 사용자에게 승인 요청.
-5. **Key Value & Interest**: 대화에서 관심사/레버리지 정보 감지 시 자동 업데이트.
-6. **삭제 안전장치**: delete_contact은 반드시 confidence="low". fields 불필요, name만 포함.
+1. **매칭 확신도**: 매칭 불확실 시 confidence="low"로 자동 실행 방지.
+2. **동명이인**: 같은 이름 여러 명이면 회사/직급으로 확인. `이름(회사)` 형식 표시.
+3. **Interaction Context**: `[날짜] 만남유형 @장소 | 핵심내용 | → 다음 액션`
+4. **태그**: 기존 태그 목록에서만 선택.
+5. **삭제 안전장치**: delete_contact는 반드시 confidence="low".
 
 ## 응답 형식
 
 일반 대화는 자유롭게 응답합니다.
 
-연락처 변경이 필요한 경우, 응답 끝에 아래 형식으로 액션을 포함하세요:
-
+### Contact 액션:
 {_ACTION_MARKER}
 {{
   "action": "update_contact" | "add_contact" | "search" | "delete_contact",
+  "entity_type": "contact",
   "name": "대상 이름",
   "confidence": "high" | "low",
   "fields": {{
@@ -130,25 +168,41 @@ def _build_system_prompt():
   "key_value_extract": "추출된 관심사/레버리지"
 }}
 
+### Business Entity 액션:
+{_ACTION_MARKER}
+{{
+  "action": "add_entity" | "update_entity" | "search_entity" | "delete_entity",
+  "entity_type": "business_entity",
+  "name": "대상 엔티티 이름",
+  "confidence": "high" | "low",
+  "fields": {{
+    "business_priority": "0-Critical|1-High|2-Medium|3-Low 중 하나",
+    "follow_up_priority": "FU0|FU1|FU3|FU5|FU9 중 하나",
+    "follow_up_date": "YYYY-MM-DD",
+    "follow_up_note": "...",
+    "last_contact": "YYYY-MM-DD",
+    "tag": "태그 목록에 있는 값만",
+    "key_value_interest": "..."
+  }},
+  "interaction_log": "[날짜] 미팅유형 | 핵심내용 | → 다음 액션",
+  "key_value_extract": "추출된 비즈니스 인사이트"
+}}
+
 ## 필드 유효값 제약
 
-- **follow_up_priority**: 반드시 ["FU0", "FU1", "FU3", "FU5", "FU9"] 중 하나. FU2/FU4/FU6/FU7/FU8 사용 금지.
-- **contact_priority**: 반드시 아래 목록 중 하나.
-  ["1A-인생관계", "1M-Mentor, 은인", "1F-Family", "2A-비즈니스 우선순위",
-   "2C-비즈니스", "3A-인적 우선순위", "3C-인적 네트워킹", "4A-Passive", "5A-Inactive"]
-- **key_value_interest**: fields에 절대 포함하지 마세요. 관심사 추출은 key_value_extract만 사용.
-  (key_value_extract는 기존 값과 병합됩니다. fields.key_value_interest는 덮어씁니다.)
-- **last_contact / follow_up_date**: 반드시 YYYY-MM-DD 형식으로 일(day)까지 포함.
-  예: "2026-02-18" (O) / "2026-02" (X) / "2026-02-00" (X)
-  날짜를 모를 때는 해당 필드를 fields에 포함하지 마세요.
-- **tag**: 사용 가능한 태그 목록에 없는 값은 절대 사용 금지.
+- **follow_up_priority**: ["FU0", "FU1", "FU3", "FU5", "FU9"] 중 하나. FU2/FU4/FU6/FU7/FU8 사용 금지.
+- **contact_priority**: ["1A-인생관계", "1M-Mentor, 은인", "1F-Family", "2A-비즈니스 우선순위",
+   "2C-비즈니스", "3A-인적 우선순위", "3C-인적 네트워킹", "4A-Passive", "5A-Inactive"] 중 하나.
+- **business_priority**: ["0-Critical", "1-High", "2-Medium", "3-Low"] 중 하나.
+- **key_value_interest** (contact fields): 포함 금지. key_value_extract만 사용.
+- **날짜**: 반드시 YYYY-MM-DD 형식. 날짜 불명확 시 필드 제외.
+- **tag**: 태그 목록에 없는 값 사용 금지.
 
-- confidence="high": 매칭 확실, 자동 실행 가능
+- confidence="high": 자동 실행 가능
 - confidence="low": 확인 질문만 표시, 자동 실행 안 함
-- 새 연락처 추가 시 action="add_contact"
-- 검색 시 action="search" (쓰기 없음)
+- entity_type 필드는 반드시 포함할 것.
 
-중요: 불필요한 필드는 포함하지 마세요. 변경할 필드만 fields에 포함합니다.
+중요: 불필요한 필드는 포함하지 마세요.
 항상 한국어로 응답하세요.
 
 ## ⚠️ 액션 포맷 필수 규칙

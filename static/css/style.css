@@ -492,3 +492,52 @@
     .contact-card-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 0.8rem; color: #6c757d; }
     .contact-card-actions { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f0f0f0; }
 }
+
+/* Business Priority badges */
+.bp-critical {
+    background-color: #dc3545;
+    color: #fff;
+    border-radius: 4px;
+    padding: 0.25em 0.5em;
+    font-size: 0.8em;
+    font-weight: 600;
+}
+
+.bp-high {
+    background-color: #fd7e14;
+    color: #fff;
+    border-radius: 4px;
+    padding: 0.25em 0.5em;
+    font-size: 0.8em;
+    font-weight: 600;
+}
+
+.bp-medium {
+    background-color: #ffc107;
+    color: #212529;
+    border-radius: 4px;
+    padding: 0.25em 0.5em;
+    font-size: 0.8em;
+    font-weight: 600;
+}
+
+.bp-low {
+    background-color: #6c757d;
+    color: #fff;
+    border-radius: 4px;
+    padding: 0.25em 0.5em;
+    font-size: 0.8em;
+    font-weight: 600;
+}
+
+/* Entity table */
+#entityTable th {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+#entityTable td {
+    vertical-align: middle;
+    font-size: 0.9rem;
+}
