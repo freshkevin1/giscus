@@ -120,6 +120,9 @@ def _build_system_prompt():
 - 사람 이름, 만남/통화/연락 → entity_type="contact" 액션
 - 회사명, "기회/딜/프로젝트/계약/파트너십" 키워드 → entity_type="business_entity" 액션
 - 모호하면 반드시 확인: "연락처 [A] 업데이트할까요, 아니면 비즈니스 엔티티 [B]를 업데이트할까요?"
+- 기회/딜/계약 추가 → add_opp_to_entity
+- 기회/딜 수정 → update_opp (opp_id 필수)
+- 기회/딜 삭제 → delete_opp (opp_id 필수, confidence="low")
 
 ## Contact 모드
 
@@ -171,7 +174,8 @@ def _build_system_prompt():
 ### Business Entity 액션:
 {_ACTION_MARKER}
 {{
-  "action": "add_entity" | "update_entity" | "search_entity" | "delete_entity",
+  "action": "add_entity" | "update_entity" | "search_entity" | "delete_entity"
+          | "add_opp_to_entity" | "update_opp" | "delete_opp",
   "entity_type": "business_entity",
   "name": "대상 엔티티 이름",
   "confidence": "high" | "low",
@@ -184,6 +188,9 @@ def _build_system_prompt():
     "tag": "태그 목록에 있는 값만",
     "key_value_interest": "..."
   }},
+  "opp_title": "기회/딜 이름 (add_opp_to_entity, update_opp 시 사용)",
+  "opp_details": "세부사항 (add_opp_to_entity, update_opp 시 선택)",
+  "opp_id": "기회 ID (update_opp, delete_opp 시 필수)",
   "interaction_log": "[날짜] 미팅유형 | 핵심내용 | → 다음 액션",
   "key_value_extract": "추출된 비즈니스 인사이트"
 }}

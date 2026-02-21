@@ -1283,9 +1283,135 @@ def api_contact_chat():
 
         for action in result.get("actions", []):
             action_type = action.get("action", "")
+            entity_type = action.get("entity_type", "contact")
             confidence = action.get("confidence", "low")
             name = action.get("name", "")
 
+            # --- Business Entity & Opportunity actions ---
+            if entity_type == "business_entity":
+                # search_entity는 읽기 전용 — confidence 무관하게 항상 실행
+                if action_type == "search_entity":
+                    from sheets_entities import find_entity_by_name
+                    matches = find_entity_by_name(name) if name else []
+                    executed_actions.append({
+                        "type": "search_entity",
+                        "name": name,
+                        "results": matches,
+                    })
+                    continue
+
+                if confidence != "high":
+                    pending_actions.append(action)
+                    continue
+
+                # Entity CRUD
+                if action_type == "add_entity":
+                    from sheets_entities import add_entity
+                    fields = action.get("fields", {})
+                    new_entity = {"name": name, **fields}
+                    entity_hmac = add_entity(new_entity)
+                    executed_actions.append({
+                        "type": "add_entity",
+                        "name": name,
+                        "entity_hmac": entity_hmac,
+                    })
+
+                elif action_type == "update_entity":
+                    from sheets_entities import find_entity_by_name, update_entity, add_entity_log
+                    matches = find_entity_by_name(name)
+                    if len(matches) == 1:
+                        entity = matches[0]
+                        fields = action.get("fields", {})
+                        interaction_log = action.get("interaction_log", "")
+                        key_extract = action.get("key_value_extract", "")
+                        if interaction_log:
+                            add_entity_log(entity["entity_hmac"], entity["name"],
+                                           interaction_log, key_extract, ", ".join(fields.keys()))
+                        if fields:
+                            update_entity(entity["entity_hmac"], fields, changed_by="AI")
+                        executed_actions.append({
+                            "type": "update_entity",
+                            "name": entity["name"],
+                            "fields": fields,
+                        })
+                    else:
+                        pending_actions.append({**action, "confidence": "low",
+                                                "reason": "엔티티를 찾을 수 없음"})
+
+                elif action_type == "delete_entity":
+                    from sheets_entities import find_entity_by_name, delete_entity
+                    matches = find_entity_by_name(name)
+                    if len(matches) == 1:
+                        delete_entity(matches[0]["entity_hmac"], deleted_by="AI")
+                        executed_actions.append({
+                            "type": "delete_entity",
+                            "name": name,
+                        })
+                    else:
+                        pending_actions.append({**action, "confidence": "low",
+                                                "reason": "엔티티를 찾을 수 없음"})
+
+                # Opportunity CRUD
+                elif action_type == "add_opp_to_entity":
+                    from sheets_entities import find_entity_by_name, add_opportunity
+                    matches = find_entity_by_name(name)
+                    if len(matches) == 1:
+                        entity = matches[0]
+                        opp_title = action.get("opp_title", "")
+                        opp_details = action.get("opp_details", "")
+                        if opp_title:
+                            opp_id = add_opportunity(entity["entity_hmac"], opp_title, opp_details)
+                            executed_actions.append({
+                                "type": "add_opp_to_entity",
+                                "name": entity["name"],
+                                "opp_id": opp_id,
+                                "opp_title": opp_title,
+                            })
+                        else:
+                            pending_actions.append({**action, "confidence": "low",
+                                                    "reason": "기회 제목(opp_title) 누락"})
+                    else:
+                        pending_actions.append({**action, "confidence": "low",
+                                                "reason": "엔티티를 찾을 수 없음"})
+
+                elif action_type == "update_opp":
+                    from sheets_entities import find_entity_by_name, update_opportunity
+                    matches = find_entity_by_name(name)
+                    opp_id = action.get("opp_id", "")
+                    if len(matches) == 1 and opp_id:
+                        entity = matches[0]
+                        opp_title = action.get("opp_title") or None
+                        opp_details = action.get("opp_details") or None
+                        update_opportunity(entity["entity_hmac"], opp_id,
+                                           title=opp_title, details=opp_details)
+                        executed_actions.append({
+                            "type": "update_opp",
+                            "name": entity["name"],
+                            "opp_id": opp_id,
+                        })
+                    else:
+                        pending_actions.append({**action, "confidence": "low",
+                                                "reason": "엔티티 또는 opp_id를 찾을 수 없음"})
+
+                elif action_type == "delete_opp":
+                    from sheets_entities import find_entity_by_name, delete_opportunity
+                    matches = find_entity_by_name(name)
+                    opp_id = action.get("opp_id", "")
+                    if len(matches) == 1 and opp_id:
+                        entity = matches[0]
+                        delete_opportunity(entity["entity_hmac"], opp_id)
+                        executed_actions.append({
+                            "type": "delete_opp",
+                            "name": entity["name"],
+                            "opp_id": opp_id,
+                        })
+                    else:
+                        pending_actions.append({**action, "confidence": "low",
+                                                "reason": "엔티티 또는 opp_id를 찾을 수 없음"})
+
+                continue  # business_entity 처리 완료 → contact 블록 skip
+
+            # --- Contact actions ---
             if action_type == "search":
                 matches = find_contact_by_name(name) if name else []
                 executed_actions.append({
