@@ -468,7 +468,10 @@ def robotics_companies_news():
 @app.route("/news/trends")
 @login_required
 def trends_news():
-    auto_scrape("geek_weekly")
+    if Article.query.filter_by(source="geek_weekly").count() == 0:
+        run_scrape("geek_weekly")
+    else:
+        auto_scrape("geek_weekly")
     articles = Article.query.filter_by(source="geek_weekly").order_by(Article.section.desc(), Article.id.asc()).all()
     return render_template("trends_news.html", articles=articles)
 
@@ -1615,11 +1618,6 @@ with app.app_context():
     inspector = sa_inspect(db.engine)
     if "login_log" not in inspector.get_table_names():
         LoginLog.__table__.create(db.engine)
-    # One-time: clear all geek_weekly articles (will re-scrape with 2026 only)
-    deleted = Article.query.filter_by(source="geek_weekly").delete()
-    if deleted:
-        db.session.commit()
-        logger.info("Cleared %d geek_weekly articles for re-scrape", deleted)
     init_default_user()
 
     # One-time: fill missing date_read from year_published
