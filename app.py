@@ -1300,23 +1300,21 @@ def api_contact_chat():
                     })
                     continue
 
+                # add_entity는 항상 사용자 확인 필요 (중복 방지)
+                if action_type == "add_entity":
+                    pending_actions.append({
+                        **action,
+                        "confidence": "low",
+                        "reason": "새 비즈니스 엔티티 추가 — 확인 후 실행",
+                    })
+                    continue
+
                 if confidence != "high":
                     pending_actions.append(action)
                     continue
 
-                # Entity CRUD
-                if action_type == "add_entity":
-                    from sheets_entities import add_entity
-                    fields = action.get("fields", {})
-                    new_entity = {"name": name, **fields}
-                    entity_hmac = add_entity(new_entity)
-                    executed_actions.append({
-                        "type": "add_entity",
-                        "name": name,
-                        "entity_hmac": entity_hmac,
-                    })
-
-                elif action_type == "update_entity":
+                # Entity CRUD — add_entity는 위에서 처리됨
+                if action_type == "update_entity":
                     from sheets_entities import find_entity_by_name, update_entity, add_entity_log
                     matches = find_entity_by_name(name)
                     if len(matches) == 1:
@@ -1606,6 +1604,20 @@ def api_contact_chat_confirm():
             if not success:
                 return jsonify({"error": "연락처를 찾을 수 없습니다."}), 404
             return jsonify({"success": True, "type": "delete"})
+
+        elif action_type == "add_entity":
+            from sheets_entities import find_entity_by_name, add_entity
+            existing = find_entity_by_name(name)
+            if existing:
+                names_str = ", ".join(e["name"] for e in existing)
+                return jsonify({
+                    "error": f"이미 존재하는 엔티티입니다: {names_str}",
+                    "duplicate": True,
+                }), 409
+            fields = action.get("fields", {})
+            new_entity = {"name": name, **fields}
+            entity_hmac = add_entity(new_entity)
+            return jsonify({"success": True, "type": "add_entity", "entity_hmac": entity_hmac})
 
         return jsonify({"error": "Unknown action type"}), 400
 
