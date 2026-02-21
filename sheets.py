@@ -7,7 +7,12 @@ import time
 from datetime import datetime
 
 import gspread
+import requests.exceptions as _req_exc
 from google.oauth2.service_account import Credentials
+from tenacity import (
+    retry, stop_after_attempt, wait_exponential,
+    retry_if_exception_type, before_sleep_log,
+)
 
 from encryption import decrypt, encrypt, hmac_index
 
@@ -41,6 +46,20 @@ DELETED_HEADERS = MASTER_HEADERS + ["Deleted Date", "Deleted By"]
 
 DEFAULT_TAGS = ["Tuck", "McKinsey", "Toss", "Doosan"]
 
+# Retry config for read-only Sheets API calls
+_RETRY_EXCEPTIONS = (
+    _req_exc.RequestException,    # network errors
+    gspread.exceptions.APIError,  # Sheets API 5xx errors
+)
+
+_api_retry = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=8),
+    retry=retry_if_exception_type(_RETRY_EXCEPTIONS),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True,
+)
+
 # In-memory cache
 _cache = {
     "contacts": None,
@@ -60,7 +79,18 @@ def _get_client():
         raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON not set")
     creds_data = json.loads(creds_json)
     creds = Credentials.from_service_account_info(creds_data, scopes=SCOPES)
-    return gspread.authorize(creds)
+    client = gspread.authorize(creds)
+    # Patch default timeout: 120 s (google-auth default) → 15 s
+    try:
+        session = client.http_client.session
+        _orig_request = session.request
+        def _request_with_timeout(*args, **kwargs):
+            kwargs.setdefault("timeout", 15)
+            return _orig_request(*args, **kwargs)
+        session.request = _request_with_timeout
+    except AttributeError:
+        pass  # gspread internal structure changed — skip silently
+    return client
 
 
 def _get_spreadsheet():
@@ -197,6 +227,7 @@ def _contact_to_row(contact):
     ]
 
 
+@_api_retry
 def get_all_contacts():
     """Get all contacts from Master tab. Uses cache."""
     if _is_cached("contacts"):
@@ -412,6 +443,7 @@ def delete_contact(name_hmac, deleted_by="User"):
     return True
 
 
+@_api_retry
 def get_deleted_contacts():
     """Get all contacts from Deleted tab. Uses cache."""
     if _is_cached("deleted"):
@@ -544,6 +576,7 @@ def log_change(name_hmac, field, old_value, new_value, changed_by="User"):
 
 # --- Tags Tab ---
 
+@_api_retry
 def get_valid_tags():
     """Get list of valid tags from Tags tab. Uses cache."""
     if _is_cached("tags"):
