@@ -375,7 +375,9 @@ def index():
             c["days_overdue"] = delta.days
         except Exception:
             c["days_overdue"] = 0
-    top5 = overdue + not_overdue[:max(0, 5 - len(overdue))]
+    # 각 그룹 내: 1차 score 내림차순, 2차 follow_up_date 오름차순
+    _sort_key = lambda c: (-c.get("score", 0), c.get("follow_up_date", "9999-99-99"))
+    top5 = sorted(overdue, key=_sort_key) + sorted(not_overdue, key=_sort_key)[:max(0, 5 - len(overdue))]
 
     incoming = [
         c for c in contacts
