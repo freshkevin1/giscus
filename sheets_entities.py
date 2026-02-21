@@ -18,8 +18,8 @@ ENTITY_HEADERS = [
     "Name", "Entity_hmac", "Business Priority",
     "Follow-up Priority", "Follow-up Date", "Follow-up Note",
     "Last Contact", "Key Value & Interest", "Interaction Context",
-    "Tag", "Related Individuals", "Referred by", "Assignee",
-    "Last Modified", "Created Date",
+    "Tag", "Related Individuals", "Referred by",
+    "Last Modified", "Created Date", "Assignee",
 ]
 
 ENTITY_OPP_HEADERS = [
@@ -135,9 +135,9 @@ def _entity_to_row(entity):
         entity.get("tag", ""),
         entity.get("related_individuals", ""),
         entity.get("referred_by", ""),
-        entity.get("assignee", ""),
         today,
         entity.get("created_date", today),
+        entity.get("assignee", ""),
     ]
 
 
