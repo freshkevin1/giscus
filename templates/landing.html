@@ -48,6 +48,44 @@
   </div>
 </div>
 
+<!-- 연락 주간 활동 통계 -->
+<div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-bar-chart-line"></i>
+        <span class="fw-semibold">연락 활동 · 최근 7일</span>
+        <span class="badge bg-primary ms-auto">이번 주 {{ weekly_total }}건</span>
+    </div>
+    <div class="card-body">
+        <!-- 요약 지표 -->
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            <span class="badge bg-secondary fs-6">전체 연락처 {{ total_contacts }}명</span>
+            <span class="badge bg-danger fs-6">FU0 긴급 {{ fu0_count }}명</span>
+            <span class="badge bg-warning text-dark fs-6">기한 초과 {{ overdue_count }}명</span>
+        </div>
+        <!-- CSS 막대 차트 (Habit Log 스타일) -->
+        <div class="d-flex gap-1 align-items-end" style="height:56px">
+            {% for s in weekly_stats %}
+            {% set bar_px = (s.count / max_daily * 36)|int %}
+            <div class="flex-fill d-flex flex-column align-items-center justify-content-end">
+                <small class="fw-semibold mb-1" style="font-size:9px;min-height:1em">
+                    {% if s.count > 0 %}{{ s.count }}{% endif %}
+                </small>
+                <div class="rounded-top habit-bar
+                    {% if s.count == 0 %}bg-secondary bg-opacity-25
+                    {% elif s.is_today %}bg-primary
+                    {% else %}bg-primary bg-opacity-75{% endif %}
+                    {% if s.is_today %}habit-bar-today{% endif %}"
+                    style="width:100%;height:{{ bar_px if bar_px >= 4 else 4 }}px"
+                    title="{{ s.label }} ({{ s.weekday }}): {{ s.count }}건">
+                </div>
+                <small class="{% if s.is_today %}fw-bold text-primary{% else %}text-muted{% endif %} mt-1"
+                       style="font-size:9px">{{ s.weekday }}</small>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4 class="mb-0 fw-semibold">Executive Dashboard</h4>
     <a href="/?fresh=1" class="btn btn-outline-secondary btn-sm">
@@ -160,44 +198,6 @@
                     전체 연락처 <i class="bi bi-arrow-right"></i>
                 </a>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- 연락 주간 활동 통계 -->
-<div class="card mb-4">
-    <div class="card-header d-flex align-items-center gap-2">
-        <i class="bi bi-bar-chart-line"></i>
-        <span class="fw-semibold">연락 활동 · 최근 7일</span>
-        <span class="badge bg-primary ms-auto">이번 주 {{ weekly_total }}건</span>
-    </div>
-    <div class="card-body">
-        <!-- 요약 지표 -->
-        <div class="d-flex gap-2 mb-3 flex-wrap">
-            <span class="badge bg-secondary fs-6">전체 연락처 {{ total_contacts }}명</span>
-            <span class="badge bg-danger fs-6">FU0 긴급 {{ fu0_count }}명</span>
-            <span class="badge bg-warning text-dark fs-6">기한 초과 {{ overdue_count }}명</span>
-        </div>
-        <!-- CSS 막대 차트 (Habit Log 스타일) -->
-        <div class="d-flex gap-1 align-items-end" style="height:56px">
-            {% for s in weekly_stats %}
-            {% set bar_px = (s.count / max_daily * 36)|int %}
-            <div class="flex-fill d-flex flex-column align-items-center justify-content-end">
-                <small class="fw-semibold mb-1" style="font-size:9px;min-height:1em">
-                    {% if s.count > 0 %}{{ s.count }}{% endif %}
-                </small>
-                <div class="rounded-top habit-bar
-                    {% if s.count == 0 %}bg-secondary bg-opacity-25
-                    {% elif s.is_today %}bg-primary
-                    {% else %}bg-primary bg-opacity-75{% endif %}
-                    {% if s.is_today %}habit-bar-today{% endif %}"
-                    style="width:100%;height:{{ bar_px if bar_px >= 4 else 4 }}px"
-                    title="{{ s.label }} ({{ s.weekday }}): {{ s.count }}건">
-                </div>
-                <small class="{% if s.is_today %}fw-bold text-primary{% else %}text-muted{% endif %} mt-1"
-                       style="font-size:9px">{{ s.weekday }}</small>
-            </div>
-            {% endfor %}
         </div>
     </div>
 </div>
