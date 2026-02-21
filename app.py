@@ -49,11 +49,18 @@ _WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
 
 
 def _habit_stats(habit_name):
+    from sheets import _get_all_habit_rows, is_habit_logged
     today = date.today()
+    all_rows = _get_all_habit_rows()
+    logged_dates = {
+        row["logged_date"]
+        for row in all_rows
+        if row.get("habit_name") == habit_name
+    }
     days = []
     for i in range(6, -1, -1):
         d = today - timedelta(days=i)
-        done = HabitLog.query.filter_by(habit_name=habit_name, logged_date=d).first() is not None
+        done = d.isoformat() in logged_dates
         days.append({
             "date": d.strftime("%m/%d"),
             "weekday": _WEEKDAY_KO[d.weekday()],
@@ -62,10 +69,10 @@ def _habit_stats(habit_name):
         })
     streak = 0
     d = today
-    while HabitLog.query.filter_by(habit_name=habit_name, logged_date=d).first():
+    while d.isoformat() in logged_dates:
         streak += 1
         d -= timedelta(days=1)
-    total = HabitLog.query.filter_by(habit_name=habit_name).count()
+    total = len(logged_dates)
     today_done = days[-1]["done"]
     return {"name": habit_name, "today_done": today_done, "streak": streak, "total": total, "days": days}
 
@@ -861,6 +868,7 @@ def api_delete_saved_book(book_id):
 @app.route("/api/habits/toggle", methods=["POST"])
 @login_required
 def api_toggle_habit():
+    from sheets import is_habit_logged, add_habit_log, delete_habit_log
     habit_name = request.json.get("habit_name", "")
     if not habit_name:
         return jsonify({"error": "habit_name required"}), 400
@@ -872,14 +880,11 @@ def api_toggle_habit():
             return jsonify({"error": "invalid date format, use YYYY-MM-DD"}), 400
     else:
         target_date = date.today()
-    existing = HabitLog.query.filter_by(habit_name=habit_name, logged_date=target_date).first()
-    if existing:
-        db.session.delete(existing)
-        db.session.commit()
+    if is_habit_logged(habit_name, target_date):
+        delete_habit_log(habit_name, target_date)
         action = "undone"
     else:
-        db.session.add(HabitLog(habit_name=habit_name, logged_date=target_date))
-        db.session.commit()
+        add_habit_log(habit_name, target_date)
         action = "done"
     return jsonify({"action": action, **_habit_stats(habit_name)})
 

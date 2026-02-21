@@ -42,6 +42,8 @@ CHANGE_LOG_HEADERS = [
 
 TAGS_HEADERS = ["Tag Name"]
 
+HABIT_LOG_HEADERS = ["habit_name", "logged_date", "created_at"]
+
 DELETED_HEADERS = MASTER_HEADERS + ["Deleted Date", "Deleted By"]
 
 DEFAULT_TAGS = ["Tuck", "McKinsey", "Toss", "Doosan"]
@@ -70,6 +72,9 @@ _cache = {
     "deleted_time": 0,
 }
 CACHE_TTL = 300  # 5 minutes
+
+_habit_cache = {"data": None, "ts": 0}
+HABIT_LOG_CACHE_TTL = 60  # 1분
 
 
 def _get_client():
@@ -136,6 +141,7 @@ def ensure_sheet_headers():
         "Change Log": CHANGE_LOG_HEADERS,
         "Tags": TAGS_HEADERS,
         "Deleted": DELETED_HEADERS,
+        "Habit Log": HABIT_LOG_HEADERS,
     }
 
     for tab_name, headers in tabs.items():
@@ -603,3 +609,84 @@ def add_tag(tag_name):
     ws.append_row([tag_name], value_input_option="USER_ENTERED")
     _invalidate_cache("tags")
     logger.info("Added new tag: %s", tag_name)
+
+
+# --- Habit Log Tab ---
+
+def _get_habit_ws():
+    """Return the 'Habit Log' worksheet."""
+    sp = _get_spreadsheet()
+    return sp.worksheet("Habit Log")
+
+
+@_api_retry
+def _get_all_habit_rows():
+    """Get all Habit Log rows as list of dicts. Uses 1-minute cache."""
+    now = time.time()
+    if _habit_cache["data"] is not None and (now - _habit_cache["ts"]) < HABIT_LOG_CACHE_TTL:
+        return _habit_cache["data"]
+
+    ws = _get_habit_ws()
+    all_rows = ws.get_all_values()
+
+    if len(all_rows) <= 1:
+        _habit_cache["data"] = []
+        _habit_cache["ts"] = time.time()
+        return []
+
+    headers = all_rows[0]
+    rows = []
+    for row in all_rows[1:]:
+        row_data = {}
+        for i, h in enumerate(headers):
+            row_data[h] = row[i] if i < len(row) else ""
+        rows.append(row_data)
+
+    _habit_cache["data"] = rows
+    _habit_cache["ts"] = time.time()
+    return rows
+
+
+def add_habit_log(habit_name, target_date):
+    """Append a habit log entry to the Habit Log tab."""
+    ws = _get_habit_ws()
+    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    row = [habit_name, target_date.isoformat(), created_at]
+    ws.append_row(row, value_input_option="USER_ENTERED")
+    _habit_cache["data"] = None
+    _habit_cache["ts"] = 0
+    logger.info("Added habit log: %s on %s", habit_name, target_date)
+
+
+def delete_habit_log(habit_name, target_date):
+    """Find and delete a habit log entry from the Habit Log tab."""
+    ws = _get_habit_ws()
+    all_rows = ws.get_all_values()
+    date_str = target_date.isoformat()
+
+    row_idx = None
+    for i, row in enumerate(all_rows):
+        if i == 0:
+            continue  # skip header
+        if len(row) >= 2 and row[0] == habit_name and row[1] == date_str:
+            row_idx = i + 1  # 1-based
+            break
+
+    if row_idx:
+        ws.delete_rows(row_idx)
+        _habit_cache["data"] = None
+        _habit_cache["ts"] = 0
+        logger.info("Deleted habit log: %s on %s", habit_name, target_date)
+        return True
+    return False
+
+
+def is_habit_logged(habit_name, target_date, all_rows=None):
+    """Return True if the habit is already logged for target_date."""
+    if all_rows is None:
+        all_rows = _get_all_habit_rows()
+    date_str = target_date.isoformat()
+    for row in all_rows:
+        if row.get("habit_name") == habit_name and row.get("logged_date") == date_str:
+            return True
+    return False
