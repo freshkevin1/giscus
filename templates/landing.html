@@ -18,7 +18,7 @@
             <div class="card-header d-flex align-items-center gap-2">
                 <i class="bi bi-clipboard-check"></i>
                 <span class="fw-semibold">연락 Top 5</span>
-                <span class="badge bg-secondary ms-auto">Follow-up 필요</span>
+                <span class="badge bg-secondary ms-auto">{{ top5|length }}명</span>
             </div>
             <div class="card-body p-0">
                 {% if top5 %}
@@ -35,7 +35,7 @@
                         </thead>
                         <tbody>
                             {% for c in top5 %}
-                            <tr>
+                            <tr{% if c.days_overdue is defined %} class="table-danger"{% endif %}>
                                 <td class="fw-medium">{{ c.name }}</td>
                                 <td class="text-muted small">{{ c.employer or '—' }}</td>
                                 <td>
@@ -47,7 +47,12 @@
                                         {{ c.follow_up_priority or '—' }}
                                     </span>
                                 </td>
-                                <td class="small">{{ c.follow_up_date or '—' }}</td>
+                                <td class="small">
+                                    {{ c.follow_up_date or '—' }}
+                                    {% if c.days_overdue is defined %}
+                                    <span class="badge bg-danger ms-1">D+{{ c.days_overdue }}</span>
+                                    {% endif %}
+                                </td>
                                 <td class="text-end fw-semibold">{{ c.score }}</td>
                             </tr>
                             {% endfor %}

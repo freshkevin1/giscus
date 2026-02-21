@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import threading
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -302,10 +302,21 @@ def index():
     except Exception:
         contacts = []
 
-    top5 = [
+    today_str = date.today().isoformat()
+    eligible = [
         c for c in contacts
         if c.get("follow_up_date") and c.get("follow_up_priority") != "FU9"
-    ][:5]
+    ]
+    overdue = [c for c in eligible if c.get("follow_up_date", "") < today_str]
+    not_overdue = [c for c in eligible if c.get("follow_up_date", "") >= today_str]
+    # overdue는 무조건 포함, 나머지 슬롯은 스코어 순 non-overdue로 채움
+    for c in overdue:
+        try:
+            delta = date.today() - date.fromisoformat(c["follow_up_date"])
+            c["days_overdue"] = delta.days
+        except Exception:
+            c["days_overdue"] = 0
+    top5 = overdue + not_overdue[:max(0, 5 - len(overdue))]
 
     incoming = [
         c for c in contacts
