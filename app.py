@@ -864,14 +864,21 @@ def api_toggle_habit():
     habit_name = request.json.get("habit_name", "")
     if not habit_name:
         return jsonify({"error": "habit_name required"}), 400
-    today = date.today()
-    existing = HabitLog.query.filter_by(habit_name=habit_name, logged_date=today).first()
+    date_str = request.json.get("date")
+    if date_str:
+        try:
+            target_date = date.fromisoformat(date_str)
+        except ValueError:
+            return jsonify({"error": "invalid date format, use YYYY-MM-DD"}), 400
+    else:
+        target_date = date.today()
+    existing = HabitLog.query.filter_by(habit_name=habit_name, logged_date=target_date).first()
     if existing:
         db.session.delete(existing)
         db.session.commit()
         action = "undone"
     else:
-        db.session.add(HabitLog(habit_name=habit_name, logged_date=today))
+        db.session.add(HabitLog(habit_name=habit_name, logged_date=target_date))
         db.session.commit()
         action = "done"
     return jsonify({"action": action, **_habit_stats(habit_name)})
