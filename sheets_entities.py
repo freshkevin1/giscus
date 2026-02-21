@@ -515,8 +515,7 @@ def get_suggested_contacts(entity_hmac):
     Returns dict: {"suggested": [...], "others": [...]}
     Priority:
       1. Contact.Employer contains Entity.Name (case-insensitive) → Employer match
-      2. Contact.Tag == Entity.Tag → tag suggestion
-      3. Everything else
+      2. Everything else
     """
     from sheets import get_all_contacts
 
@@ -525,7 +524,6 @@ def get_suggested_contacts(entity_hmac):
         return {"suggested": [], "others": []}
 
     entity_name_lower = entity["name"].strip().lower()
-    entity_tag = entity.get("tag", "").strip().lower()
 
     # Parse existing related individuals (stored as comma-sep hmacs or names)
     related_raw = entity.get("related_individuals", "")
@@ -537,7 +535,6 @@ def get_suggested_contacts(entity_hmac):
 
     for c in contacts:
         employer = (c.get("employer") or "").strip().lower()
-        c_tag = (c.get("tag") or "").strip().lower()
         c_name = (c.get("name") or "").strip().lower()
 
         match_reason = None
@@ -550,12 +547,7 @@ def get_suggested_contacts(entity_hmac):
             match_reason = "Employer match"
             rank = 1
 
-        # Priority 2: Tag match
-        elif entity_tag and c_tag and entity_tag == c_tag:
-            match_reason = "Tag match"
-            rank = 2
-
-        # Priority 3: Entity name keyword in contact name
+        # Priority 2: Entity name keyword in contact name
         elif entity_name_lower and entity_name_lower in c_name:
             match_reason = "Name match"
             rank = 3
