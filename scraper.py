@@ -712,37 +712,42 @@ def scrape_deeplearning_batch():
 
 
 def scrape_the_decoder():
-    """Scrape latest articles from The Decoder (the-decoder.com).
+    """Scrape latest articles from The Decoder via RSS feed.
 
     Returns up to 10 articles (most recent first) as a list of dicts
     with keys: title, url, section.
     """
-    base_url = "https://the-decoder.com"
+    import xml.etree.ElementTree as ET
+
+    feed_url = "https://the-decoder.com/feed/"
     articles = []
 
     try:
-        resp = requests.get(base_url, timeout=15, headers=HEADERS)
+        resp = requests.get(feed_url, timeout=15, headers=HEADERS)
         resp.raise_for_status()
     except requests.RequestException as e:
-        logger.error("Failed to fetch The Decoder: %s", e)
+        logger.error("Failed to fetch The Decoder RSS: %s", e)
         return articles
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    try:
+        root = ET.fromstring(resp.content)
+    except ET.ParseError as e:
+        logger.error("Failed to parse The Decoder RSS XML: %s", e)
+        return articles
 
-    for article in soup.find_all("article"):
-        h2 = article.find("h2")
-        if not h2:
+    channel = root.find("channel")
+    if channel is None:
+        logger.error("The Decoder RSS: no <channel> element found")
+        return articles
+
+    for item in channel.findall("item"):
+        title = (item.findtext("title") or "").strip()
+        link = (item.findtext("link") or "").strip()
+        if not title or not link:
             continue
-        a = h2.find("a", href=True)
-        if not a:
-            continue
-        title = a.get_text(strip=True)
-        href = a["href"]
-        if href.startswith("/"):
-            href = base_url + href
-        articles.append({"title": title, "url": href, "section": "The Decoder"})
+        articles.append({"title": title, "url": link, "section": "The Decoder"})
         if len(articles) >= 10:
             break
 
-    logger.info("Scraped %d articles from The Decoder", len(articles))
+    logger.info("Scraped %d articles from The Decoder RSS", len(articles))
     return articles
