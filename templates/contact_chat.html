@@ -143,51 +143,51 @@ function appendActionResult(actions, type) {
             if (a.type === 'update') {
                 if (a.no_changes) {
                     div.innerHTML = `<div class="alert alert-secondary py-2 small mb-0">
-                        <i class="bi bi-info-circle"></i> <strong>${a.name}</strong>: 변경 사항 없음 (이미 최신 상태)
+                        <i class="bi bi-info-circle"></i> <strong>${escapeHtml(a.name)}</strong>: 변경 사항 없음 (이미 최신 상태)
                     </div>`;
                 } else {
-                    const fields = Object.entries(a.fields || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+                    const fields = Object.entries(a.fields || {}).map(([k, v]) => `${escapeHtml(String(k))}: ${escapeHtml(String(v))}`).join(', ');
                     div.innerHTML = `<div class="alert alert-success py-2 small mb-0">
-                        <i class="bi bi-check-circle"></i> <strong>${a.name}</strong> 업데이트 완료: ${fields}
+                        <i class="bi bi-check-circle"></i> <strong>${escapeHtml(a.name)}</strong> 업데이트 완료: ${fields}
                     </div>`;
                 }
             } else if (a.type === 'update_skipped') {
-                const reason = (a.reason || []).join(', ');
+                const reason = (a.reason || []).map(r => escapeHtml(String(r))).join(', ');
                 div.innerHTML = `<div class="alert alert-warning py-2 small mb-0">
-                    <i class="bi bi-exclamation-triangle"></i> <strong>${a.name}</strong> 업데이트 건너뜀: ${reason}
+                    <i class="bi bi-exclamation-triangle"></i> <strong>${escapeHtml(a.name)}</strong> 업데이트 건너뜀: ${reason}
                 </div>`;
             } else if (a.type === 'add') {
                 div.innerHTML = `<div class="alert alert-success py-2 small mb-0">
-                    <i class="bi bi-plus-circle"></i> <strong>${a.name}</strong> 연락처 추가 완료
+                    <i class="bi bi-plus-circle"></i> <strong>${escapeHtml(a.name)}</strong> 연락처 추가 완료
                 </div>`;
             } else if (a.type === 'delete') {
                 div.innerHTML = `<div class="alert alert-warning py-2 small mb-0">
-                    <i class="bi bi-trash"></i> <strong>${a.name}</strong> 휴지통으로 이동 완료
+                    <i class="bi bi-trash"></i> <strong>${escapeHtml(a.name)}</strong> 휴지통으로 이동 완료
                 </div>`;
             } else if (a.type === 'search') {
                 const results = (a.results || []).map(r => {
-                    const display = r.employer ? `${r.name}(${r.employer})` : r.name;
-                    return `${display} - ${r.contact_priority || ''} ${r.title || ''}`;
+                    const display = r.employer ? `${escapeHtml(r.name)}(${escapeHtml(r.employer)})` : escapeHtml(r.name);
+                    return `${display} - ${escapeHtml(r.contact_priority || '')} ${escapeHtml(r.title || '')}`;
                 }).join('<br>');
                 div.innerHTML = `<div class="alert alert-info py-2 small mb-0">
                     <i class="bi bi-search"></i> 검색 결과:<br>${results || '결과 없음'}
                 </div>`;
             }
         } else if (type === 'pending') {
-            const fields = Object.entries(a.fields || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
-            let reason = a.reason || '확인이 필요합니다';
+            const fields = Object.entries(a.fields || {}).map(([k, v]) => `${escapeHtml(String(k))}: ${escapeHtml(String(v))}`).join(', ');
+            const reason = escapeHtml(a.reason || '확인이 필요합니다');
 
             let candidatesHtml = '';
             if (a.candidates && a.candidates.length > 1) {
                 candidatesHtml = '<div class="mt-2">' +
                     a.candidates.map(c =>
                         `<button class="btn btn-outline-primary btn-sm me-1 mb-1 candidate-btn"
-                                 data-hmac="${c.name_hmac}">${c.name}(${c.employer || '미상'})</button>`
+                                 data-hmac="${escapeHtml(c.name_hmac)}">${escapeHtml(c.name)}(${escapeHtml(c.employer || '미상')})</button>`
                     ).join('') + '</div>';
             }
 
             div.innerHTML = `<div class="alert alert-warning py-2 small mb-0">
-                <i class="bi bi-question-circle"></i> <strong>${a.name}</strong>: ${reason}
+                <i class="bi bi-question-circle"></i> <strong>${escapeHtml(a.name)}</strong>: ${reason}
                 <br><small>${fields}</small>
                 ${candidatesHtml}
                 ${!a.candidates ? `<br><button class="btn btn-primary btn-sm mt-1 confirm-pending-btn">확인 후 실행</button>` : ''}
@@ -273,10 +273,10 @@ document.getElementById('chatMessages').addEventListener('click', async (e) => {
                     alertDiv.className = 'alert alert-success py-2 small mb-0';
                     alertDiv.innerHTML = '<i class="bi bi-check-circle"></i> 업데이트 완료';
                 } else {
-                    alertDiv.innerHTML += `<br><small class="text-danger">${data.error}</small>`;
+                    alertDiv.innerHTML += `<br><small class="text-danger">${escapeHtml(data.error || '')}</small>`;
                 }
             } catch (err) {
-                alertDiv.innerHTML += `<br><small class="text-danger">오류: ${err.message}</small>`;
+                alertDiv.innerHTML += `<br><small class="text-danger">오류: ${escapeHtml(err.message || '')}</small>`;
             }
         }
         return;
@@ -298,12 +298,12 @@ document.getElementById('chatMessages').addEventListener('click', async (e) => {
                     alertDiv.innerHTML = '<i class="bi bi-check-circle"></i> 실행 완료';
                 } else if (data.duplicate) {
                     alertDiv.className = 'alert alert-danger py-2 small mb-0';
-                    alertDiv.innerHTML = `<i class="bi bi-exclamation-octagon"></i> ${data.error}`;
+                    alertDiv.innerHTML = `<i class="bi bi-exclamation-octagon"></i> ${escapeHtml(data.error || '')}`;
                 } else {
-                    alertDiv.innerHTML += `<br><small class="text-danger">오류: ${data.error}</small>`;
+                    alertDiv.innerHTML += `<br><small class="text-danger">오류: ${escapeHtml(data.error || '')}</small>`;
                 }
             } catch (err) {
-                alertDiv.innerHTML += `<br><small class="text-danger">오류: ${err.message}</small>`;
+                alertDiv.innerHTML += `<br><small class="text-danger">오류: ${escapeHtml(err.message || '')}</small>`;
             }
         }
     }

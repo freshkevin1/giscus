@@ -660,7 +660,7 @@ def api_book_search():
         items = data.get("items", [])
     except Exception as e:
         logger.error("Google Books API error: %s", e)
-        return jsonify({"results": [], "error": str(e)})
+        return jsonify({"results": [], "error": "처리 중 오류가 발생했습니다."})
 
     results = []
     for item in items:
@@ -842,7 +842,7 @@ def api_generate_recommendations():
         recs = generate_recommendations(books)
     except Exception as e:
         logger.error("Recommendation generation failed: %s", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "message": "처리 중 오류가 발생했습니다."}), 500
 
     # Replace all existing recommendations
     Recommendation.query.delete()
@@ -880,7 +880,7 @@ def api_books_chat():
         result = chat_recommendation(user_message, history, books, saved_books=saved_books)
     except Exception as e:
         logger.error("Chat recommendation failed: %s", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "message": "처리 중 오류가 발생했습니다."}), 500
 
     # Persist user message
     db.session.add(ChatMessage(role="user", content=user_message))
@@ -986,7 +986,7 @@ def api_get_entities():
         return jsonify({"entities": scored})
     except Exception as e:
         logger.error("Failed to get entities: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities", methods=["POST"])
@@ -1001,7 +1001,7 @@ def api_add_entity():
         return jsonify({"success": True, "entity_hmac": entity_hmac})
     except Exception as e:
         logger.error("Failed to add entity: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/deleted", methods=["GET"])
@@ -1013,7 +1013,7 @@ def api_get_deleted_entities():
         return jsonify({"entities": entities})
     except Exception as e:
         logger.error("Failed to get deleted entities: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/<entity_hmac>", methods=["PUT"])
@@ -1030,7 +1030,7 @@ def api_update_entity(entity_hmac):
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to update entity: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/<entity_hmac>", methods=["DELETE"])
@@ -1044,7 +1044,7 @@ def api_delete_entity(entity_hmac):
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to delete entity: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/<entity_hmac>/restore", methods=["POST"])
@@ -1058,7 +1058,7 @@ def api_restore_entity(entity_hmac):
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to restore entity: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/<entity_hmac>/permanent", methods=["DELETE"])
@@ -1072,7 +1072,7 @@ def api_permanent_delete_entity(entity_hmac):
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to permanently delete entity: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/<entity_hmac>/logs", methods=["GET"])
@@ -1084,7 +1084,7 @@ def api_get_entity_logs(entity_hmac):
         return jsonify({"logs": logs})
     except Exception as e:
         logger.error("Failed to get entity logs: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/<entity_hmac>/opportunities", methods=["GET"])
@@ -1096,7 +1096,7 @@ def api_get_opportunities(entity_hmac):
         return jsonify({"opportunities": opps})
     except Exception as e:
         logger.error("Failed to get opportunities: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/<entity_hmac>/opportunities", methods=["POST"])
@@ -1113,7 +1113,7 @@ def api_add_opportunity(entity_hmac):
         return jsonify({"success": True, "opp_id": opp_id})
     except Exception as e:
         logger.error("Failed to add opportunity: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/<entity_hmac>/opportunities/<opp_id>", methods=["PUT"])
@@ -1132,7 +1132,7 @@ def api_update_opportunity(entity_hmac, opp_id):
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to update opportunity: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/<entity_hmac>/opportunities/<opp_id>", methods=["DELETE"])
@@ -1146,7 +1146,7 @@ def api_delete_opportunity(entity_hmac, opp_id):
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to delete opportunity: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/entities/<entity_hmac>/suggested-contacts", methods=["GET"])
@@ -1158,7 +1158,7 @@ def api_get_suggested_contacts(entity_hmac):
         return jsonify(result)
     except Exception as e:
         logger.error("Failed to get suggested contacts: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 # --- Contact API ---
@@ -1175,7 +1175,7 @@ def api_get_contacts():
         return jsonify({"contacts": scored})
     except Exception as e:
         logger.error("Failed to get contacts: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/contacts", methods=["POST"])
@@ -1199,7 +1199,7 @@ def api_add_contact():
         return jsonify({"success": True, "name_hmac": name_hmac})
     except Exception as e:
         logger.error("Failed to add contact: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/contacts/<name_hmac>", methods=["PUT"])
@@ -1225,7 +1225,7 @@ def api_update_contact(name_hmac):
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to update contact: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/contacts/deleted", methods=["GET"])
@@ -1238,7 +1238,7 @@ def api_get_deleted_contacts():
         return jsonify({"contacts": contacts})
     except Exception as e:
         logger.error("Failed to get deleted contacts: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/contacts/<name_hmac>/restore", methods=["POST"])
@@ -1253,7 +1253,7 @@ def api_restore_contact(name_hmac):
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to restore contact: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/contacts/<name_hmac>/permanent", methods=["DELETE"])
@@ -1268,7 +1268,7 @@ def api_permanent_delete(name_hmac):
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to permanently delete contact: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/contacts/<name_hmac>", methods=["DELETE"])
@@ -1283,7 +1283,7 @@ def api_delete_contact(name_hmac):
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to delete contact: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 # --- Interaction Log API ---
@@ -1298,7 +1298,7 @@ def api_get_contact_logs(name_hmac):
         return jsonify({"logs": logs})
     except Exception as e:
         logger.error("Failed to get logs: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 # --- Tag API ---
@@ -1312,7 +1312,7 @@ def api_get_tags():
         return jsonify({"tags": tags})
     except Exception as e:
         logger.error("Failed to get tags: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/tags", methods=["POST"])
@@ -1328,7 +1328,7 @@ def api_add_tag():
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Failed to add tag: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 # --- Contact Chat API ---
@@ -1606,7 +1606,7 @@ def api_contact_chat():
 
     except Exception as e:
         logger.error("Contact chat error: %s", e, exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/chat/confirm", methods=["POST"])
@@ -1708,7 +1708,7 @@ def api_contact_chat_confirm():
 
     except Exception as e:
         logger.error("Contact chat confirm error: %s", e, exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
 @app.route("/api/chat/history", methods=["GET"])
