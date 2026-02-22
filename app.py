@@ -3,6 +3,7 @@ import os
 import re
 import threading
 from datetime import date, datetime, timedelta, timezone
+from functools import wraps
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -50,9 +51,25 @@ def inject_csrf_token():
 
 
 PASSWORD_EXPIRY_DAYS = 30
+ADMIN_USERNAME = "tornadogrowth"
 
 HABITS = ["아침 조깅/테니스/골프 + 스트레칭/명상"]
 _WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def admin_required(func):
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return login_manager.unauthorized()
+        if current_user.username != ADMIN_USERNAME:
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "관리자 권한이 필요합니다."}), 403
+            flash("관리자 권한이 필요합니다.", "danger")
+            return redirect(url_for("index"))
+        return func(*args, **kwargs)
+
+    return wrapped
 
 
 def _habit_stats(habit_name):
@@ -1710,6 +1727,7 @@ def api_contact_chat_clear():
 
 @app.route("/admin/security")
 @login_required
+@admin_required
 def admin_security():
     from datetime import timedelta
     now = datetime.now(timezone.utc)
@@ -1776,6 +1794,7 @@ def admin_security():
 
 @app.route("/api/admin/clear-logs", methods=["POST"])
 @login_required
+@admin_required
 def clear_old_logs():
     """Delete login logs older than 90 days."""
     from datetime import timedelta
@@ -1787,6 +1806,7 @@ def clear_old_logs():
 
 @app.route("/api/admin/clear-read/<keyword>", methods=["POST"])
 @login_required
+@admin_required
 def clear_read_history(keyword):
     """Remove read-history entries whose URL contains the given keyword."""
     entries = ReadArticle.query.filter(ReadArticle.url.contains(keyword)).all()

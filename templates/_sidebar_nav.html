@@ -146,10 +146,12 @@
 </ul>
 <div class="mt-auto">
     <hr style="border-color: rgba(255,255,255,0.1); margin: 8px 0;">
+    {% if current_user.is_authenticated and current_user.username == "tornadogrowth" %}
     <a class="nav-link {% if request.endpoint == 'admin_security' %}active{% endif %}"
        href="{{ url_for('admin_security') }}">
         <i class="bi bi-shield-lock"></i> Admin
     </a>
+    {% endif %}
     <form action="{{ url_for('logout') }}" method="post" class="mt-1">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="nav-link text-muted border-0 bg-transparent w-100 text-start">
