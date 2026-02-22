@@ -436,6 +436,33 @@ def index():
     weekly_total = sum(s["count"] for s in weekly_stats)
     max_daily = max((s["count"] for s in weekly_stats), default=1) or 1
 
+    # 최근 7일 일별 Article 읽음(read_at) 집계
+    article_daily_counts = {}
+    read_articles = ReadArticle.query.all()
+    for row in read_articles:
+        if not row.read_at:
+            continue
+        local_dt = row.read_at.astimezone() if row.read_at.tzinfo else row.read_at
+        d_str = local_dt.date().isoformat()
+        article_daily_counts[d_str] = article_daily_counts.get(d_str, 0) + 1
+
+    article_weekly_stats = []
+    for i in range(6, -1, -1):
+        d = date.today() - timedelta(days=i)
+        d_str = d.isoformat()
+        article_weekly_stats.append({
+            "date": d_str,
+            "label": d.strftime("%-m/%-d"),
+            "weekday": ["월", "화", "수", "목", "금", "토", "일"][d.weekday()],
+            "count": article_daily_counts.get(d_str, 0),
+            "is_today": i == 0,
+        })
+
+    article_weekly_total = sum(s["count"] for s in article_weekly_stats)
+    article_max_daily = max((s["count"] for s in article_weekly_stats), default=1) or 1
+    article_today_count = article_weekly_stats[-1]["count"] if article_weekly_stats else 0
+    article_total_count = len(read_articles)
+
     total_contacts = len(contacts)
     fu0_count = sum(1 for c in contacts if c.get("follow_up_priority") == "FU0")
     overdue_count = sum(1 for c in contacts if c.get("follow_up_date", "") and c.get("follow_up_date", "") < today_str)
@@ -474,6 +501,11 @@ def index():
         weekly_stats=weekly_stats,
         weekly_total=weekly_total,
         max_daily=max_daily,
+        article_weekly_stats=article_weekly_stats,
+        article_weekly_total=article_weekly_total,
+        article_max_daily=article_max_daily,
+        article_today_count=article_today_count,
+        article_total_count=article_total_count,
         total_contacts=total_contacts,
         fu0_count=fu0_count,
         overdue_count=overdue_count,
@@ -503,11 +535,15 @@ def contact_chat():
 @app.route("/news")
 @login_required
 def daily_news():
-    source_keys = ["mk", "irobot", "robotreport", "aicompanies", "robotics_companies", "geek_weekly"]
+    source_keys = ["mk", "irobot", "aicompanies", "robotics_companies", "geek_weekly"]
     hub = {}
     for key in source_keys:
-        count = Article.query.filter_by(source=key).count()
-        latest = Article.query.filter_by(source=key).order_by(Article.scraped_at.desc()).first()
+        if key == "irobot":
+            count = Article.query.filter(Article.source.in_(["irobot", "robotreport"])).count()
+            latest = Article.query.filter(Article.source.in_(["irobot", "robotreport"])).order_by(Article.scraped_at.desc()).first()
+        else:
+            count = Article.query.filter_by(source=key).count()
+            latest = Article.query.filter_by(source=key).order_by(Article.scraped_at.desc()).first()
         hub[key] = {
             "count": count,
             "latest_title": latest.title if latest else None,
@@ -528,16 +564,17 @@ def mk_news():
 @login_required
 def irobot_news():
     auto_scrape("irobot")
-    articles = Article.query.filter_by(source="irobot").order_by(Article.scraped_at.desc()).all()
+    auto_scrape("robotreport")
+    articles = Article.query.filter(
+        Article.source.in_(["irobot", "robotreport"])
+    ).order_by(Article.scraped_at.desc()).all()
     return render_template("irobot_news.html", articles=articles)
 
 
 @app.route("/news/robotreport")
 @login_required
 def robotreport_news():
-    auto_scrape("robotreport")
-    articles = Article.query.filter_by(source="robotreport").order_by(Article.scraped_at.desc()).all()
-    return render_template("robotreport_news.html", articles=articles)
+    return redirect(url_for("irobot_news"))
 
 
 @app.route("/news/ai")
