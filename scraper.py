@@ -700,13 +700,11 @@ def scrape_deeplearning_batch():
 
     for article in soup.find_all("article"):
         h2 = article.find("h2")
-        a = article.find("a", href=True)
+        a = article.find("a", href=lambda h: h and h.startswith("/the-batch/issue-"))
         if not h2 or not a:
             continue
         title = h2.get_text(strip=True)
-        href = a["href"]
-        if href.startswith("/"):
-            href = "https://www.deeplearning.ai" + href
+        href = "https://www.deeplearning.ai" + a["href"]
         articles.append({"title": title, "url": href, "section": "The Batch"})
 
     logger.info("Scraped %d issues from DeepLearning.AI The Batch", len(articles))
