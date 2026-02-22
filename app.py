@@ -428,7 +428,17 @@ def contact_chat():
 @app.route("/news")
 @login_required
 def daily_news():
-    return render_template("daily_news.html")
+    source_keys = ["mk", "irobot", "robotreport", "aicompanies", "robotics_companies", "geek_weekly"]
+    hub = {}
+    for key in source_keys:
+        count = Article.query.filter_by(source=key).count()
+        latest = Article.query.filter_by(source=key).order_by(Article.scraped_at.desc()).first()
+        hub[key] = {
+            "count": count,
+            "latest_title": latest.title if latest else None,
+            "latest_url": latest.url if latest else None,
+        }
+    return render_template("daily_news.html", hub=hub)
 
 
 @app.route("/news/mk")

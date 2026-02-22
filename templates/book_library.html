@@ -84,7 +84,16 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add Book</h5>
+                <div class="d-flex flex-column">
+                    <h5 class="modal-title">Add Book</h5>
+                    <div class="d-flex gap-1 mt-1" id="wizard-steps">
+                        <span class="wizard-step active" data-step="1">1 검색</span>
+                        <span class="wizard-step-sep">›</span>
+                        <span class="wizard-step" data-step="2">2 선택</span>
+                        <span class="wizard-step-sep">›</span>
+                        <span class="wizard-step" data-step="3">3 저장</span>
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -325,11 +334,16 @@ document.getElementById('search-input').addEventListener('input', function() {
     const phaseConfirm = document.getElementById('phase-confirm');
     const loading = document.getElementById('search-loading');
 
+    const phaseStep = {search: 1, loading: 1, results: 2, confirm: 3};
     function showPhase(phase) {
         phaseSearch.style.display = phase === 'search' ? '' : 'none';
         phaseResults.style.display = phase === 'results' ? '' : 'none';
         phaseConfirm.style.display = phase === 'confirm' ? '' : 'none';
         loading.style.display = phase === 'loading' ? '' : 'none';
+        const step = phaseStep[phase] || 1;
+        document.querySelectorAll('.wizard-step').forEach(el => {
+            el.classList.toggle('active', parseInt(el.dataset.step) === step);
+        });
     }
 
     // Reset on modal open
