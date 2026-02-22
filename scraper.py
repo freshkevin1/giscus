@@ -709,3 +709,40 @@ def scrape_deeplearning_batch():
 
     logger.info("Scraped %d issues from DeepLearning.AI The Batch", len(articles))
     return articles
+
+
+def scrape_the_decoder():
+    """Scrape latest articles from The Decoder (the-decoder.com).
+
+    Returns up to 10 articles (most recent first) as a list of dicts
+    with keys: title, url, section.
+    """
+    base_url = "https://the-decoder.com"
+    articles = []
+
+    try:
+        resp = requests.get(base_url, timeout=15, headers=HEADERS)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch The Decoder: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    for article in soup.find_all("article"):
+        h2 = article.find("h2")
+        if not h2:
+            continue
+        a = h2.find("a", href=True)
+        if not a:
+            continue
+        title = a.get_text(strip=True)
+        href = a["href"]
+        if href.startswith("/"):
+            href = base_url + href
+        articles.append({"title": title, "url": href, "section": "The Decoder"})
+        if len(articles) >= 10:
+            break
+
+    logger.info("Scraped %d articles from The Decoder", len(articles))
+    return articles
