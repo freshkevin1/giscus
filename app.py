@@ -495,7 +495,11 @@ def deeplearning_news():
         run_scrape("dl_batch")
     else:
         auto_scrape("dl_batch")
-    articles = Article.query.filter_by(source="dl_batch").order_by(Article.id.desc()).all()
+    articles = Article.query.filter_by(source="dl_batch").all()
+    articles.sort(
+        key=lambda a: int(m.group(1)) if (m := re.search(r'/issue-(\d+)/', a.url)) else 0,
+        reverse=True,
+    )
     return render_template("deeplearning_news.html", articles=articles)
 
 
