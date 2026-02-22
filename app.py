@@ -14,6 +14,7 @@ if _env_path.exists():
     load_dotenv(_env_path)
 from flask import Flask, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 from config import Config
 import json
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config.from_object(Config)
+csrf = CSRFProtect(app)
 
 db.init_app(app)
 
@@ -40,6 +42,11 @@ login_manager.login_message = "로그인이 필요합니다."
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+
+@app.context_processor
+def inject_csrf_token():
+    return {"csrf_token": generate_csrf}
 
 
 PASSWORD_EXPIRY_DAYS = 30
@@ -285,7 +292,7 @@ def login():
     return render_template("login.html")
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 @login_required
 def logout():
     logout_user()

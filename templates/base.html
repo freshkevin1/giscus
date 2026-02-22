@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#1a1d23">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
     <title>{% block title %}Executive Dashboard{% endblock %}</title>
@@ -70,6 +71,42 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (function () {
+        const tokenEl = document.querySelector('meta[name="csrf-token"]');
+        if (!tokenEl) return;
+        const csrfToken = tokenEl.content;
+        const safeMethods = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
+
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function (input, init) {
+            const options = init ? { ...init } : {};
+            const method = (options.method || "GET").toUpperCase();
+
+            if (!safeMethods.has(method)) {
+                const headers = new Headers(options.headers || {});
+                if (!headers.has("X-CSRFToken")) {
+                    headers.set("X-CSRFToken", csrfToken);
+                }
+                options.headers = headers;
+            }
+
+            return originalFetch(input, options);
+        };
+
+        document.querySelectorAll("form").forEach((form) => {
+            const method = (form.getAttribute("method") || "GET").toUpperCase();
+            if (safeMethods.has(method)) return;
+            if (form.querySelector('input[name="csrf_token"]')) return;
+
+            const tokenInput = document.createElement("input");
+            tokenInput.type = "hidden";
+            tokenInput.name = "csrf_token";
+            tokenInput.value = csrfToken;
+            form.appendChild(tokenInput);
+        });
+    })();
+    </script>
     {% block scripts %}{% endblock %}
     <script>
     if ('serviceWorker' in navigator) {

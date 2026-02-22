@@ -150,7 +150,10 @@
        href="{{ url_for('admin_security') }}">
         <i class="bi bi-shield-lock"></i> Admin
     </a>
-    <a class="nav-link text-muted" href="{{ url_for('logout') }}">
-        <i class="bi bi-box-arrow-left"></i> 로그아웃
-    </a>
+    <form action="{{ url_for('logout') }}" method="post" class="mt-1">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="nav-link text-muted border-0 bg-transparent w-100 text-start">
+            <i class="bi bi-box-arrow-left"></i> 로그아웃
+        </button>
+    </form>
 </div>
