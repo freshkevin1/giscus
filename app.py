@@ -480,11 +480,26 @@ def robotics_companies_news():
 @app.route("/news/trends")
 @login_required
 def trends_news():
+    # geek_weekly
     if Article.query.filter_by(source="geek_weekly").count() == 0:
         run_scrape("geek_weekly")
     else:
         auto_scrape("geek_weekly")
-    articles = Article.query.filter_by(source="geek_weekly").order_by(Article.section.desc(), Article.id.asc()).all()
+    # dl_batch
+    if Article.query.filter_by(source="dl_batch").count() == 0:
+        run_scrape("dl_batch")
+    else:
+        auto_scrape("dl_batch")
+
+    geek_articles = Article.query.filter_by(source="geek_weekly").order_by(Article.section.desc(), Article.id.asc()).all()
+
+    dl_articles = Article.query.filter_by(source="dl_batch").all()
+    dl_articles.sort(
+        key=lambda a: int(m.group(1)) if (m := re.search(r'/issue-(\d+)/', a.url)) else 0,
+        reverse=True,
+    )
+
+    articles = dl_articles + geek_articles
     return render_template("trends_news.html", articles=articles)
 
 

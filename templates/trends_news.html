@@ -23,7 +23,9 @@
     <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-start"
          id="article-{{ article.id }}">
         <div class="me-3 flex-grow-1">
-            {% if article.section %}
+            {% if article.source == 'dl_batch' %}
+            <span class="badge bg-info text-dark me-1">The Batch</span>
+            {% elif article.section %}
             <span class="badge bg-secondary me-1">{{ article.section }}</span>
             {% endif %}
             <a href="{{ article.url }}" target="_blank" class="article-link">
@@ -79,11 +81,13 @@ document.getElementById('btn-scrape').addEventListener('click', async function()
     const btn = this;
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 스크래핑 중...';
-
     try {
-        const resp = await fetch('/api/scrape/geek_weekly', {method: 'POST'});
-        const data = await resp.json();
-        btn.innerHTML = '<i class="bi bi-check-lg"></i> 완료 (' + data.new_articles + '개 추가)';
+        const [r1, r2] = await Promise.all([
+            fetch('/api/scrape/geek_weekly', {method: 'POST'}).then(r => r.json()),
+            fetch('/api/scrape/dl_batch', {method: 'POST'}).then(r => r.json()),
+        ]);
+        const total = (r1.new_articles || 0) + (r2.new_articles || 0);
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> 완료 (' + total + '개 추가)';
         setTimeout(() => location.reload(), 1500);
     } catch (err) {
         btn.innerHTML = '<i class="bi bi-x-lg"></i> 실패';
@@ -97,11 +101,13 @@ document.getElementById('btn-read-all').addEventListener('click', async function
     const btn = this;
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 처리 중...';
-
     try {
-        const resp = await fetch('/api/articles/read-all/geek_weekly', {method: 'POST'});
-        const data = await resp.json();
-        btn.innerHTML = '<i class="bi bi-check-all"></i> 완료 (' + data.cleared + '개)';
+        const [r1, r2] = await Promise.all([
+            fetch('/api/articles/read-all/geek_weekly', {method: 'POST'}).then(r => r.json()),
+            fetch('/api/articles/read-all/dl_batch', {method: 'POST'}).then(r => r.json()),
+        ]);
+        const total = (r1.cleared || 0) + (r2.cleared || 0);
+        btn.innerHTML = '<i class="bi bi-check-all"></i> 완료 (' + total + '개)';
         setTimeout(() => location.reload(), 1000);
     } catch (err) {
         btn.innerHTML = '<i class="bi bi-x-lg"></i> 실패';
