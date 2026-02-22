@@ -1,3 +1,4 @@
+import html as html_module
 import json
 import logging
 import re
@@ -402,16 +403,16 @@ def scrape_wsj_ai():
         logger.error("Failed to fetch wsj rss: %s", e)
         return articles
 
-    clean_xml = re.sub(r"<!\[CDATA\[(.*?)]]>", r"\1", resp.text, flags=re.DOTALL)
-    soup = BeautifulSoup(clean_xml, "html.parser")
-
-    for item in soup.find_all("item"):
-        title_el = item.find("title")
-        link_el = item.find("link")
-        if not title_el or not link_el:
+    # Use regex instead of BeautifulSoup — html.parser treats <link> as
+    # self-closing (HTML5 void element), losing the URL text content.
+    items = re.findall(r'<item>(.*?)</item>', resp.text, re.DOTALL)
+    for item_xml in items:
+        title_m = re.search(r'<title>(.*?)</title>', item_xml, re.DOTALL)
+        link_m = re.search(r'<link\s*/?\s*>(.*?)(?:<|$)', item_xml)
+        if not title_m or not link_m:
             continue
-        title = title_el.get_text(strip=True)
-        href = link_el.get_text(strip=True)
+        title = html_module.unescape(title_m.group(1).strip())
+        href = link_m.group(1).strip()
         if not title or not href:
             continue
         if not _WSJ_AI_KEYWORDS.search(title):
@@ -439,16 +440,16 @@ def scrape_nyt_tech():
         logger.error("Failed to fetch nyt rss: %s", e)
         return articles
 
-    clean_xml = re.sub(r"<!\[CDATA\[(.*?)]]>", r"\1", resp.text, flags=re.DOTALL)
-    soup = BeautifulSoup(clean_xml, "html.parser")
-
-    for item in soup.find_all("item")[:30]:
-        title_el = item.find("title")
-        link_el = item.find("link")
-        if not title_el or not link_el:
+    # Use regex instead of BeautifulSoup — html.parser treats <link> as
+    # self-closing (HTML5 void element), losing the URL text content.
+    items = re.findall(r'<item>(.*?)</item>', resp.text, re.DOTALL)
+    for item_xml in items[:30]:
+        title_m = re.search(r'<title>(.*?)</title>', item_xml, re.DOTALL)
+        link_m = re.search(r'<link\s*/?\s*>(.*?)(?:<|$)', item_xml)
+        if not title_m or not link_m:
             continue
-        title = title_el.get_text(strip=True)
-        href = link_el.get_text(strip=True)
+        title = html_module.unescape(title_m.group(1).strip())
+        href = link_m.group(1).strip()
         if not title or not href:
             continue
         articles.append({"title": title, "url": href, "section": "NYT"})
