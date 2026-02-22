@@ -1432,57 +1432,31 @@ def api_contact_chat():
 
                 # Entity CRUD — add_entity는 위에서 처리됨
                 if action_type == "update_entity":
-                    from sheets_entities import find_entity_by_name, update_entity, add_entity_log
+                    from sheets_entities import find_entity_by_name
                     matches = find_entity_by_name(name)
                     if len(matches) == 1:
-                        entity = matches[0]
-                        fields = action.get("fields", {})
-                        interaction_log = action.get("interaction_log", "")
-                        key_extract = action.get("key_value_extract", "")
-                        if interaction_log:
-                            add_entity_log(entity["entity_hmac"], entity["name"],
-                                           interaction_log, key_extract, ", ".join(fields.keys()))
-                        if fields:
-                            update_entity(entity["entity_hmac"], fields, changed_by="AI")
-                        executed_actions.append({
-                            "type": "update_entity",
-                            "name": entity["name"],
-                            "fields": fields,
-                        })
+                        pending_actions.append({**action, "reason": "확인이 필요합니다"})
                     else:
                         pending_actions.append({**action, "confidence": "low",
                                                 "reason": "엔티티를 찾을 수 없음"})
 
                 elif action_type == "delete_entity":
-                    from sheets_entities import find_entity_by_name, delete_entity
+                    from sheets_entities import find_entity_by_name
                     matches = find_entity_by_name(name)
                     if len(matches) == 1:
-                        delete_entity(matches[0]["entity_hmac"], deleted_by="AI")
-                        executed_actions.append({
-                            "type": "delete_entity",
-                            "name": name,
-                        })
+                        pending_actions.append({**action, "reason": "확인이 필요합니다"})
                     else:
                         pending_actions.append({**action, "confidence": "low",
                                                 "reason": "엔티티를 찾을 수 없음"})
 
                 # Opportunity CRUD
                 elif action_type == "add_opp_to_entity":
-                    from sheets_entities import find_entity_by_name, add_opportunity
+                    from sheets_entities import find_entity_by_name
                     matches = find_entity_by_name(name)
                     if len(matches) == 1:
-                        entity = matches[0]
                         opp_title = action.get("opp_title", "")
-                        opp_details = action.get("opp_details", "")
                         if opp_title:
-                            opp_id, created = add_opportunity(entity["entity_hmac"], opp_title, opp_details)
-                            executed_actions.append({
-                                "type": "add_opp_to_entity",
-                                "name": entity["name"],
-                                "opp_id": opp_id,
-                                "opp_title": opp_title,
-                                "duplicate": not created,
-                            })
+                            pending_actions.append({**action, "reason": "확인이 필요합니다"})
                         else:
                             pending_actions.append({**action, "confidence": "low",
                                                     "reason": "기회 제목(opp_title) 누락"})
@@ -1491,36 +1465,21 @@ def api_contact_chat():
                                                 "reason": "엔티티를 찾을 수 없음"})
 
                 elif action_type == "update_opp":
-                    from sheets_entities import find_entity_by_name, update_opportunity
+                    from sheets_entities import find_entity_by_name
                     matches = find_entity_by_name(name)
                     opp_id = action.get("opp_id", "")
                     if len(matches) == 1 and opp_id:
-                        entity = matches[0]
-                        opp_title = action.get("opp_title") or None
-                        opp_details = action.get("opp_details") or None
-                        update_opportunity(entity["entity_hmac"], opp_id,
-                                           title=opp_title, details=opp_details)
-                        executed_actions.append({
-                            "type": "update_opp",
-                            "name": entity["name"],
-                            "opp_id": opp_id,
-                        })
+                        pending_actions.append({**action, "reason": "확인이 필요합니다"})
                     else:
                         pending_actions.append({**action, "confidence": "low",
                                                 "reason": "엔티티 또는 opp_id를 찾을 수 없음"})
 
                 elif action_type == "delete_opp":
-                    from sheets_entities import find_entity_by_name, delete_opportunity
+                    from sheets_entities import find_entity_by_name
                     matches = find_entity_by_name(name)
                     opp_id = action.get("opp_id", "")
                     if len(matches) == 1 and opp_id:
-                        entity = matches[0]
-                        delete_opportunity(entity["entity_hmac"], opp_id)
-                        executed_actions.append({
-                            "type": "delete_opp",
-                            "name": entity["name"],
-                            "opp_id": opp_id,
-                        })
+                        pending_actions.append({**action, "reason": "확인이 필요합니다"})
                     else:
                         pending_actions.append({**action, "confidence": "low",
                                                 "reason": "엔티티 또는 opp_id를 찾을 수 없음"})
@@ -1544,57 +1503,7 @@ def api_contact_chat():
             if action_type == "update_contact":
                 matches = find_contact_by_name(name)
                 if len(matches) == 1:
-                    contact = matches[0]
-                    fields = action.get("fields", {})
-                    interaction_log = action.get("interaction_log", "")
-                    key_extract = action.get("key_value_extract", "")
-
-                    # 1) Interaction Log는 validation과 무관하게 항상 먼저 기록
-                    if interaction_log:
-                        display = f"{contact['name']}({contact['employer']})" if contact.get("employer") else contact["name"]
-                        updated_fields_str = ", ".join(fields.keys()) if fields else ""
-                        add_interaction_log(
-                            contact["name_hmac"], display, interaction_log,
-                            key_extract, updated_fields_str,
-                        )
-
-                    # 2) fields가 있으면 validation 후 업데이트
-                    if fields:
-                        # YYYY-MM → YYYY-MM-01 정규화 (일(day) 불명확할 때 1일로)
-                        for _df in ('last_contact', 'follow_up_date'):
-                            if _df in fields and re.match(r'^\d{4}-\d{2}$', str(fields[_df])):
-                                fields[_df] = fields[_df] + '-01'
-                        valid_tags = get_valid_tags()
-                        is_valid, errors = validate_update_fields(fields, valid_tags)
-                        if not is_valid:
-                            # validation 실패는 fields 업데이트만 skip (로그는 이미 기록됨)
-                            executed_actions.append({
-                                "type": "update_skipped",
-                                "name": contact["name"],
-                                "reason": errors,
-                            })
-                        else:
-                            success, any_changes = update_contact(contact["name_hmac"], fields, changed_by="AI")
-
-                            # key_value_interest 병합 (fields에 없는 경우만)
-                            if key_extract and "key_value_interest" not in fields:
-                                existing = contact.get("key_value_interest", "")
-                                merged = f"{existing}, {key_extract}" if existing else key_extract
-                                update_contact(contact["name_hmac"],
-                                               {"key_value_interest": merged}, changed_by="AI")
-
-                            executed_actions.append({
-                                "type": "update",
-                                "name": contact["name"],
-                                "fields": fields,
-                                "no_changes": not any_changes,
-                            })
-                    elif key_extract:
-                        # fields 없이 key_extract만 있는 경우 관심사 병합
-                        existing = contact.get("key_value_interest", "")
-                        merged = f"{existing}, {key_extract}" if existing else key_extract
-                        update_contact(contact["name_hmac"],
-                                       {"key_value_interest": merged}, changed_by="AI")
+                    pending_actions.append({**action, "reason": "확인이 필요합니다"})
                 elif len(matches) > 1:
                     pending_actions.append({
                         **action,
@@ -1736,6 +1645,81 @@ def api_contact_chat_confirm():
             new_entity = {"name": name, **fields}
             entity_hmac = add_entity(new_entity)
             return jsonify({"success": True, "type": "add_entity", "entity_hmac": entity_hmac})
+
+        elif action_type == "update_entity":
+            from sheets_entities import find_entity_by_name, update_entity, add_entity_log
+            entity_hmac = selected_hmac
+            if not entity_hmac:
+                matches = find_entity_by_name(name)
+                if len(matches) == 1:
+                    entity_hmac = matches[0]["entity_hmac"]
+                else:
+                    return jsonify({"error": "엔티티를 특정할 수 없습니다."}), 400
+
+            fields = action.get("fields", {})
+            interaction_log = action.get("interaction_log", "")
+            key_extract = action.get("key_value_extract", "")
+            
+            entity_name = name
+            if interaction_log:
+                add_entity_log(entity_hmac, entity_name, interaction_log, key_extract, ", ".join(fields.keys()))
+            if fields:
+                update_entity(entity_hmac, fields, changed_by="AI")
+            return jsonify({"success": True, "type": "update_entity"})
+
+        elif action_type == "delete_entity":
+            from sheets_entities import find_entity_by_name, delete_entity
+            entity_hmac = selected_hmac
+            if not entity_hmac:
+                matches = find_entity_by_name(name)
+                if len(matches) == 1:
+                    entity_hmac = matches[0]["entity_hmac"]
+                else:
+                    return jsonify({"error": "엔티티를 특정할 수 없습니다."}), 400
+            delete_entity(entity_hmac, deleted_by="AI")
+            return jsonify({"success": True, "type": "delete_entity"})
+
+        elif action_type == "add_opp_to_entity":
+            from sheets_entities import find_entity_by_name, add_opportunity
+            entity_hmac = selected_hmac
+            if not entity_hmac:
+                matches = find_entity_by_name(name)
+                if len(matches) == 1:
+                    entity_hmac = matches[0]["entity_hmac"]
+                else:
+                    return jsonify({"error": "엔티티를 특정할 수 없습니다."}), 400
+            opp_title = action.get("opp_title", "")
+            opp_details = action.get("opp_details", "")
+            add_opportunity(entity_hmac, opp_title, opp_details)
+            return jsonify({"success": True, "type": "add_opp_to_entity"})
+
+        elif action_type == "update_opp":
+            from sheets_entities import find_entity_by_name, update_opportunity
+            entity_hmac = selected_hmac
+            if not entity_hmac:
+                matches = find_entity_by_name(name)
+                if len(matches) == 1:
+                    entity_hmac = matches[0]["entity_hmac"]
+                else:
+                    return jsonify({"error": "엔티티를 특정할 수 없습니다."}), 400
+            opp_title = action.get("opp_title") or None
+            opp_details = action.get("opp_details") or None
+            opp_id = action.get("opp_id", "")
+            update_opportunity(entity_hmac, opp_id, title=opp_title, details=opp_details)
+            return jsonify({"success": True, "type": "update_opp"})
+
+        elif action_type == "delete_opp":
+            from sheets_entities import find_entity_by_name, delete_opportunity
+            entity_hmac = selected_hmac
+            if not entity_hmac:
+                matches = find_entity_by_name(name)
+                if len(matches) == 1:
+                    entity_hmac = matches[0]["entity_hmac"]
+                else:
+                    return jsonify({"error": "엔티티를 특정할 수 없습니다."}), 400
+            opp_id = action.get("opp_id", "")
+            delete_opportunity(entity_hmac, opp_id)
+            return jsonify({"success": True, "type": "delete_opp"})
 
         return jsonify({"error": "Unknown action type"}), 400
 
