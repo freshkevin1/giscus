@@ -197,12 +197,20 @@
                 <span>DASHBOARD_USER {% if dashboard_user_set %}is set{% else %}not set{% endif %}</span>
             </li>
             <li class="list-group-item d-flex align-items-center">
+                {% if csrf_enabled %}
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                {% else %}
                 <i class="bi bi-dash-circle-fill text-warning me-2"></i>
-                <span>CSRF protection not enabled (Flask-WTF not installed)</span>
+                {% endif %}
+                <span>CSRF protection {% if csrf_enabled %}is enabled{% else %}is not enabled{% endif %}</span>
             </li>
             <li class="list-group-item d-flex align-items-center">
+                {% if login_ratelimit_set %}
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                {% else %}
                 <i class="bi bi-dash-circle-fill text-warning me-2"></i>
-                <span>Rate limiting not configured on /login</span>
+                {% endif %}
+                <span>Rate limiting on /login {% if login_ratelimit_set %}is configured{% else %}is not configured{% endif %}</span>
             </li>
         </ul>
     </div>

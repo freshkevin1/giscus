@@ -4,7 +4,9 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "exec-dashboard-secret-key-change-in-prod")
+    SECRET_KEY = os.environ.get("SECRET_KEY")
+    if not SECRET_KEY:
+        raise RuntimeError("SECRET_KEY environment variable must be set")
     _db_dir = os.path.join(BASE_DIR, "instance")
     os.makedirs(_db_dir, exist_ok=True)
     SQLALCHEMY_DATABASE_URI = os.environ.get(

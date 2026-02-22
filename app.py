@@ -15,6 +15,8 @@ _env_path = Path(__file__).resolve().parent / ".env"
 if _env_path.exists():
     load_dotenv(_env_path)
 from flask import Flask, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 
@@ -34,6 +36,26 @@ app.config.from_object(Config)
 csrf = CSRFProtect(app)
 
 db.init_app(app)
+
+
+def _client_ip_for_rate_limit():
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return get_remote_address()
+
+
+def _login_rate_limit_key():
+    username = request.form.get("username", "").strip().lower()
+    return f"{_client_ip_for_rate_limit()}:{username}"
+
+
+limiter = Limiter(
+    key_func=_client_ip_for_rate_limit,
+    default_limits=[],
+    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+)
+limiter.init_app(app)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -113,6 +135,16 @@ def enforce_password_change():
     if changed_at is None or (datetime.utcnow() - changed_at).days >= PASSWORD_EXPIRY_DAYS:
         flash("보안을 위해 비밀번호를 변경해 주세요 (30일 경과).", "warning")
         return redirect(url_for("change_password"))
+
+
+@app.errorhandler(429)
+def handle_rate_limit(_error):
+    if request.path == "/login":
+        flash("로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.", "danger")
+        return render_template("login.html"), 429
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."}), 429
+    return "Too many requests", 429
 
 
 # --- Background Recommendation Regeneration ---
@@ -296,6 +328,7 @@ def _is_safe_next_url(target):
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", key_func=_login_rate_limit_key, methods=["POST"])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
@@ -1793,6 +1826,8 @@ def admin_security():
     secret_key_set = os.environ.get("SECRET_KEY", "") != ""
     db_url_set = os.environ.get("DATABASE_URL", "") != ""
     dashboard_user_set = os.environ.get("DASHBOARD_USER", "") != ""
+    csrf_enabled = "csrf" in app.extensions
+    login_ratelimit_set = True
 
     return render_template("admin_security.html",
         recent_logs=recent_logs,
@@ -1804,6 +1839,8 @@ def admin_security():
         recent_failures=recent_failures,
         secret_key_set=secret_key_set, db_url_set=db_url_set,
         dashboard_user_set=dashboard_user_set,
+        csrf_enabled=csrf_enabled,
+        login_ratelimit_set=login_ratelimit_set,
     )
 
 
