@@ -588,11 +588,6 @@ def irobot_news():
     return render_template("irobot_news.html", articles=articles)
 
 
-@app.route("/news/robotreport")
-@login_required
-def robotreport_news():
-    return redirect(url_for("irobot_news"))
-
 
 @app.route("/news/ai")
 @login_required
