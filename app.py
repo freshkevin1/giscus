@@ -21,7 +21,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from config import Config
 import json
 
-from models import Article, ChatMessage, ContactChatMessage, HabitLog, LoginLog, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+from models import Article, ChatMessage, ContactChatMessage, LoginLog, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
 from scraper import scrape_ai_companies, scrape_amazon_charts, scrape_deeplearning_batch, scrape_geek_news_weekly, scrape_irobotnews, scrape_mk_today, scrape_robotics_companies, scrape_robotreport, scrape_yes24_bestseller

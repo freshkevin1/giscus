@@ -112,16 +112,6 @@ class ContactChatMessage(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-class HabitLog(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    habit_name = db.Column(db.String(200), nullable=False)
-    logged_date = db.Column(db.Date, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.UniqueConstraint('habit_name', 'logged_date', name='uq_habit_date'),
-    )
-
 
 def init_default_user():
     """Create default user if not exists. Reads credentials from environment variables."""
