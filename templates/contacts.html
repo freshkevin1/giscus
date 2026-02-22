@@ -35,6 +35,22 @@
            placeholder="이름, 소속, 태그, 이메일로 검색...">
 </div>
 
+<!-- Mobile sort selector (visible only on mobile) -->
+<div id="mobileSortBar" class="d-flex gap-2 mb-3 d-md-none">
+    <select id="mobileSortKey" class="form-select form-select-sm">
+        <option value="score">Score</option>
+        <option value="name">이름</option>
+        <option value="employer">소속</option>
+        <option value="contact_priority">Contact Priority</option>
+        <option value="follow_up_priority">FU Priority</option>
+        <option value="follow_up_date">FU Date</option>
+        <option value="last_contact">Last Contact</option>
+    </select>
+    <button id="mobileSortDir" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-sort-down"></i>
+    </button>
+</div>
+
 <!-- Contact table -->
 <div class="card">
     <div class="card-body p-0">
@@ -408,6 +424,8 @@ function renderContacts() {
                 sortKey = key;
                 sortAsc = th.dataset.type === 'number' ? false : true;
             }
+            document.getElementById('mobileSortKey').value = sortKey;
+            updateMobileSortIcon();
             renderContacts();
         };
     });
@@ -730,7 +748,29 @@ document.getElementById('contact-search').addEventListener('input', function() {
     renderContacts();
 });
 
+// Mobile sort controls
+document.getElementById('mobileSortKey').addEventListener('change', function() {
+    sortKey = this.value;
+    const th = document.querySelector(`#contactTable thead .sortable[data-key="${sortKey}"]`);
+    const type = th ? th.dataset.type : 'string';
+    sortAsc = type === 'number' ? false : true;
+    updateMobileSortIcon();
+    renderContacts();
+});
+
+document.getElementById('mobileSortDir').addEventListener('click', function() {
+    sortAsc = !sortAsc;
+    updateMobileSortIcon();
+    renderContacts();
+});
+
+function updateMobileSortIcon() {
+    const icon = document.querySelector('#mobileSortDir i');
+    icon.className = sortAsc ? 'bi bi-sort-up' : 'bi bi-sort-down';
+}
+
 // Init
+document.getElementById('mobileSortKey').value = sortKey;
 loadContacts();
 loadTags();
 loadDeletedContacts();
