@@ -412,6 +412,13 @@ def index():
     except Exception:
         contacts = []
 
+    try:
+        from sheets_entities import get_all_entities
+        from scoring import sort_entities_by_score
+        entities = sort_entities_by_score(get_all_entities())
+    except Exception:
+        entities = []
+
     today_str = date.today().isoformat()
 
     # 최근 7일 일별 last_contact 집계
@@ -484,6 +491,21 @@ def index():
     _sort_key = lambda c: (-c.get("score", 0), c.get("follow_up_date", "9999-99-99"))
     top5 = sorted(overdue, key=_sort_key) + sorted(not_overdue, key=_sort_key)[:max(0, 5 - len(overdue))]
 
+    eligible_e = [
+        e for e in entities
+        if e.get("follow_up_date") and e.get("follow_up_priority") != "FU9"
+    ]
+    overdue_e = [e for e in eligible_e if e.get("follow_up_date", "") < today_str]
+    not_overdue_e = [e for e in eligible_e if e.get("follow_up_date", "") >= today_str]
+    for e in overdue_e:
+        try:
+            delta = date.today() - date.fromisoformat(e["follow_up_date"])
+            e["days_overdue"] = delta.days
+        except Exception:
+            e["days_overdue"] = 0
+    _esort = lambda e: (-e.get("score", 0), e.get("follow_up_date", "9999-99-99"))
+    entity_top5 = sorted(overdue_e, key=_esort) + sorted(not_overdue_e, key=_esort)[:max(0, 5 - len(overdue_e))]
+
     incoming = [
         c for c in contacts
         if "입사 후보자" in (c.get("key_value_interest") or "")
@@ -496,6 +518,7 @@ def index():
     return render_template(
         "landing.html",
         top5=top5,
+        entity_top5=entity_top5,
         incoming=incoming,
         reading_books=reading_books,
         weekly_stats=weekly_stats,

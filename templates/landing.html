@@ -242,6 +242,78 @@
     </div>
 </div>
 
+<!-- 비즈니스 기회 Top 5 -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-briefcase"></i>
+                <span class="fw-semibold">비즈니스 기회 Top 5</span>
+                <span class="badge bg-secondary ms-auto">{{ entity_top5|length }}건</span>
+            </div>
+            <div class="card-body p-0">
+                {% if entity_top5 %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>이름</th>
+                                <th>BP</th>
+                                <th>FU Priority</th>
+                                <th>Follow-up</th>
+                                <th class="text-end">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for e in entity_top5 %}
+                            <tr{% if e.days_overdue is defined %} class="table-danger"{% endif %}>
+                                <td class="fw-medium">{{ e.name }}</td>
+                                <td>
+                                    <span class="badge
+                                        {% if e.business_priority == '0-Critical' %}bg-danger
+                                        {% elif e.business_priority == '1-High' %}bg-warning text-dark
+                                        {% elif e.business_priority == '2-Medium' %}bg-info text-dark
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ e.business_priority or '—' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge
+                                        {% if e.follow_up_priority == 'FU0' %}bg-danger
+                                        {% elif e.follow_up_priority == 'FU1' %}bg-warning text-dark
+                                        {% elif e.follow_up_priority == 'FU3' %}bg-info text-dark
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ e.follow_up_priority or '—' }}
+                                    </span>
+                                </td>
+                                <td class="small">
+                                    {{ e.follow_up_date or '—' }}
+                                    {% if e.days_overdue is defined %}
+                                    <span class="badge bg-danger ms-1">D+{{ e.days_overdue }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end fw-semibold">{{ e.score }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-briefcase fs-4 d-block mb-1"></i>
+                    Follow-up 대상 비즈니스 기회가 없습니다.
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer text-end">
+                <a href="{{ url_for('business_opportunities_page') }}" class="btn btn-sm btn-outline-primary">
+                    전체 비즈니스 기회 <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Books I am reading -->
 <div class="card">
     <div class="card-header d-flex align-items-center gap-2">
