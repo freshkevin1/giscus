@@ -17,14 +17,14 @@
 
 <!-- Source filter pills -->
 <div id="source-filters" class="d-flex flex-wrap gap-2 mb-3">
-    <button class="btn btn-outline-secondary btn-sm active" data-source="all">
-        All <span class="badge bg-dark ms-1">{{ articles|length }}</span>
-    </button>
+    <a href="{{ url_for('daily_news') }}" class="btn btn-outline-secondary btn-sm {% if not selected_source %}active{% endif %}">
+        All <span class="badge bg-dark ms-1">{{ source_counts.values()|sum }}</span>
+    </a>
     {% for src in news_sources %}
         {% if src in source_counts %}
-        <button class="btn btn-outline-secondary btn-sm" data-source="{{ src }}">
+        <a href="{{ url_for('daily_news', source=src) }}" class="btn btn-outline-secondary btn-sm {% if selected_source == src %}active{% endif %}">
             {{ source_map[src] }} <span class="badge bg-dark ms-1">{{ source_counts[src] }}</span>
-        </button>
+        </a>
         {% endif %}
     {% endfor %}
 </div>
@@ -68,47 +68,7 @@
 (function() {
     const NEWS_SOURCES = {{ news_sources | tojson }};
     const SOURCE_MAP = {{ source_map | tojson }};
-    let activeSource = 'all';
-
-    // Init from URL param
-    const params = new URLSearchParams(location.search);
-    const initSource = params.get('source');
-    if (initSource && NEWS_SOURCES.includes(initSource)) {
-        activeSource = initSource;
-    }
-
-    // --- Filter pills ---
-    const filterBtns = document.querySelectorAll('#source-filters .btn');
-
-    function applyFilter(source) {
-        activeSource = source;
-        filterBtns.forEach(b => b.classList.toggle('active', b.dataset.source === source));
-        const items = document.querySelectorAll('#article-list .list-group-item');
-        let visibleCount = 0;
-        items.forEach(item => {
-            const show = source === 'all' || item.dataset.source === source;
-            item.style.display = show ? '' : 'none';
-            if (show) visibleCount++;
-        });
-        document.getElementById('article-count').textContent = visibleCount;
-        // Update URL without reload
-        const url = new URL(location);
-        if (source === 'all') {
-            url.searchParams.delete('source');
-        } else {
-            url.searchParams.set('source', source);
-        }
-        history.replaceState(null, '', url);
-    }
-
-    filterBtns.forEach(btn => {
-        btn.addEventListener('click', () => applyFilter(btn.dataset.source));
-    });
-
-    // Apply initial filter
-    if (activeSource !== 'all') {
-        applyFilter(activeSource);
-    }
+    const activeSource = '{{ selected_source }}' || 'all';
 
     // --- Mark as read ---
     document.querySelectorAll('.btn-read').forEach(btn => {
@@ -134,26 +94,8 @@
     });
 
     function updateCounts(removedSource) {
-        // Update visible count
         const items = document.querySelectorAll('#article-list .list-group-item');
-        let visibleCount = 0;
-        items.forEach(item => {
-            if (item.style.display !== 'none') visibleCount++;
-        });
-        document.getElementById('article-count').textContent = visibleCount;
-
-        // Update pill badges
-        filterBtns.forEach(btn => {
-            const src = btn.dataset.source;
-            if (src === 'all') {
-                btn.querySelector('.badge').textContent = items.length;
-            } else {
-                const cnt = document.querySelectorAll('#article-list .list-group-item[data-source="' + src + '"]').length;
-                const badge = btn.querySelector('.badge');
-                if (badge) badge.textContent = cnt;
-                if (cnt === 0) btn.style.display = 'none';
-            }
-        });
+        document.getElementById('article-count').textContent = items.length;
     }
 
     // --- Scrape all sources ---

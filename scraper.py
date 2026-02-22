@@ -1098,6 +1098,85 @@ def scrape_acdeeptech():
     return articles
 
 
+AITIMES_CUTOFF = date(2026, 2, 22)
+
+
+def scrape_aitimes():
+    """Scrape articles from AI타임스 (aitimes.com).
+
+    Date filter (cutoff = 2026-02-22):
+    - After cutoff: include all
+    - Before/on cutoff: max 10
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://www.aitimes.com/news/articleList.html?view_type=sm"
+    articles = []
+    seen_urls = set()
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch aitimes: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    today = date.today()
+    old_count = 0
+
+    for item in soup.select("#section-list li.altlist-webzine-item"):
+        link_el = item.select_one("h2.altlist-subject > a")
+        if not link_el:
+            continue
+
+        title = link_el.get_text(strip=True)
+        href = link_el.get("href", "")
+
+        if not title or not href:
+            continue
+
+        if href.startswith("/"):
+            href = "https://www.aitimes.com" + href
+
+        if href in seen_urls:
+            continue
+        seen_urls.add(href)
+
+        # Extract category from 1st info-item
+        section = ""
+        info_items = item.select("div.altlist-info-item")
+        if info_items:
+            section = info_items[0].get_text(strip=True)
+
+        # Extract date from 3rd info-item (MM-DD HH:MM format, no year)
+        pub_date = None
+        if len(info_items) >= 3:
+            date_text = info_items[2].get_text(strip=True)
+            match = re.match(r"(\d{2})-(\d{2})", date_text)
+            if match:
+                month = int(match.group(1))
+                day = int(match.group(2))
+                try:
+                    pub_date = date(today.year, month, day)
+                    # If parsed date is in the future, assume previous year
+                    if pub_date > today:
+                        pub_date = date(today.year - 1, month, day)
+                except ValueError:
+                    pub_date = None
+
+        if pub_date is None or pub_date > AITIMES_CUTOFF:
+            articles.append({"title": title, "url": href, "section": section})
+        else:
+            if old_count < 10:
+                articles.append({"title": title, "url": href, "section": section})
+                old_count += 1
+
+    logger.info("Scraped %d articles from aitimes", len(articles))
+    return articles
+
+
 def scrape_the_decoder():
     """Scrape latest articles from The Decoder via RSS feed.
 

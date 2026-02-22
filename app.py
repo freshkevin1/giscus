@@ -26,7 +26,7 @@ import json
 from models import Article, ChatMessage, ContactChatMessage, LoginLog, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
-from scraper import scrape_acdeeptech, scrape_ai_robotics_companies, scrape_amazon_charts, scrape_deeplearning_batch, scrape_geek_news_weekly, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_wsj_ai, scrape_yes24_bestseller
+from scraper import scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_geek_news_weekly, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_wsj_ai, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,6 +36,7 @@ NEWS_SOURCE_MAP = {
     'wsj_ai': 'WSJ', 'nyt_tech': 'NYT', 'ai_robotics': 'AI Companies',
     'geek_weekly': 'GeekNews Weekly', 'dl_batch': 'The Batch', 'the_decoder': 'The Decoder',
     'acdeeptech': 'Deep Tech',
+    'aitimes': 'AI타임스',
 }
 NEWS_SOURCES = list(NEWS_SOURCE_MAP.keys())
 
@@ -217,6 +218,7 @@ def scheduled_scrape():
         run_scrape("wsj_ai")
         run_scrape("nyt_tech")
         run_scrape("acdeeptech")
+        run_scrape("aitimes")
         run_scrape("bestseller")
         run_scrape("bestseller_kr")
 
@@ -239,6 +241,8 @@ def run_scrape(source="mk"):
         articles = scrape_the_decoder()
     elif source == "acdeeptech":
         articles = scrape_acdeeptech()
+    elif source == "aitimes":
+        articles = scrape_aitimes()
     elif source == "wsj_ai":
         articles = scrape_wsj_ai()
     elif source == "nyt_tech":
@@ -569,18 +573,31 @@ def contact_chat():
 def daily_news():
     for src in NEWS_SOURCES:
         auto_scrape(src)
-    articles = Article.query.filter(
+
+    selected = request.args.get('source', '')
+
+    # Source counts (always computed from all sources for pill badges)
+    all_articles = Article.query.filter(
         Article.source.in_(NEWS_SOURCES)
     ).order_by(Article.scraped_at.desc()).all()
     source_counts = {}
     for src in NEWS_SOURCES:
-        cnt = sum(1 for a in articles if a.source == src)
+        cnt = sum(1 for a in all_articles if a.source == src)
         if cnt > 0:
             source_counts[src] = cnt
+
+    # Filter articles if a specific source is selected
+    if selected and selected in NEWS_SOURCES:
+        articles = [a for a in all_articles if a.source == selected]
+    else:
+        articles = all_articles
+        selected = ''
+
     return render_template("news.html", articles=articles,
                            source_counts=source_counts,
                            source_map=NEWS_SOURCE_MAP,
-                           news_sources=NEWS_SOURCES)
+                           news_sources=NEWS_SOURCES,
+                           selected_source=selected)
 
 
 @app.route("/news/mk")
@@ -789,7 +806,7 @@ def book_saved():
 @app.route("/api/scrape/<source>", methods=["POST"])
 @login_required
 def api_scrape(source):
-    if source not in ("mk", "irobot", "robotreport", "ai_robotics", "geek_weekly", "dl_batch", "the_decoder", "acdeeptech", "wsj_ai", "nyt_tech", "bestseller", "bestseller_kr"):
+    if source not in ("mk", "irobot", "robotreport", "ai_robotics", "geek_weekly", "dl_batch", "the_decoder", "acdeeptech", "aitimes", "wsj_ai", "nyt_tech", "bestseller", "bestseller_kr"):
         return jsonify({"status": "error", "message": "Unknown source"}), 400
     count = run_scrape(source)
     return jsonify({"status": "ok", "new_articles": count})
