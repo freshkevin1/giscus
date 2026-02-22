@@ -619,6 +619,133 @@ def scrape_ai_companies():
     return all_articles
 
 
+BD_CUTOFF_DATE = date(2026, 2, 22)
+
+
+def _bd_article_pub_date(url: str):
+    """BD 기사/비디오/화이트페이퍼 페이지에서 JSON-LD datePublished(또는 uploadDate) 추출.
+
+    Returns:
+        date object if found, None otherwise.
+    """
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.warning("BD date fetch failed %s: %s", url, e)
+        return None
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(script.string or "")
+            # Unwrap @graph arrays if present
+            items = data.get("@graph", [data]) if isinstance(data, dict) else [data]
+            for item in items:
+                if isinstance(item, dict):
+                    dp = item.get("datePublished") or item.get("uploadDate")
+                    if dp:
+                        return date.fromisoformat(str(dp)[:10])
+        except (json.JSONDecodeError, ValueError, AttributeError, TypeError):
+            continue
+    return None
+
+
+def _scrape_bd_listing_page(listing_url: str, slug_pattern: str, base_url: str, section: str) -> list:
+    """범용 Boston Dynamics 리스팅 페이지 스크래퍼.
+
+    날짜 필터 (BD_CUTOFF_DATE = 2026-02-22 기준):
+    - pub_date > 컷오프 → 신규 기사: 전부 포함
+    - pub_date <= 컷오프 → 구 기사: 최초 1개만 포함 후 STOP
+    - pub_date None → 날짜 불명: 포함하고 계속 탐색
+
+    리스팅 페이지는 newest-first 정렬을 가정.
+    첫 번째 old 기사 발견 시 STOP → HTTP 요청 최소화.
+    """
+    articles = []
+    seen_hrefs = set()
+
+    try:
+        resp = requests.get(listing_url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch BD listing %s: %s", listing_url, e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    slug_re = re.compile(slug_pattern)
+
+    # 기사 링크 추출 (순서 유지 — 리스팅 페이지는 newest-first)
+    ordered_links = []
+    for a_tag in soup.find_all("a", href=True):
+        href = a_tag.get("href", "")
+        if href.startswith("/"):
+            href = base_url.rstrip("/") + href
+        # 리스팅 페이지 자체, 쿼리스트링, 앵커 등 제외
+        if not slug_re.search(href):
+            continue
+        if href in seen_hrefs:
+            continue
+        # 제목 추출: 내부 heading 우선, 없으면 링크 텍스트
+        heading = a_tag.find(["h1", "h2", "h3", "h4"])
+        title = heading.get_text(strip=True) if heading else a_tag.get_text(strip=True)
+        if not title or len(title) < 5:
+            continue
+        seen_hrefs.add(href)
+        ordered_links.append((href, title))
+
+    # 날짜 필터 적용
+    old_article_added = False
+    for href, title in ordered_links:
+        pub_date = _bd_article_pub_date(href)
+
+        if pub_date is None:
+            # 날짜 불명: 포함하고 계속
+            articles.append({"title": title, "url": href, "section": section})
+        elif pub_date > BD_CUTOFF_DATE:
+            # 신규 기사: 포함
+            articles.append({"title": title, "url": href, "section": section})
+        else:
+            # 구 기사: 첫 번째 1개만 포함 후 중단
+            if not old_article_added:
+                articles.append({"title": title, "url": href, "section": section})
+                old_article_added = True
+            break  # 이후 기사는 더 오래됐으므로 중단
+
+    logger.info("BD %s: scraped %d articles from %s", section, len(articles), listing_url)
+    return articles
+
+
+def scrape_bostondynamics_blog() -> list:
+    """Boston Dynamics 블로그 기사 스크래핑."""
+    return _scrape_bd_listing_page(
+        listing_url="https://bostondynamics.com/blog/",
+        slug_pattern=r"bostondynamics\.com/blog/[^/?#]+",
+        base_url="https://bostondynamics.com",
+        section="Boston Dynamics Blog",
+    )
+
+
+def scrape_bostondynamics_videos() -> list:
+    """Boston Dynamics 비디오 스크래핑."""
+    return _scrape_bd_listing_page(
+        listing_url="https://bostondynamics.com/videos/",
+        slug_pattern=r"bostondynamics\.com/video/[^/?#]+",
+        base_url="https://bostondynamics.com",
+        section="Boston Dynamics Videos",
+    )
+
+
+def scrape_bostondynamics_whitepapers() -> list:
+    """Boston Dynamics 화이트페이퍼 스크래핑."""
+    return _scrape_bd_listing_page(
+        listing_url="https://bostondynamics.com/resources/whitepaper/",
+        slug_pattern=r"bostondynamics\.com/whitepaper/[^/?#]+",
+        base_url="https://bostondynamics.com",
+        section="Boston Dynamics Whitepaper",
+    )
+
+
 def scrape_figure_ai():
     """Scrape news articles from figure.ai/news via __NEXT_DATA__ JSON."""
     url = "https://www.figure.ai/news"
@@ -674,9 +801,12 @@ def scrape_figure_ai():
 
 
 def scrape_robotics_companies():
-    """Aggregate news from robotics companies (Figure AI, ...)."""
+    """Aggregate news from robotics companies (Figure AI, Boston Dynamics)."""
     all_articles = []
     all_articles.extend(scrape_figure_ai())
+    all_articles.extend(scrape_bostondynamics_blog())
+    all_articles.extend(scrape_bostondynamics_videos())
+    all_articles.extend(scrape_bostondynamics_whitepapers())
     logger.info("Total robotics companies articles: %d", len(all_articles))
     return all_articles
 
