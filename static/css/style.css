@@ -336,6 +336,12 @@ body {
     border-radius: 12px;
 }
 
+/* Pending action card */
+.pending-action-card {
+    border-left: 4px solid #fd7e14;
+    background-color: #fff9f0;
+}
+
 /* Suggestion chips */
 .suggestion-chip {
     border-radius: 20px;

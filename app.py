@@ -1401,12 +1401,11 @@ def api_contact_chat():
         for action in result.get("actions", []):
             action_type = action.get("action", "")
             entity_type = action.get("entity_type", "contact")
-            confidence = action.get("confidence", "low")
             name = action.get("name", "")
 
             # --- Business Entity & Opportunity actions ---
             if entity_type == "business_entity":
-                # search_entity는 읽기 전용 — confidence 무관하게 항상 실행
+                # search_entity는 읽기 전용 — 항상 실행
                 if action_type == "search_entity":
                     from sheets_entities import find_entity_by_name
                     matches = find_entity_by_name(name) if name else []
@@ -1415,78 +1414,47 @@ def api_contact_chat():
                         "name": name,
                         "results": matches,
                     })
-                    continue
 
-                # add_entity는 항상 사용자 확인 필요 (중복 방지)
-                if action_type == "add_entity":
-                    pending_actions.append({
-                        **action,
-                        "confidence": "low",
-                        "reason": "새 비즈니스 엔티티 추가 — 확인 후 실행",
-                    })
-                    continue
+                # add_entity — 항상 사용자 확인 필요
+                elif action_type == "add_entity":
+                    pending_actions.append({**action, "reason": "새 비즈니스 엔티티 추가 — 확인 후 실행"})
 
-                if confidence != "high":
-                    pending_actions.append(action)
-                    continue
-
-                # Entity CRUD — add_entity는 위에서 처리됨
-                if action_type == "update_entity":
+                # Entity CRUD — 모두 pending
+                elif action_type in ("update_entity", "delete_entity"):
                     from sheets_entities import find_entity_by_name
                     matches = find_entity_by_name(name)
                     if len(matches) == 1:
                         pending_actions.append({**action, "reason": "확인이 필요합니다"})
                     else:
-                        pending_actions.append({**action, "confidence": "low",
-                                                "reason": "엔티티를 찾을 수 없음"})
+                        pending_actions.append({**action, "reason": "엔티티를 찾을 수 없음"})
 
-                elif action_type == "delete_entity":
-                    from sheets_entities import find_entity_by_name
-                    matches = find_entity_by_name(name)
-                    if len(matches) == 1:
-                        pending_actions.append({**action, "reason": "확인이 필요합니다"})
-                    else:
-                        pending_actions.append({**action, "confidence": "low",
-                                                "reason": "엔티티를 찾을 수 없음"})
-
-                # Opportunity CRUD
+                # Opportunity CRUD — 모두 pending
                 elif action_type == "add_opp_to_entity":
                     from sheets_entities import find_entity_by_name
                     matches = find_entity_by_name(name)
-                    if len(matches) == 1:
-                        opp_title = action.get("opp_title", "")
-                        if opp_title:
-                            pending_actions.append({**action, "reason": "확인이 필요합니다"})
-                        else:
-                            pending_actions.append({**action, "confidence": "low",
-                                                    "reason": "기회 제목(opp_title) 누락"})
+                    opp_title = action.get("opp_title", "")
+                    if len(matches) == 1 and opp_title:
+                        pending_actions.append({**action, "reason": "확인이 필요합니다"})
                     else:
-                        pending_actions.append({**action, "confidence": "low",
-                                                "reason": "엔티티를 찾을 수 없음"})
+                        reason = "기회 제목(opp_title) 누락" if not opp_title else "엔티티를 찾을 수 없음"
+                        pending_actions.append({**action, "reason": reason})
 
-                elif action_type == "update_opp":
+                elif action_type in ("update_opp", "delete_opp"):
                     from sheets_entities import find_entity_by_name
                     matches = find_entity_by_name(name)
                     opp_id = action.get("opp_id", "")
                     if len(matches) == 1 and opp_id:
                         pending_actions.append({**action, "reason": "확인이 필요합니다"})
                     else:
-                        pending_actions.append({**action, "confidence": "low",
-                                                "reason": "엔티티 또는 opp_id를 찾을 수 없음"})
+                        pending_actions.append({**action, "reason": "엔티티 또는 opp_id를 찾을 수 없음"})
 
-                elif action_type == "delete_opp":
-                    from sheets_entities import find_entity_by_name
-                    matches = find_entity_by_name(name)
-                    opp_id = action.get("opp_id", "")
-                    if len(matches) == 1 and opp_id:
-                        pending_actions.append({**action, "reason": "확인이 필요합니다"})
-                    else:
-                        pending_actions.append({**action, "confidence": "low",
-                                                "reason": "엔티티 또는 opp_id를 찾을 수 없음"})
+                else:
+                    logger.warning("Unknown business_entity action: %s", action_type)
+                    pending_actions.append({**action, "reason": "알 수 없는 액션"})
 
                 continue  # business_entity 처리 완료 → contact 블록 skip
 
-            # --- Contact actions ---
+            # --- Contact actions (READ-ONLY: search) ---
             if action_type == "search":
                 matches = find_contact_by_name(name) if name else []
                 executed_actions.append({
@@ -1496,18 +1464,22 @@ def api_contact_chat():
                 })
                 continue
 
-            if confidence != "high":
-                pending_actions.append(action)
-                continue
-
+            # --- Contact write actions (always pending) ---
             if action_type == "update_contact":
                 matches = find_contact_by_name(name)
                 if len(matches) == 1:
-                    pending_actions.append({**action, "reason": "확인이 필요합니다"})
+                    contact = matches[0]
+                    current_values = {
+                        k: contact[k] for k in action.get("fields", {}) if contact.get(k)
+                    }
+                    pending_actions.append({
+                        **action,
+                        "reason": "확인이 필요합니다",
+                        "current_values": current_values,
+                    })
                 elif len(matches) > 1:
                     pending_actions.append({
                         **action,
-                        "confidence": "low",
                         "reason": "동명이인 발견",
                         "candidates": [
                             {"name": m["name"], "employer": m.get("employer", ""), "name_hmac": m["name_hmac"]}
@@ -1515,19 +1487,17 @@ def api_contact_chat():
                         ],
                     })
                 else:
-                    pending_actions.append({
-                        **action,
-                        "confidence": "low",
-                        "reason": "연락처를 찾을 수 없음",
-                    })
+                    pending_actions.append({**action, "reason": "연락처를 찾을 수 없음"})
 
             elif action_type == "add_contact":
-                # 새 연락처 추가는 항상 사용자 확인 필요 (중복 방지)
-                pending_actions.append({
-                    **action,
-                    "confidence": "low",
-                    "reason": "새 연락처 추가 — 확인 후 실행",
-                })
+                pending_actions.append({**action, "reason": "새 연락처 추가 — 확인 후 실행"})
+
+            elif action_type == "delete_contact":
+                pending_actions.append({**action, "reason": "확인이 필요합니다"})
+
+            else:
+                logger.warning("Unknown contact action: %s", action_type)
+                pending_actions.append({**action, "reason": "알 수 없는 액션"})
 
         # Save messages to DB
         user_msg = ContactChatMessage(role="user", content=user_message)

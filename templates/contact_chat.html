@@ -5,7 +5,7 @@
 {% block content %}
 <div class="d-flex flex-column flex-grow-1" style="min-height:0">
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="mb-0"><i class="bi bi-chat-dots"></i> AI Chat</h4>
+    <h4 class="mb-0"><i class="bi bi-chat-dots"></i> AI Chat <span id="pendingBadge" class="badge bg-warning text-dark ms-1 d-none"></span></h4>
     <button class="btn btn-outline-secondary btn-sm" id="clearChatBtn">
         <i class="bi bi-trash"></i> 대화 초기화
     </button>
@@ -63,7 +63,19 @@
 {% block scripts %}
 <script>document.querySelector('.main-content').classList.add('chat-page-layout');</script>
 <script>
-let pendingAction = null;
+const pendingActionsMap = new Map();
+
+function updatePendingBadge() {
+    const badge = document.getElementById('pendingBadge');
+    if (!badge) return;
+    const count = pendingActionsMap.size;
+    if (count === 0) {
+        badge.classList.add('d-none');
+    } else {
+        badge.textContent = `${count}개 대기`;
+        badge.classList.remove('d-none');
+    }
+}
 
 // Load chat history
 async function loadHistory() {
@@ -174,23 +186,50 @@ function appendActionResult(actions, type) {
                 </div>`;
             }
         } else if (type === 'pending') {
+            const cardId = 'card-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+            pendingActionsMap.set(cardId, a);
+            updatePendingBadge();
+
             const fields = Object.entries(a.fields || {}).map(([k, v]) => `${escapeHtml(String(k))}: ${escapeHtml(String(v))}`).join(', ');
             const reason = escapeHtml(a.reason || '확인이 필요합니다');
 
+            // Before/after diff table
+            let diffHtml = '';
+            if (a.current_values && Object.keys(a.current_values).length > 0) {
+                const rows = Object.entries(a.fields || {}).map(([k, newV]) => {
+                    const curV = a.current_values[k];
+                    const curStr = (curV !== undefined && curV !== null && curV !== '') ? escapeHtml(String(curV)) : '<em class="text-muted">(없음)</em>';
+                    return `<tr><td>${escapeHtml(k)}</td><td>${curStr}</td><td><strong>${escapeHtml(String(newV))}</strong></td></tr>`;
+                }).join('');
+                diffHtml = `<table class="table table-sm table-bordered mt-2 mb-1" style="font-size:0.8em">
+                    <thead class="table-light"><tr><th>필드</th><th>현재</th><th>변경 후</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+            }
+
+            // Candidates (동명이인)
             let candidatesHtml = '';
             if (a.candidates && a.candidates.length > 1) {
                 candidatesHtml = '<div class="mt-2">' +
                     a.candidates.map(c =>
                         `<button class="btn btn-outline-primary btn-sm me-1 mb-1 candidate-btn"
-                                 data-hmac="${escapeHtml(c.name_hmac)}">${escapeHtml(c.name)}(${escapeHtml(c.employer || '미상')})</button>`
+                                 data-hmac="${escapeHtml(c.name_hmac)}"
+                                 data-card-id="${cardId}">${escapeHtml(c.name)}(${escapeHtml(c.employer || '미상')})</button>`
                     ).join('') + '</div>';
             }
 
-            div.innerHTML = `<div class="alert alert-warning py-2 small mb-0">
+            const actionButtons = !a.candidates
+                ? `<div class="d-flex gap-2 mt-2">
+                       <button class="btn btn-primary btn-sm confirm-pending-btn" data-card-id="${cardId}">확인 후 실행</button>
+                       <button class="btn btn-outline-secondary btn-sm reject-pending-btn" data-card-id="${cardId}">취소</button>
+                   </div>`
+                : '';
+
+            div.innerHTML = `<div class="alert pending-action-card py-2 small mb-0" data-card-id="${cardId}">
                 <i class="bi bi-question-circle"></i> <strong>${escapeHtml(a.name)}</strong>: ${reason}
-                <br><small>${fields}</small>
+                ${diffHtml || `<br><small>${fields}</small>`}
                 ${candidatesHtml}
-                ${!a.candidates ? `<br><button class="btn btn-primary btn-sm mt-1 confirm-pending-btn">확인 후 실행</button>` : ''}
+                ${actionButtons}
             </div>`;
         }
 
@@ -255,21 +294,26 @@ document.getElementById('suggestionChips').addEventListener('click', (e) => {
     document.getElementById('chatInput').focus();
 });
 
-// Handle confirm/candidate button clicks (event delegation)
+// Handle confirm/candidate/reject button clicks (event delegation)
 document.getElementById('chatMessages').addEventListener('click', async (e) => {
+    // Candidate selection (동명이인)
     const candidateBtn = e.target.closest('.candidate-btn');
     if (candidateBtn) {
         const hmac = candidateBtn.dataset.hmac;
+        const cardId = candidateBtn.dataset.cardId;
         const alertDiv = candidateBtn.closest('.alert');
-        if (pendingAction) {
+        const action = pendingActionsMap.get(cardId);
+        if (action) {
             try {
                 const res = await fetch('/api/chat/confirm', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: pendingAction, selected_hmac: hmac}),
+                    body: JSON.stringify({action, selected_hmac: hmac}),
                 });
                 const data = await res.json();
                 if (data.success) {
+                    pendingActionsMap.delete(cardId);
+                    updatePendingBadge();
                     alertDiv.className = 'alert alert-success py-2 small mb-0';
                     alertDiv.innerHTML = '<i class="bi bi-check-circle"></i> 업데이트 완료';
                 } else {
@@ -282,21 +326,28 @@ document.getElementById('chatMessages').addEventListener('click', async (e) => {
         return;
     }
 
+    // Confirm pending action
     const confirmBtn = e.target.closest('.confirm-pending-btn');
     if (confirmBtn) {
+        const cardId = confirmBtn.dataset.cardId;
         const alertDiv = confirmBtn.closest('.alert');
-        if (pendingAction) {
+        const action = pendingActionsMap.get(cardId);
+        if (action) {
             try {
                 const res = await fetch('/api/chat/confirm', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: pendingAction}),
+                    body: JSON.stringify({action}),
                 });
                 const data = await res.json();
                 if (data.success) {
+                    pendingActionsMap.delete(cardId);
+                    updatePendingBadge();
                     alertDiv.className = 'alert alert-success py-2 small mb-0';
                     alertDiv.innerHTML = '<i class="bi bi-check-circle"></i> 실행 완료';
                 } else if (data.duplicate) {
+                    pendingActionsMap.delete(cardId);
+                    updatePendingBadge();
                     alertDiv.className = 'alert alert-danger py-2 small mb-0';
                     alertDiv.innerHTML = `<i class="bi bi-exclamation-octagon"></i> ${escapeHtml(data.error || '')}`;
                 } else {
@@ -306,24 +357,21 @@ document.getElementById('chatMessages').addEventListener('click', async (e) => {
                 alertDiv.innerHTML += `<br><small class="text-danger">오류: ${escapeHtml(err.message || '')}</small>`;
             }
         }
+        return;
+    }
+
+    // Reject pending action
+    const rejectBtn = e.target.closest('.reject-pending-btn');
+    if (rejectBtn) {
+        const cardId = rejectBtn.dataset.cardId;
+        const alertDiv = rejectBtn.closest('.alert');
+        pendingActionsMap.delete(cardId);
+        updatePendingBadge();
+        alertDiv.className = 'alert alert-secondary py-2 small mb-0';
+        alertDiv.innerHTML = '<i class="bi bi-x-circle"></i> 취소됨';
+        return;
     }
 });
-
-// Track pending actions from chat responses
-const originalFetch = window.fetch;
-window.fetch = async function(...args) {
-    const response = await originalFetch.apply(this, args);
-    const cloned = response.clone();
-    if (args[0] === '/api/chat' && args[1]?.method === 'POST') {
-        try {
-            const data = await cloned.json();
-            if (data.pending_actions && data.pending_actions.length > 0) {
-                pendingAction = data.pending_actions[data.pending_actions.length - 1];
-            }
-        } catch (e) {}
-    }
-    return response;
-};
 
 // Clear chat
 document.getElementById('clearChatBtn').addEventListener('click', async () => {

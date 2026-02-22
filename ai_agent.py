@@ -13,16 +13,6 @@ logger = logging.getLogger(__name__)
 
 _ACTION_MARKER = "[ACTION]"
 
-_ACTION_KEYWORDS = [
-    '만났', '만나', '만남', '통화', '전화', '식사', '점심', '저녁',
-    '미팅', '회의', '추가', '삭제', '이직', '이사', '결혼', '승진',
-    '업데이트', '수정', '변경', '기록', '적어',
-]
-
-
-def _needs_action_retry(user_message: str) -> bool:
-    return any(kw in user_message for kw in _ACTION_KEYWORDS)
-
 
 def _build_contacts_summary():
     """Build a summary of all contacts for the system prompt."""
@@ -42,22 +32,12 @@ def _build_contacts_summary():
             parts.append(c["contact_priority"])
         if c.get("follow_up_priority"):
             parts.append(c["follow_up_priority"])
-        if c.get("follow_up_date"):
-            parts.append(f"FU날짜: {c['follow_up_date']}")
-        if c.get("follow_up_note"):
-            parts.append(f"FU메모: {c['follow_up_note']}")
         if c.get("last_contact"):
             parts.append(f"최근연락: {c['last_contact']}")
         if c.get("key_value_interest"):
             parts.append(f"관심사: {c['key_value_interest']}")
         if c.get("tag"):
             parts.append(f"태그: {c['tag']}")
-        if c.get("referred_by"):
-            parts.append(f"소개자: {c['referred_by']}")
-        if c.get("email"):
-            parts.append(f"이메일: {c['email']}")
-        if c.get("phone"):
-            parts.append(f"전화: {c['phone']}")
         lines.append("- " + " | ".join(parts))
 
     return "\n".join(lines)
@@ -120,9 +100,6 @@ def _build_system_prompt():
 - 사람 이름, 만남/통화/연락 → entity_type="contact" 액션
 - 회사명, "기회/딜/프로젝트/계약/파트너십" 키워드 → entity_type="business_entity" 액션
 - 모호하면 반드시 확인: "연락처 [A] 업데이트할까요, 아니면 비즈니스 엔티티 [B]를 업데이트할까요?"
-- 기회/딜/계약 추가 → add_opp_to_entity
-- 기회/딜 수정 → update_opp (opp_id 필수)
-- 기회/딜 삭제 → delete_opp (opp_id 필수, confidence="low")
 
 ## Contact 모드
 
@@ -145,10 +122,14 @@ def _build_system_prompt():
 3. **Interaction Context**: `[날짜] 만남유형 @장소 | 핵심내용 | → 다음 액션`
 4. **태그**: 기존 태그 목록에서만 선택.
 5. **삭제 안전장치**: delete_contact는 반드시 confidence="low".
+6. **모든 쓰기 액션**: update, add, delete는 confidence 값과 관계없이 항상 사용자 확인 후에만 실행됩니다. 자동 실행은 없습니다.
+7. **응답 언어**: 쓰기 액션이 포함된 응답은 반드시 미래/조건형으로 작성하세요. "업데이트했습니다" 대신 "아래 버튼을 눌러 업데이트해 주세요"처럼 사용자 액션을 명시적으로 유도하세요.
 
 ## 응답 형식
 
 일반 대화는 자유롭게 응답합니다.
+
+변경이 필요한 경우, 응답 끝에 아래 형식으로 액션을 포함하세요:
 
 ### Contact 액션:
 {_ACTION_MARKER}
@@ -174,8 +155,7 @@ def _build_system_prompt():
 ### Business Entity 액션:
 {_ACTION_MARKER}
 {{
-  "action": "add_entity" | "update_entity" | "search_entity" | "delete_entity"
-          | "add_opp_to_entity" | "update_opp" | "delete_opp",
+  "action": "add_entity" | "update_entity" | "search_entity" | "delete_entity" | "add_opp_to_entity",
   "entity_type": "business_entity",
   "name": "대상 엔티티 이름",
   "confidence": "high" | "low",
@@ -187,11 +167,9 @@ def _build_system_prompt():
     "last_contact": "YYYY-MM-DD",
     "tag": "태그 목록에 있는 값만",
     "key_value_interest": "...",
+    "referred_by": "...",
     "assignee": "담당자 이름"
   }},
-  "opp_title": "기회/딜 이름 (add_opp_to_entity, update_opp 시 사용)",
-  "opp_details": "세부사항 (add_opp_to_entity, update_opp 시 선택)",
-  "opp_id": "기회 ID (update_opp, delete_opp 시 필수)",
   "interaction_log": "[날짜] 미팅유형 | 핵심내용 | → 다음 액션",
   "key_value_extract": "추출된 비즈니스 인사이트"
 }}
@@ -206,18 +184,11 @@ def _build_system_prompt():
 - **날짜**: 반드시 YYYY-MM-DD 형식. 날짜 불명확 시 필드 제외.
 - **tag**: 태그 목록에 없는 값 사용 금지.
 
-- confidence="high": 자동 실행 가능
+- confidence="high": 연락처를 명확히 특정할 수 있는 경우 (사용자 확인 후 실행)
 - confidence="low": 확인 질문만 표시, 자동 실행 안 함
-- entity_type 필드는 반드시 포함할 것.
 
-중요: 불필요한 필드는 포함하지 마세요.
-항상 한국어로 응답하세요.
-
-## ⚠️ 액션 포맷 필수 규칙
-
-만남/통화/수정/추가/삭제 등 저장이 필요한 내용은 응답 마지막에
-반드시 액션 블록을 포함하세요. 액션 블록 없이는 데이터가 저장되지 않습니다.
-"업데이트했습니다" 같은 말도 액션 블록 없이는 쓰지 마세요."""
+중요: 불필요한 필드는 포함하지 마세요. entity_type 필드는 반드시 포함하세요.
+항상 한국어로 응답하세요."""
 
 
 def _parse_actions(text):
@@ -229,9 +200,7 @@ def _parse_actions(text):
     if _ACTION_MARKER not in text:
         return text.strip(), []
 
-    # 줄 시작(혹은 문자열 시작)의 [ACTION]만 분리자로 사용
-    # 본문 중간에 "[ACTION]"이 언급돼도 파싱 오작동 없음
-    parts = re.split(r'(?:^|\n)\[ACTION\]', text)
+    parts = text.split(_ACTION_MARKER)
     message_text = parts[0].strip()
     actions = []
 
@@ -286,29 +255,6 @@ def chat_contact(user_message, conversation_history):
 
     raw = response.content[0].text or ""
     message_text, actions = _parse_actions(raw)
-
-    if not actions and _needs_action_retry(user_message):
-        retry_messages = messages + [
-            {"role": "assistant", "content": raw},
-            {
-                "role": "user",
-                "content": (
-                    "[ACTION] 포맷이 누락되었습니다. "
-                    "위 대화에 맞는 [ACTION] 블록만 출력해주세요. "
-                    "설명 없이 [ACTION]으로 시작하는 JSON만 출력하세요."
-                ),
-            },
-        ]
-        retry_resp = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            system=system_prompt,
-            messages=retry_messages,
-        )
-        _, retry_actions = _parse_actions(retry_resp.content[0].text or "")
-        if retry_actions:
-            actions = retry_actions
-            logger.info("Action retry succeeded for: %s", user_message[:50])
 
     return {
         "message": message_text,
