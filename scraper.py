@@ -381,15 +381,8 @@ def scrape_openai():
     return articles
 
 
-_WSJ_AI_KEYWORDS = re.compile(
-    r"AI|Artificial Intelligence|Physical AI|Humanoid|Robot|Machine Learning|"
-    r"Deep Learning|Neural|LLM|GPT|Anthropic|OpenAI|DeepMind",
-    re.IGNORECASE,
-)
-
-
 def scrape_wsj_ai():
-    """Scrape AI/robotics articles from WSJ Tech RSS feed.
+    """Scrape articles from WSJ Tech RSS feed.
 
     Returns a list of dicts with keys: title, url, section.
     """
@@ -414,8 +407,6 @@ def scrape_wsj_ai():
         title = html_module.unescape(title_m.group(1).strip())
         href = link_m.group(1).strip()
         if not title or not href:
-            continue
-        if not _WSJ_AI_KEYWORDS.search(title):
             continue
         articles.append({"title": title, "url": href, "section": "WSJ"})
         if len(articles) >= 30:
