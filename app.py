@@ -5,6 +5,7 @@ import threading
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
@@ -282,6 +283,18 @@ def _get_client_ip():
     return request.remote_addr or "unknown"
 
 
+def _is_safe_next_url(target):
+    """Allow only same-host relative redirects."""
+    if not target:
+        return False
+    host_url = urlparse(request.host_url)
+    redirect_url = urlparse(urljoin(request.host_url, target))
+    return (
+        redirect_url.scheme in ("http", "https")
+        and host_url.netloc == redirect_url.netloc
+    )
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -298,8 +311,10 @@ def login():
             db.session.add(LoginLog(username=username, ip_address=ip, user_agent=ua, success=True))
             db.session.commit()
             login_user(user)
-            next_page = request.args.get("next")
-            return redirect(next_page or url_for("index", fresh=1))
+            next_page = request.args.get("next", "")
+            if not _is_safe_next_url(next_page):
+                next_page = url_for("index", fresh=1)
+            return redirect(next_page)
 
         failure_reason = "unknown_user" if not user else "invalid_password"
         db.session.add(LoginLog(username=username, ip_address=ip, user_agent=ua, success=False, failure_reason=failure_reason))
