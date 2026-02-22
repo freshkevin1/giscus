@@ -1033,6 +1033,71 @@ def scrape_deeplearning_batch():
     return articles
 
 
+ACDEEPTECH_CUTOFF = date(2026, 2, 22)
+
+
+def scrape_acdeeptech():
+    """Scrape articles from ACDeepTech Substack archive.
+
+    Date filter (cutoff = 2026-02-22):
+    - After cutoff: include all
+    - Before/on cutoff: max 10
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://acdeeptech.substack.com/archive"
+    articles = []
+    seen_urls = set()
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch acdeeptech: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    old_count = 0
+    for time_el in soup.find_all("time", datetime=True):
+        dt_str = time_el["datetime"][:10]
+        try:
+            pub_date = date.fromisoformat(dt_str)
+        except ValueError:
+            continue
+
+        # Walk up to find container with /p/ link
+        parent = time_el
+        title = ""
+        href = ""
+        for _ in range(10):
+            parent = parent.parent
+            if parent is None:
+                break
+            for a_tag in parent.find_all("a", href=lambda h: h and "/p/" in h):
+                txt = a_tag.get_text(strip=True)
+                if len(txt) > 15:
+                    title = txt
+                    href = a_tag.get("href", "")
+                    break
+            if title:
+                break
+
+        if not title or not href or href in seen_urls:
+            continue
+        seen_urls.add(href)
+
+        if pub_date > ACDEEPTECH_CUTOFF:
+            articles.append({"title": title, "url": href, "section": "Deep Tech"})
+        else:
+            if old_count < 10:
+                articles.append({"title": title, "url": href, "section": "Deep Tech"})
+                old_count += 1
+
+    logger.info("Scraped %d articles from ACDeepTech", len(articles))
+    return articles
+
+
 def scrape_the_decoder():
     """Scrape latest articles from The Decoder via RSS feed.
 
