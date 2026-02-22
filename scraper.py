@@ -380,6 +380,83 @@ def scrape_openai():
     return articles
 
 
+_WSJ_AI_KEYWORDS = re.compile(
+    r"AI|Artificial Intelligence|Physical AI|Humanoid|Robot|Machine Learning|"
+    r"Deep Learning|Neural|LLM|GPT|Anthropic|OpenAI|DeepMind",
+    re.IGNORECASE,
+)
+
+
+def scrape_wsj_ai():
+    """Scrape AI/robotics articles from WSJ Tech RSS feed.
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://feeds.content.dowjones.io/public/rss/RSSWSJD"
+    articles = []
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch wsj rss: %s", e)
+        return articles
+
+    clean_xml = re.sub(r"<!\[CDATA\[(.*?)]]>", r"\1", resp.text, flags=re.DOTALL)
+    soup = BeautifulSoup(clean_xml, "html.parser")
+
+    for item in soup.find_all("item"):
+        title_el = item.find("title")
+        link_el = item.find("link")
+        if not title_el or not link_el:
+            continue
+        title = title_el.get_text(strip=True)
+        href = link_el.get_text(strip=True)
+        if not title or not href:
+            continue
+        if not _WSJ_AI_KEYWORDS.search(title):
+            continue
+        articles.append({"title": title, "url": href, "section": "WSJ"})
+        if len(articles) >= 30:
+            break
+
+    logger.info("Scraped %d articles from wsj ai", len(articles))
+    return articles
+
+
+def scrape_nyt_tech():
+    """Scrape articles from NYT Technology RSS feed.
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml"
+    articles = []
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch nyt rss: %s", e)
+        return articles
+
+    clean_xml = re.sub(r"<!\[CDATA\[(.*?)]]>", r"\1", resp.text, flags=re.DOTALL)
+    soup = BeautifulSoup(clean_xml, "html.parser")
+
+    for item in soup.find_all("item")[:30]:
+        title_el = item.find("title")
+        link_el = item.find("link")
+        if not title_el or not link_el:
+            continue
+        title = title_el.get_text(strip=True)
+        href = link_el.get_text(strip=True)
+        if not title or not href:
+            continue
+        articles.append({"title": title, "url": href, "section": "NYT"})
+
+    logger.info("Scraped %d articles from nyt tech", len(articles))
+    return articles
+
+
 def _get_recent_sunday():
     """Return the most recent Sunday as YYYY-MM-DD string.
 
