@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import requests
 from bs4 import BeautifulSoup
@@ -605,18 +605,6 @@ def scrape_geek_news_weekly():
     return all_articles
 
 
-def scrape_ai_companies():
-    """Scrape articles from Anthropic, DeepMind, Meta AI, and OpenAI.
-
-    Returns a combined list of dicts with keys: title, url, section.
-    """
-    all_articles = []
-    all_articles.extend(scrape_anthropic())
-    all_articles.extend(scrape_deepmind())
-    all_articles.extend(scrape_meta_ai())
-    all_articles.extend(scrape_openai())
-    logger.info("Total AI companies articles: %d", len(all_articles))
-    return all_articles
 
 
 BD_CUTOFF_DATE = date(2026, 2, 22)
@@ -800,14 +788,149 @@ def scrape_figure_ai():
     return articles
 
 
-def scrape_robotics_companies():
-    """Aggregate news from robotics companies (Figure AI, Boston Dynamics)."""
+def scrape_wirobotics():
+    """Scrape news from WI Robotics via JSON API.
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    articles = []
+    seen_idx = set()
+
+    old_article_added = False
+    page = 1
+    while True:
+        api_url = f"https://www.wirobotics.com/media/newsList?pageType=01&page={page}"
+        try:
+            resp = requests.get(api_url, headers=HEADERS, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+        except (requests.RequestException, ValueError) as e:
+            logger.error("Failed to fetch wirobotics page %d: %s", page, e)
+            break
+
+        items = data.get("list", [])
+        if not items:
+            break
+
+        for item in items:
+            idx = item.get("idx")
+            title = item.get("title", "").strip()
+            reg_date_str = item.get("regDate", "")
+
+            if not idx or not title or idx in seen_idx:
+                continue
+            seen_idx.add(idx)
+
+            url = f"https://www.wirobotics.com/media/newsDetail?pageType=01&idx={idx}"
+
+            # Parse date (YYYY.MM.DD)
+            pub_date = None
+            try:
+                pub_date = date(*[int(x) for x in reg_date_str.split(".")])
+            except (ValueError, TypeError):
+                pass
+
+            if pub_date is None:
+                articles.append({"title": title, "url": url, "section": "WI Robotics"})
+            elif pub_date > BD_CUTOFF_DATE:
+                articles.append({"title": title, "url": url, "section": "WI Robotics"})
+            else:
+                if not old_article_added:
+                    articles.append({"title": title, "url": url, "section": "WI Robotics"})
+                    old_article_added = True
+                break  # oldest-first within page, stop completely
+
+        if old_article_added:
+            break
+
+        max_page = items[0].get("maxPage", 1) if items else 1
+        if page >= max_page:
+            break
+        page += 1
+
+    logger.info("Scraped %d articles from WI Robotics", len(articles))
+    return articles
+
+
+def scrape_agility_robotics():
+    """Scrape press articles from Agility Robotics.
+
+    Returns a list of dicts with keys: title, url, section.
+    """
+    url = "https://www.agilityrobotics.com/about/press"
+    articles = []
+    seen_urls = set()
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch agility robotics: %s", e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    old_article_added = False
+    for block in soup.find_all("div", class_="div-block-47"):
+        # Extract title
+        title_el = block.find("div", class_="text-block-74")
+        if not title_el:
+            continue
+        title = title_el.get_text(strip=True)
+        if not title:
+            continue
+
+        # Extract URL from first /content/ link
+        link_el = block.find("a", href=lambda h: h and "/content/" in h)
+        if not link_el:
+            continue
+        href = link_el.get("href", "")
+        if href.startswith("/"):
+            href = "https://www.agilityrobotics.com" + href
+        if href in seen_urls:
+            continue
+        seen_urls.add(href)
+
+        # Extract date
+        date_el = block.find("div", class_="text-block-72")
+        pub_date = None
+        if date_el:
+            try:
+                pub_date = datetime.strptime(date_el.get_text(strip=True), "%B %d, %Y").date()
+            except (ValueError, AttributeError):
+                pass
+
+        if pub_date is None:
+            articles.append({"title": title, "url": href, "section": "Agility Robotics"})
+        elif pub_date > BD_CUTOFF_DATE:
+            articles.append({"title": title, "url": href, "section": "Agility Robotics"})
+        else:
+            if not old_article_added:
+                articles.append({"title": title, "url": href, "section": "Agility Robotics"})
+                old_article_added = True
+            break
+
+    logger.info("Scraped %d articles from Agility Robotics", len(articles))
+    return articles
+
+
+def scrape_ai_robotics_companies():
+    """Aggregate news from AI and robotics companies."""
     all_articles = []
+    # AI companies
+    all_articles.extend(scrape_anthropic())
+    all_articles.extend(scrape_deepmind())
+    all_articles.extend(scrape_meta_ai())
+    all_articles.extend(scrape_openai())
+    # Robotics companies
     all_articles.extend(scrape_figure_ai())
     all_articles.extend(scrape_bostondynamics_blog())
     all_articles.extend(scrape_bostondynamics_videos())
     all_articles.extend(scrape_bostondynamics_whitepapers())
-    logger.info("Total robotics companies articles: %d", len(all_articles))
+    # New
+    all_articles.extend(scrape_wirobotics())
+    all_articles.extend(scrape_agility_robotics())
+    logger.info("Total AI & robotics companies articles: %d", len(all_articles))
     return all_articles
 
 
