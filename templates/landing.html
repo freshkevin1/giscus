@@ -196,56 +196,9 @@
         </div>
     </div>
 
-    <!-- 입사 후보자 -->
+    <!-- 비즈니스 기회 Top 5 -->
     <div class="col-12 col-md-6">
         <div class="card h-100">
-            <div class="card-header d-flex align-items-center gap-2">
-                <i class="bi bi-person-badge"></i>
-                <span class="fw-semibold">입사 후보자</span>
-                <span class="badge bg-primary ms-auto">{{ incoming|length }}명</span>
-            </div>
-            <div class="card-body p-0">
-                {% if incoming %}
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>이름</th>
-                                <th>소속</th>
-                                <th>입사 예정일</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for c in incoming %}
-                            <tr>
-                                <td class="fw-medium">{{ c.name }}</td>
-                                <td class="text-muted small">{{ c.employer or '—' }}</td>
-                                <td class="small">{{ c.follow_up_date or '—' }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center text-muted py-4">
-                    <i class="bi bi-person-x fs-4 d-block mb-1"></i>
-                    입사 후보자가 없습니다.
-                </div>
-                {% endif %}
-            </div>
-            <div class="card-footer text-end">
-                <a href="{{ url_for('contact_list') }}" class="btn btn-sm btn-outline-primary">
-                    전체 연락처 <i class="bi bi-arrow-right"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 비즈니스 기회 Top 5 -->
-<div class="row g-4 mb-4">
-    <div class="col-12">
-        <div class="card">
             <div class="card-header d-flex align-items-center gap-2">
                 <i class="bi bi-briefcase"></i>
                 <span class="fw-semibold">비즈니스 기회 Top 5</span>
@@ -308,6 +261,53 @@
             <div class="card-footer text-end">
                 <a href="{{ url_for('business_opportunities_page') }}" class="btn btn-sm btn-outline-primary">
                     전체 비즈니스 기회 <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 입사 후보자 -->
+<div class="row g-4 mb-4">
+    <div class="col-12 col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-person-badge"></i>
+                <span class="fw-semibold">입사 후보자</span>
+                <span class="badge bg-primary ms-auto">{{ incoming|length }}명</span>
+            </div>
+            <div class="card-body p-0">
+                {% if incoming %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>이름</th>
+                                <th>소속</th>
+                                <th>입사 예정일</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in incoming %}
+                            <tr>
+                                <td class="fw-medium">{{ c.name }}</td>
+                                <td class="text-muted small">{{ c.employer or '—' }}</td>
+                                <td class="small">{{ c.follow_up_date or '—' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-person-x fs-4 d-block mb-1"></i>
+                    입사 후보자가 없습니다.
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer text-end">
+                <a href="{{ url_for('contact_list') }}" class="btn btn-sm btn-outline-primary">
+                    전체 연락처 <i class="bi bi-arrow-right"></i>
                 </a>
             </div>
         </div>

@@ -491,12 +491,9 @@ def index():
     _sort_key = lambda c: (-c.get("score", 0), c.get("follow_up_date", "9999-99-99"))
     top5 = sorted(overdue, key=_sort_key) + sorted(not_overdue, key=_sort_key)[:max(0, 5 - len(overdue))]
 
-    eligible_e = [
-        e for e in entities
-        if e.get("follow_up_date") and e.get("follow_up_priority") != "FU9"
-    ]
-    overdue_e = [e for e in eligible_e if e.get("follow_up_date", "") < today_str]
-    not_overdue_e = [e for e in eligible_e if e.get("follow_up_date", "") >= today_str]
+    eligible_e = [e for e in entities if e.get("follow_up_priority") != "FU9"]
+    overdue_e = [e for e in eligible_e if e.get("follow_up_date") and e["follow_up_date"] < today_str]
+    not_overdue_e = [e for e in eligible_e if not (e.get("follow_up_date") and e["follow_up_date"] < today_str)]
     for e in overdue_e:
         try:
             delta = date.today() - date.fromisoformat(e["follow_up_date"])
