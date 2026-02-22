@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Daily News - Dashboard{% endblock %}
+{% block mobile_title %}Daily News{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-newspaper"></i> Daily News</h2>
+    <div class="d-flex gap-2 flex-shrink-0">
+        <button id="btn-read-all" class="btn btn-outline-success btn-sm">
+            <i class="bi bi-check-all"></i><span class="d-none d-sm-inline"> 모두 읽음</span>
+        </button>
+        <button id="btn-scrape" class="btn btn-primary btn-sm">
+            <i class="bi bi-arrow-clockwise"></i><span class="d-none d-sm-inline"> 스크래핑</span>
+        </button>
+    </div>
+</div>
+
+<!-- Source filter pills -->
+<div id="source-filters" class="d-flex flex-wrap gap-2 mb-3">
+    <button class="btn btn-outline-secondary btn-sm active" data-source="all">
+        All <span class="badge bg-dark ms-1">{{ articles|length }}</span>
+    </button>
+    {% for src in news_sources %}
+        {% if src in source_counts %}
+        <button class="btn btn-outline-secondary btn-sm" data-source="{{ src }}">
+            {{ source_map[src] }} <span class="badge bg-dark ms-1">{{ source_counts[src] }}</span>
+        </button>
+        {% endif %}
+    {% endfor %}
+</div>
+
+<p class="text-muted mb-3">총 <span id="article-count">{{ articles|length }}</span>개 기사</p>
+
+{% if articles %}
+<div class="list-group" id="article-list">
+    {% for article in articles %}
+    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-start"
+         id="article-{{ article.id }}" data-source="{{ article.source }}">
+        <div class="me-3 flex-grow-1">
+            <span class="badge bg-info me-1">{{ source_map.get(article.source, article.source) }}</span>
+            {% if article.section %}
+            <span class="badge bg-secondary me-1">{{ article.section }}</span>
+            {% endif %}
+            <a href="{{ article.url }}" target="_blank" class="article-link">
+                {{ article.title }}
+            </a>
+            <small class="text-muted d-block mt-1">
+                {{ article.scraped_at.strftime('%Y-%m-%d %H:%M') }}
+            </small>
+        </div>
+        <button class="btn btn-sm btn-outline-success flex-shrink-0 btn-read"
+                data-id="{{ article.id }}">
+            <i class="bi bi-check-lg"></i><span class="d-none d-sm-inline"> 읽음</span>
+        </button>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+    <p class="mt-2">기사가 없습니다. 스크래핑을 실행해 주세요.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const NEWS_SOURCES = {{ news_sources | tojson }};
+    const SOURCE_MAP = {{ source_map | tojson }};
+    let activeSource = 'all';
+
+    // Init from URL param
+    const params = new URLSearchParams(location.search);
+    const initSource = params.get('source');
+    if (initSource && NEWS_SOURCES.includes(initSource)) {
+        activeSource = initSource;
+    }
+
+    // --- Filter pills ---
+    const filterBtns = document.querySelectorAll('#source-filters .btn');
+
+    function applyFilter(source) {
+        activeSource = source;
+        filterBtns.forEach(b => b.classList.toggle('active', b.dataset.source === source));
+        const items = document.querySelectorAll('#article-list .list-group-item');
+        let visibleCount = 0;
+        items.forEach(item => {
+            const show = source === 'all' || item.dataset.source === source;
+            item.style.display = show ? '' : 'none';
+            if (show) visibleCount++;
+        });
+        document.getElementById('article-count').textContent = visibleCount;
+        // Update URL without reload
+        const url = new URL(location);
+        if (source === 'all') {
+            url.searchParams.delete('source');
+        } else {
+            url.searchParams.set('source', source);
+        }
+        history.replaceState(null, '', url);
+    }
+
+    filterBtns.forEach(btn => {
+        btn.addEventListener('click', () => applyFilter(btn.dataset.source));
+    });
+
+    // Apply initial filter
+    if (activeSource !== 'all') {
+        applyFilter(activeSource);
+    }
+
+    // --- Mark as read ---
+    document.querySelectorAll('.btn-read').forEach(btn => {
+        btn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const id = this.dataset.id;
+            const row = document.getElementById('article-' + id);
+            try {
+                const resp = await fetch('/api/articles/' + id + '/read', {method: 'POST'});
+                if (resp.ok) {
+                    const src = row.dataset.source;
+                    row.style.transition = 'opacity 0.3s';
+                    row.style.opacity = '0';
+                    setTimeout(() => {
+                        row.remove();
+                        updateCounts(src);
+                    }, 300);
+                }
+            } catch (err) {
+                console.error('Failed to mark as read:', err);
+            }
+        });
+    });
+
+    function updateCounts(removedSource) {
+        // Update visible count
+        const items = document.querySelectorAll('#article-list .list-group-item');
+        let visibleCount = 0;
+        items.forEach(item => {
+            if (item.style.display !== 'none') visibleCount++;
+        });
+        document.getElementById('article-count').textContent = visibleCount;
+
+        // Update pill badges
+        filterBtns.forEach(btn => {
+            const src = btn.dataset.source;
+            if (src === 'all') {
+                btn.querySelector('.badge').textContent = items.length;
+            } else {
+                const cnt = document.querySelectorAll('#article-list .list-group-item[data-source="' + src + '"]').length;
+                const badge = btn.querySelector('.badge');
+                if (badge) badge.textContent = cnt;
+                if (cnt === 0) btn.style.display = 'none';
+            }
+        });
+    }
+
+    // --- Scrape all sources ---
+    document.getElementById('btn-scrape').addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 스크래핑 중...';
+        try {
+            const results = await Promise.all(
+                NEWS_SOURCES.map(src =>
+                    fetch('/api/scrape/' + src, {method: 'POST'}).then(r => r.json())
+                )
+            );
+            const total = results.reduce((sum, r) => sum + (r.new_articles || 0), 0);
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> 완료 (' + total + '개 추가)';
+            setTimeout(() => location.reload(), 1500);
+        } catch (err) {
+            btn.innerHTML = '<i class="bi bi-x-lg"></i> 실패';
+            btn.classList.replace('btn-primary', 'btn-danger');
+        }
+    });
+
+    // --- Mark all as read ---
+    document.getElementById('btn-read-all').addEventListener('click', async function() {
+        const sourcesToClear = activeSource === 'all' ? NEWS_SOURCES : [activeSource];
+        const label = activeSource === 'all' ? '모든' : SOURCE_MAP[activeSource];
+        if (!confirm(label + ' 기사를 읽음 처리하시겠습니까?')) return;
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 처리 중...';
+        try {
+            const results = await Promise.all(
+                sourcesToClear.map(src =>
+                    fetch('/api/articles/read-all/' + src, {method: 'POST'}).then(r => r.json())
+                )
+            );
+            const total = results.reduce((sum, r) => sum + (r.cleared || 0), 0);
+            btn.innerHTML = '<i class="bi bi-check-all"></i> 완료 (' + total + '개)';
+            setTimeout(() => location.reload(), 1000);
+        } catch (err) {
+            btn.innerHTML = '<i class="bi bi-x-lg"></i> 실패';
+            btn.classList.replace('btn-outline-success', 'btn-danger');
+        }
+    });
+})();
+</script>
+{% endblock %}

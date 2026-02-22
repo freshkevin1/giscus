@@ -34,38 +34,10 @@
     </li>
     <hr style="border-color: rgba(255,255,255,0.1); margin: 8px 0;">
     <li class="nav-item">
-        <a class="nav-link {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'ai_robotics_companies_news', 'trends_news') %}active{% endif %}"
+        <a class="nav-link {% if request.endpoint == 'daily_news' %}active{% endif %}"
            href="{{ url_for('daily_news') }}">
             <i class="bi bi-newspaper"></i> Daily News
         </a>
-        {% if request.endpoint in ('daily_news', 'mk_news', 'irobot_news', 'ai_robotics_companies_news', 'trends_news') %}
-        <ul class="nav flex-column ms-3">
-            <li class="nav-item">
-                <a class="nav-link sub-link {% if request.endpoint == 'mk_news' %}active{% endif %}"
-                   href="{{ url_for('mk_news') }}">
-                    매일경제
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link sub-link {% if request.endpoint == 'irobot_news' %}active{% endif %}"
-                   href="{{ url_for('irobot_news') }}">
-                    로봇 & AI 신문
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link sub-link {% if request.endpoint == 'ai_robotics_companies_news' %}active{% endif %}"
-                   href="{{ url_for('ai_robotics_companies_news') }}">
-                    AI & Robotics
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link sub-link {% if request.endpoint == 'trends_news' %}active{% endif %}"
-                   href="{{ url_for('trends_news') }}">
-                    최신 트렌드
-                </a>
-            </li>
-        </ul>
-        {% endif %}
     </li>
     <li class="nav-item">
         <a class="nav-link {% if request.endpoint in ('bestsellers', 'bestsellers_global', 'bestsellers_kr') %}active{% endif %}"

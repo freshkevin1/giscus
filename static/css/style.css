@@ -195,6 +195,18 @@ body {
     color: #fff;
 }
 
+/* Source filter pills */
+#source-filters .btn {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+}
+#source-filters .btn.active {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+
 /* Article list */
 .article-link {
     text-decoration: none;

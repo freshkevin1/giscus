@@ -31,6 +31,13 @@ from scraper import scrape_ai_robotics_companies, scrape_amazon_charts, scrape_d
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+NEWS_SOURCE_MAP = {
+    'mk': '매일경제', 'irobot': '로봇신문', 'robotreport': 'Robot Report',
+    'wsj_ai': 'WSJ', 'nyt_tech': 'NYT', 'ai_robotics': 'AI Companies',
+    'geek_weekly': 'GeekNews Weekly', 'dl_batch': 'The Batch', 'the_decoder': 'The Decoder',
+}
+NEWS_SOURCES = list(NEWS_SOURCE_MAP.keys())
+
 app = Flask(__name__)
 app.config.from_object(Config)
 csrf = CSRFProtect(app)
@@ -471,7 +478,6 @@ def index():
     article_weekly_total = sum(s["count"] for s in article_weekly_stats)
     article_max_daily = max((s["count"] for s in article_weekly_stats), default=1) or 1
     article_today_count = article_weekly_stats[-1]["count"] if article_weekly_stats else 0
-    article_total_count = len(read_articles)
 
     total_contacts = len(contacts)
     fu0_count = sum(1 for c in contacts if c.get("follow_up_priority") == "FU0")
@@ -528,7 +534,6 @@ def index():
         article_weekly_total=article_weekly_total,
         article_max_daily=article_max_daily,
         article_today_count=article_today_count,
-        article_total_count=article_total_count,
         total_contacts=total_contacts,
         fu0_count=fu0_count,
         overdue_count=overdue_count,
@@ -558,43 +563,32 @@ def contact_chat():
 @app.route("/news")
 @login_required
 def daily_news():
-    source_keys = ["mk", "irobot", "ai_robotics", "geek_weekly"]
-    hub = {}
-    for key in source_keys:
-        if key == "irobot":
-            count = Article.query.filter(Article.source.in_(["irobot", "robotreport"])).count()
-            latest = Article.query.filter(Article.source.in_(["irobot", "robotreport"])).order_by(Article.scraped_at.desc()).first()
-        else:
-            count = Article.query.filter_by(source=key).count()
-            latest = Article.query.filter_by(source=key).order_by(Article.scraped_at.desc()).first()
-        hub[key] = {
-            "count": count,
-            "latest_title": latest.title if latest else None,
-            "latest_url": latest.url if latest else None,
-        }
-    return render_template("daily_news.html", hub=hub)
+    for src in NEWS_SOURCES:
+        auto_scrape(src)
+    articles = Article.query.filter(
+        Article.source.in_(NEWS_SOURCES)
+    ).order_by(Article.scraped_at.desc()).all()
+    source_counts = {}
+    for src in NEWS_SOURCES:
+        cnt = sum(1 for a in articles if a.source == src)
+        if cnt > 0:
+            source_counts[src] = cnt
+    return render_template("news.html", articles=articles,
+                           source_counts=source_counts,
+                           source_map=NEWS_SOURCE_MAP,
+                           news_sources=NEWS_SOURCES)
 
 
 @app.route("/news/mk")
 @login_required
 def mk_news():
-    auto_scrape("mk")
-    articles = Article.query.filter_by(source="mk").order_by(Article.scraped_at.desc()).all()
-    return render_template("mk_news.html", articles=articles)
+    return redirect(url_for("daily_news", source="mk"))
 
 
 @app.route("/news/irobot")
 @login_required
 def irobot_news():
-    auto_scrape("irobot")
-    auto_scrape("robotreport")
-    auto_scrape("wsj_ai")
-    auto_scrape("nyt_tech")
-    articles = Article.query.filter(
-        Article.source.in_(["irobot", "robotreport", "wsj_ai", "nyt_tech"])
-    ).order_by(Article.scraped_at.desc()).all()
-    return render_template("irobot_news.html", articles=articles)
-
+    return redirect(url_for("daily_news", source="irobot"))
 
 
 @app.route("/news/ai")
@@ -606,57 +600,19 @@ def ai_news():
 @app.route("/news/ai-robotics/companies")
 @login_required
 def ai_robotics_companies_news():
-    auto_scrape("ai_robotics")
-    articles = Article.query.filter_by(source="ai_robotics").order_by(Article.scraped_at.desc()).all()
-    return render_template("ai_robotics_companies_news.html", articles=articles)
+    return redirect(url_for("daily_news", source="ai_robotics"))
 
 
 @app.route("/news/trends")
 @login_required
 def trends_news():
-    # geek_weekly
-    if Article.query.filter_by(source="geek_weekly").count() == 0:
-        run_scrape("geek_weekly")
-    else:
-        auto_scrape("geek_weekly")
-    # dl_batch
-    if Article.query.filter_by(source="dl_batch").count() == 0:
-        run_scrape("dl_batch")
-    else:
-        auto_scrape("dl_batch")
-    # the_decoder
-    if Article.query.filter_by(source="the_decoder").count() == 0:
-        run_scrape("the_decoder")
-    else:
-        auto_scrape("the_decoder")
-
-    geek_articles = Article.query.filter_by(source="geek_weekly").order_by(Article.section.desc(), Article.id.asc()).all()
-
-    dl_articles = Article.query.filter_by(source="dl_batch").all()
-    dl_articles.sort(
-        key=lambda a: int(m.group(1)) if (m := re.search(r'/issue-(\d+)/', a.url)) else 0,
-        reverse=True,
-    )
-
-    the_decoder_articles = Article.query.filter_by(source="the_decoder").order_by(Article.id.desc()).all()
-
-    articles = the_decoder_articles + dl_articles + geek_articles
-    return render_template("trends_news.html", articles=articles)
+    return redirect(url_for("daily_news", source="geek_weekly"))
 
 
 @app.route("/news/deeplearning")
 @login_required
 def deeplearning_news():
-    if Article.query.filter_by(source="dl_batch").count() == 0:
-        run_scrape("dl_batch")
-    else:
-        auto_scrape("dl_batch")
-    articles = Article.query.filter_by(source="dl_batch").all()
-    articles.sort(
-        key=lambda a: int(m.group(1)) if (m := re.search(r'/issue-(\d+)/', a.url)) else 0,
-        reverse=True,
-    )
-    return render_template("deeplearning_news.html", articles=articles)
+    return redirect(url_for("daily_news", source="dl_batch"))
 
 
 @app.route("/bestsellers")
