@@ -130,7 +130,15 @@ def _habit_stats(habit_name):
         d -= timedelta(days=1)
     total = len(logged_dates)
     today_done = days[-1]["done"]
-    return {"name": habit_name, "today_done": today_done, "streak": streak, "total": total, "days": days}
+    weekly_count = sum(1 for d in days if d["done"])
+    one_month_ago = (today - timedelta(days=28)).isoformat()
+    one_year_ago  = (today - timedelta(days=365)).isoformat()
+    monthly_count = sum(1 for d in logged_dates if d >= one_month_ago)
+    yearly_count  = sum(1 for d in logged_dates if d >= one_year_ago)
+    monthly_avg = round(monthly_count / 4, 1)
+    yearly_avg  = round(yearly_count / 52, 1)
+    return {"name": habit_name, "today_done": today_done, "streak": streak, "total": total, "days": days,
+            "weekly_count": weekly_count, "monthly_avg": monthly_avg, "yearly_avg": yearly_avg}
 
 
 @app.before_request
@@ -460,6 +468,12 @@ def index():
 
     weekly_total = sum(s["count"] for s in weekly_stats)
     max_daily = max((s["count"] for s in weekly_stats), default=1) or 1
+    one_month_ago_str = (date.today() - timedelta(days=28)).isoformat()
+    one_year_ago_str  = (date.today() - timedelta(days=365)).isoformat()
+    contact_monthly_count = sum(v for k, v in last_contact_counts.items() if k >= one_month_ago_str)
+    contact_yearly_count  = sum(v for k, v in last_contact_counts.items() if k >= one_year_ago_str)
+    contact_monthly_avg = round(contact_monthly_count / 4, 1)
+    contact_yearly_avg  = round(contact_yearly_count / 52, 1)
 
     # 최근 7일 일별 Article 읽음(read_at) 집계
     article_daily_counts = {}
@@ -485,6 +499,10 @@ def index():
 
     article_weekly_total = sum(s["count"] for s in article_weekly_stats)
     article_max_daily = max((s["count"] for s in article_weekly_stats), default=1) or 1
+    article_monthly_count = sum(v for k, v in article_daily_counts.items() if k >= one_month_ago_str)
+    article_yearly_count  = sum(v for k, v in article_daily_counts.items() if k >= one_year_ago_str)
+    article_monthly_avg = round(article_monthly_count / 4, 1)
+    article_yearly_avg  = round(article_yearly_count / 52, 1)
     article_today_count = article_weekly_stats[-1]["count"] if article_weekly_stats else 0
 
     total_contacts = len(contacts)
@@ -547,6 +565,10 @@ def index():
         overdue_count=overdue_count,
         habits_data=habits_data,
         today_str=date.today().strftime("%Y년 %m월 %d일"),
+        contact_monthly_avg=contact_monthly_avg,
+        contact_yearly_avg=contact_yearly_avg,
+        article_monthly_avg=article_monthly_avg,
+        article_yearly_avg=article_yearly_avg,
     )
 
 

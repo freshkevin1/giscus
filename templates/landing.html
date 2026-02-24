@@ -21,6 +21,9 @@
             <span class="fw-semibold flex-grow-1" style="font-size:0.95rem">{{ habit.name }}</span>
             <span class="badge bg-warning text-dark streak-badge">🔥 {{ habit.streak }}일 연속</span>
             <span class="badge bg-secondary total-badge">총 {{ habit.total }}일</span>
+            <span class="badge bg-light text-secondary border" style="font-size:0.72rem">1년 평균 {{ habit.yearly_avg }}건</span>
+            <span class="badge bg-light text-secondary border" style="font-size:0.72rem">한달 평균 {{ habit.monthly_avg }}건</span>
+            <span class="badge bg-primary" style="font-size:0.72rem">이번주 {{ habit.weekly_count }}건</span>
             <button class="btn btn-sm habit-toggle-btn
               {% if habit.today_done %}btn-success{% else %}btn-outline-primary{% endif %}"
               onclick="toggleHabit(this)">
@@ -53,7 +56,9 @@
     <div class="card-header d-flex align-items-center gap-2">
         <i class="bi bi-bar-chart-line"></i>
         <span class="fw-semibold">연락 활동 · 최근 7일</span>
-        <span class="badge bg-primary ms-auto">이번 주 {{ weekly_total }}건</span>
+        <span class="badge bg-secondary ms-auto" style="font-size:0.72rem">1년 평균 {{ contact_yearly_avg }}건</span>
+        <span class="badge bg-secondary" style="font-size:0.72rem">한달 평균 {{ contact_monthly_avg }}건</span>
+        <span class="badge bg-primary">이번 주 {{ weekly_total }}건</span>
     </div>
     <div class="card-body">
         <!-- 요약 지표 -->
@@ -91,7 +96,9 @@
     <div class="card-header d-flex align-items-center gap-2">
         <i class="bi bi-journal-text"></i>
         <span class="fw-semibold">Article 통계 · 최근 7일</span>
-        <span class="badge bg-primary ms-auto">이번 주 {{ article_weekly_total }}개</span>
+        <span class="badge bg-secondary ms-auto" style="font-size:0.72rem">1년 평균 {{ article_yearly_avg }}건</span>
+        <span class="badge bg-secondary" style="font-size:0.72rem">한달 평균 {{ article_monthly_avg }}건</span>
+        <span class="badge bg-primary">이번 주 {{ article_weekly_total }}건</span>
     </div>
     <div class="card-body">
         <div class="d-flex gap-2 mb-3 flex-wrap">
