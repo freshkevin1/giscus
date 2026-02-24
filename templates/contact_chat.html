@@ -89,6 +89,18 @@ async function loadHistory() {
         container.innerHTML = '';
         messages.forEach(m => {
             appendMessage(m.role, m.content);
+            if (m.role === 'assistant' && m.actions_json) {
+                try {
+                    const acts = JSON.parse(m.actions_json);
+                    if (acts && acts.length > 0) {
+                        const container = document.getElementById('chatMessages');
+                        const note = document.createElement('div');
+                        note.className = 'action-result mx-3 mb-2';
+                        note.innerHTML = '<div class="alert alert-secondary py-2 small mb-0"><i class="bi bi-info-circle"></i> 이전 미처리 액션이 있을 수 있습니다. 다시 요청해 주세요.</div>';
+                        container.appendChild(note);
+                    }
+                } catch (_) {}
+            }
         });
         scrollToBottom();
     } catch (e) {
@@ -179,10 +191,15 @@ function appendActionResult(actions, type) {
             } else if (a.type === 'search') {
                 const results = (a.results || []).map(r => {
                     const display = r.employer ? `${escapeHtml(r.name)}(${escapeHtml(r.employer)})` : escapeHtml(r.name);
-                    return `${display} - ${escapeHtml(r.contact_priority || '')} ${escapeHtml(r.title || '')}`;
+                    const extra = [r.follow_up_priority, r.follow_up_date, r.follow_up_note].filter(Boolean).map(escapeHtml).join(' | ');
+                    return `${display} - ${escapeHtml(r.contact_priority || '')} ${escapeHtml(r.title || '')}${extra ? ' | ' + extra : ''}`;
                 }).join('<br>');
                 div.innerHTML = `<div class="alert alert-info py-2 small mb-0">
                     <i class="bi bi-search"></i> 검색 결과:<br>${results || '결과 없음'}
+                </div>`;
+            } else if (a.type === 'not_found') {
+                div.innerHTML = `<div class="alert alert-warning py-2 small mb-0">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>${escapeHtml(a.name)}</strong>: ${escapeHtml(a.reason || '연락처를 찾을 수 없습니다')}
                 </div>`;
             }
         } else if (type === 'pending') {
@@ -209,21 +226,26 @@ function appendActionResult(actions, type) {
 
             // Candidates (동명이인)
             let candidatesHtml = '';
-            if (a.candidates && a.candidates.length > 1) {
-                candidatesHtml = '<div class="mt-2">' +
+            const hasCandidates = Array.isArray(a.candidates) && a.candidates.length > 1;
+            if (hasCandidates) {
+                candidatesHtml = `<div class="mt-2 candidate-section" data-card-id="${cardId}">` +
                     a.candidates.map(c =>
                         `<button class="btn btn-outline-primary btn-sm me-1 mb-1 candidate-btn"
                                  data-hmac="${escapeHtml(c.name_hmac)}"
+                                 data-name="${escapeHtml(c.name)}"
+                                 data-employer="${escapeHtml(c.employer || '')}"
                                  data-card-id="${cardId}">${escapeHtml(c.name)}(${escapeHtml(c.employer || '미상')})</button>`
                     ).join('') + '</div>';
             }
 
-            const actionButtons = !a.candidates
-                ? `<div class="d-flex gap-2 mt-2">
+            const actionButtons = !hasCandidates
+                ? `<div class="d-flex gap-2 mt-2 action-section" data-card-id="${cardId}">
                        <button class="btn btn-primary btn-sm confirm-pending-btn" data-card-id="${cardId}">확인 후 실행</button>
                        <button class="btn btn-outline-secondary btn-sm reject-pending-btn" data-card-id="${cardId}">취소</button>
                    </div>`
-                : '';
+                : `<div class="mt-2 action-section" data-card-id="${cardId}">
+                       <button class="btn btn-outline-secondary btn-sm reject-pending-btn" data-card-id="${cardId}">취소</button>
+                   </div>`;
 
             div.innerHTML = `<div class="alert pending-action-card py-2 small mb-0" data-card-id="${cardId}">
                 <i class="bi bi-question-circle"></i> <strong>${escapeHtml(a.name)}</strong>: ${reason}
@@ -248,6 +270,10 @@ document.getElementById('chatForm').addEventListener('submit', async (e) => {
     const input = document.getElementById('chatInput');
     const message = input.value.trim();
     if (!message) return;
+    if (message.length < 2 || message.length > 2000) {
+        alert('메시지는 2자 이상 2000자 이하로 입력해 주세요.');
+        return;
+    }
 
     appendMessage('user', message);
     input.value = '';
@@ -296,19 +322,43 @@ document.getElementById('suggestionChips').addEventListener('click', (e) => {
 
 // Handle confirm/candidate/reject button clicks (event delegation)
 document.getElementById('chatMessages').addEventListener('click', async (e) => {
-    // Candidate selection (동명이인)
+    // Candidate selection (동명이인) — Step 1: show confirm UI
     const candidateBtn = e.target.closest('.candidate-btn');
     if (candidateBtn) {
         const hmac = candidateBtn.dataset.hmac;
+        const name = candidateBtn.dataset.name;
+        const employer = candidateBtn.dataset.employer;
         const cardId = candidateBtn.dataset.cardId;
         const alertDiv = candidateBtn.closest('.alert');
+        const candidateSection = alertDiv.querySelector(`.candidate-section[data-card-id="${cardId}"]`);
+        if (candidateSection) {
+            candidateSection.innerHTML = `<div class="text-muted small mt-2">선택됨: <strong>${escapeHtml(name)}(${escapeHtml(employer || '미상')})</strong></div>`;
+        }
+        const actionSection = alertDiv.querySelector(`.action-section[data-card-id="${cardId}"]`);
+        if (actionSection) {
+            actionSection.innerHTML = `
+                <button class="btn btn-primary btn-sm confirm-candidate-btn me-1"
+                        data-card-id="${escapeHtml(cardId)}"
+                        data-selected-hmac="${escapeHtml(hmac)}">확인 후 실행</button>
+                <button class="btn btn-outline-secondary btn-sm reject-pending-btn"
+                        data-card-id="${escapeHtml(cardId)}">취소</button>`;
+        }
+        return;
+    }
+
+    // Candidate confirm — Step 2: execute after candidate selection
+    const confirmCandidateBtn = e.target.closest('.confirm-candidate-btn');
+    if (confirmCandidateBtn) {
+        const cardId = confirmCandidateBtn.dataset.cardId;
+        const selectedHmac = confirmCandidateBtn.dataset.selectedHmac;
+        const alertDiv = confirmCandidateBtn.closest('.alert');
         const action = pendingActionsMap.get(cardId);
         if (action) {
             try {
                 const res = await fetch('/api/chat/confirm', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action, selected_hmac: hmac}),
+                    body: JSON.stringify({action, selected_hmac: selectedHmac}),
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -317,7 +367,8 @@ document.getElementById('chatMessages').addEventListener('click', async (e) => {
                     alertDiv.className = 'alert alert-success py-2 small mb-0';
                     alertDiv.innerHTML = '<i class="bi bi-check-circle"></i> 업데이트 완료';
                 } else {
-                    alertDiv.innerHTML += `<br><small class="text-danger">${escapeHtml(data.error || '')}</small>`;
+                    const errMsg = data.errors ? data.errors.join('; ') : (data.error || '');
+                    alertDiv.innerHTML += `<br><small class="text-danger">${escapeHtml(errMsg)}</small>`;
                 }
             } catch (err) {
                 alertDiv.innerHTML += `<br><small class="text-danger">오류: ${escapeHtml(err.message || '')}</small>`;
@@ -351,7 +402,8 @@ document.getElementById('chatMessages').addEventListener('click', async (e) => {
                     alertDiv.className = 'alert alert-danger py-2 small mb-0';
                     alertDiv.innerHTML = `<i class="bi bi-exclamation-octagon"></i> ${escapeHtml(data.error || '')}`;
                 } else {
-                    alertDiv.innerHTML += `<br><small class="text-danger">오류: ${escapeHtml(data.error || '')}</small>`;
+                    const errMsg = data.errors ? data.errors.join('; ') : (data.error || '');
+                    alertDiv.innerHTML += `<br><small class="text-danger">오류: ${escapeHtml(errMsg)}</small>`;
                 }
             } catch (err) {
                 alertDiv.innerHTML += `<br><small class="text-danger">오류: ${escapeHtml(err.message || '')}</small>`;

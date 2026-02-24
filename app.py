@@ -1418,6 +1418,8 @@ def api_contact_chat():
         user_message = data.get("message", "").strip()
         if not user_message:
             return jsonify({"error": "Message required"}), 400
+        if len(user_message) < 2 or len(user_message) > 2000:
+            return jsonify({"error": "메시지는 2자 이상 2000자 이하로 입력해 주세요."}), 400
 
         # Get conversation history from DB
         history_msgs = ContactChatMessage.query.order_by(
@@ -1523,13 +1525,26 @@ def api_contact_chat():
                         ],
                     })
                 else:
-                    pending_actions.append({**action, "reason": "연락처를 찾을 수 없음"})
+                    executed_actions.append({"type": "not_found", "name": name, "reason": "연락처를 찾을 수 없음"})
 
             elif action_type == "add_contact":
                 pending_actions.append({**action, "reason": "새 연락처 추가 — 확인 후 실행"})
 
             elif action_type == "delete_contact":
-                pending_actions.append({**action, "reason": "확인이 필요합니다"})
+                matches = find_contact_by_name(name)
+                if len(matches) == 0:
+                    executed_actions.append({"type": "not_found", "name": name, "reason": "연락처를 찾을 수 없음"})
+                elif len(matches) == 1:
+                    pending_actions.append({**action, "reason": "삭제를 확인해 주세요"})
+                else:
+                    pending_actions.append({
+                        **action,
+                        "reason": "동명이인 발견",
+                        "candidates": [
+                            {"name": m["name"], "employer": m.get("employer", ""), "name_hmac": m["name_hmac"]}
+                            for m in matches
+                        ],
+                    })
 
             else:
                 logger.warning("Unknown contact action: %s", action_type)
