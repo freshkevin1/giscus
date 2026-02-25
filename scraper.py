@@ -133,63 +133,43 @@ def scrape_mk_today():
 
 
 def scrape_irobotnews():
-    """Scrape articles from 로봇신문 (irobotnews.com).
+    """Scrape articles from 로봇신문 (irobotnews.com) via RSS feed."""
+    import xml.etree.ElementTree as ET
 
-    Returns a list of dicts with keys: title, url, section.
-    """
-    base_url = "https://www.irobotnews.com"
-    list_url = base_url + "/news/articleList.html?view_type=sm"
+    feed_url = "https://www.irobotnews.com/rss/allArticle.xml"
     articles = []
     seen_urls = set()
 
-    irobot_headers = {
-        **HEADERS,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Referer": base_url + "/",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-    }
-
-    session = requests.Session()
     try:
-        session.get(base_url, headers=irobot_headers, timeout=15)
-        resp = session.get(list_url, headers=irobot_headers, timeout=30)
+        resp = requests.get(feed_url, headers=HEADERS, timeout=30)
         resp.raise_for_status()
     except requests.RequestException as e:
-        logger.error("Failed to fetch irobotnews: %s", e)
+        logger.error("Failed to fetch irobotnews RSS: %s", e)
         return articles
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    try:
+        root = ET.fromstring(resp.content)
+    except ET.ParseError as e:
+        logger.error("Failed to parse irobotnews RSS: %s", e)
+        return articles
 
-    for item in soup.select("#section-list li.altlist-webzine-item"):
-        link_el = item.select_one("h2.altlist-subject > a")
-        if not link_el:
+    channel = root.find("channel")
+    if channel is None:
+        logger.error("irobotnews RSS: no <channel> element found")
+        return articles
+
+    for item in channel.findall("item"):
+        title = (item.findtext("title") or "").strip()
+        link = (item.findtext("link") or "").strip()
+        category = (item.findtext("category") or "").strip()
+        if not title or not link:
             continue
-
-        title = link_el.get_text(strip=True)
-        href = link_el.get("href", "")
-
-        if not title or not href:
+        if link in seen_urls:
             continue
+        seen_urls.add(link)
+        articles.append({"title": title, "url": link, "section": category})
 
-        if href.startswith("/"):
-            href = "https://www.irobotnews.com" + href
-
-        if href in seen_urls:
-            continue
-        seen_urls.add(href)
-
-        # Extract category from metadata
-        section = ""
-        info_items = item.select("div.altlist-info-item")
-        if info_items:
-            section = info_items[0].get_text(strip=True)
-
-        articles.append({"title": title, "url": href, "section": section})
-
-    logger.info("Scraped %d articles from irobotnews", len(articles))
+    logger.info("Scraped %d articles from irobotnews RSS", len(articles))
     return articles
 
 
