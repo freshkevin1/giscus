@@ -137,12 +137,25 @@ def scrape_irobotnews():
 
     Returns a list of dicts with keys: title, url, section.
     """
-    url = "https://www.irobotnews.com/news/articleList.html?view_type=sm"
+    base_url = "https://www.irobotnews.com"
+    list_url = base_url + "/news/articleList.html?view_type=sm"
     articles = []
     seen_urls = set()
 
+    irobot_headers = {
+        **HEADERS,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": base_url + "/",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    }
+
+    session = requests.Session()
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=30)
+        session.get(base_url, headers=irobot_headers, timeout=15)
+        resp = session.get(list_url, headers=irobot_headers, timeout=30)
         resp.raise_for_status()
     except requests.RequestException as e:
         logger.error("Failed to fetch irobotnews: %s", e)
