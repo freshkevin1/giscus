@@ -642,7 +642,7 @@ async function openEdit(nameHmac) {
         logsDiv.innerHTML = '<p class="text-danger">로그 로딩 실패</p>';
     }
 
-    new bootstrap.Modal(document.getElementById('editContactModal')).show();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('editContactModal')).show();
 }
 
 // Update contact
