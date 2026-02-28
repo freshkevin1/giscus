@@ -215,6 +215,42 @@
         </ul>
     </div>
 </div>
+<!-- 알림 설정 카드 -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-transparent">
+        <h5 class="mb-0"><i class="bi bi-bell"></i> 알림 설정</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            구독 중인 기기: <strong>{{ push_sub_count }}</strong>개
+            <span class="ms-2">(<a href="#" onclick="testPush(event)">테스트 발송</a>)</span>
+        </p>
+        <div class="mb-2">
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="pref_contacts_today"
+                       {% if not push_pref or push_pref.contacts_today %}checked{% endif %}>
+                <label class="form-check-label" for="pref_contacts_today">오늘 연락해야 하는 연락처</label>
+            </div>
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="pref_contacts_overdue"
+                       {% if not push_pref or push_pref.contacts_overdue %}checked{% endif %}>
+                <label class="form-check-label" for="pref_contacts_overdue">기한 초과 연락처</label>
+            </div>
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="pref_business_today"
+                       {% if not push_pref or push_pref.business_today %}checked{% endif %}>
+                <label class="form-check-label" for="pref_business_today">오늘 follow-up 비즈니스</label>
+            </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="pref_business_overdue"
+                       {% if not push_pref or push_pref.business_overdue %}checked{% endif %}>
+                <label class="form-check-label" for="pref_business_overdue">기한 초과 비즈니스</label>
+            </div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="savePrefs()">저장</button>
+        <span id="prefSaveMsg" class="ms-2 text-success small" style="display:none">저장됨</span>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -259,5 +295,28 @@ document.getElementById('btnClearLogs').addEventListener('click', async () => {
     alert(`${data.cleared}건의 로그가 삭제되었습니다.`);
     location.reload();
 });
+
+function savePrefs() {
+    fetch('/api/push/preferences', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            contacts_today: document.getElementById('pref_contacts_today').checked,
+            contacts_overdue: document.getElementById('pref_contacts_overdue').checked,
+            business_today: document.getElementById('pref_business_today').checked,
+            business_overdue: document.getElementById('pref_business_overdue').checked,
+        })
+    }).then(() => {
+        var msg = document.getElementById('prefSaveMsg');
+        msg.style.display = 'inline';
+        setTimeout(() => { msg.style.display = 'none'; }, 2000);
+    });
+}
+function testPush(e) {
+    e.preventDefault();
+    fetch('/api/push/test', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => alert(d.message || '발송 완료'));
+}
 </script>
 {% endblock %}

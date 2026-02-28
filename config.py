@@ -35,3 +35,7 @@ class Config:
     # Encryption keys (Contact List PII)
     FERNET_KEY = os.environ.get("FERNET_KEY", "")
     HMAC_KEY = os.environ.get("HMAC_KEY", "")
+
+    VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+    VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+    VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "")

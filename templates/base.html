@@ -14,6 +14,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="vapid-public-key" content="{{ vapid_public_key }}">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
@@ -153,9 +154,64 @@
     </script>
     {% block scripts %}{% endblock %}
     <script>
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js');
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+        navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            window._swReg = reg;
+            reg.pushManager.getSubscription().then(function(sub) {
+                _updateBellUI(!!sub);
+            });
+        });
     }
+
+    function urlBase64ToUint8Array(b64) {
+        const pad = '='.repeat((4 - b64.length % 4) % 4);
+        const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+        return Uint8Array.from(raw, c => c.charCodeAt(0));
+    }
+
+    function _updateBellUI(active) {
+        document.querySelectorAll('.push-bell-btn').forEach(function(btn) {
+            btn.querySelector('i').className = active
+                ? 'bi bi-bell-fill text-warning'
+                : 'bi bi-bell text-secondary';
+            btn.title = active ? '알림 켜짐 (클릭하여 끄기)' : '알림 끄짐 (클릭하여 켜기)';
+        });
+    }
+
+    window._togglePushNotification = function() {
+        if (!window._swReg) return;
+        window._swReg.pushManager.getSubscription().then(function(sub) {
+            if (sub) {
+                sub.unsubscribe().then(function() {
+                    fetch('/api/push/unsubscribe', {
+                        method: 'DELETE',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ endpoint: sub.endpoint })
+                    });
+                    _updateBellUI(false);
+                });
+            } else {
+                var key = document.querySelector('meta[name="vapid-public-key"]').content;
+                if (!key) return;
+                Notification.requestPermission().then(function(permission) {
+                    if (permission !== 'granted') return;
+                    window._swReg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(key)
+                    }).then(function(newSub) {
+                        fetch('/api/push/subscribe', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify(newSub.toJSON())
+                        });
+                        _updateBellUI(true);
+                    }).catch(function(e) {
+                        console.error('Push subscribe failed:', e);
+                    });
+                });
+            }
+        });
+    };
     </script>
 </body>
 </html>

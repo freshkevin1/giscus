@@ -104,6 +104,12 @@
 </ul>
 <div class="mt-auto">
     <hr style="border-color: rgba(255,255,255,0.1); margin: 8px 0;">
+    <button class="push-bell-btn nav-link border-0 bg-transparent w-100 text-start"
+            onclick="window._togglePushNotification()"
+            title="알림 끄짐 (클릭하여 켜기)">
+        <i class="bi bi-bell text-secondary"></i>
+        <span class="ms-2 text-secondary small">알림</span>
+    </button>
     {% if current_user.is_authenticated and current_user.username == "tornadogrowth" %}
     <a class="nav-link {% if request.endpoint == 'admin_security' %}active{% endif %}"
        href="{{ url_for('admin_security') }}">

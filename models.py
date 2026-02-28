@@ -112,6 +112,24 @@ class ContactChatMessage(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class PushSubscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    endpoint = db.Column(db.Text, nullable=False, unique=True)
+    p256dh = db.Column(db.Text, nullable=False)
+    auth = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class NotificationPreference(db.Model):
+    """알림 항목별 ON/OFF 설정. 유저당 1행."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    contacts_today = db.Column(db.Boolean, default=True)     # 오늘 연락처
+    contacts_overdue = db.Column(db.Boolean, default=True)   # 기한 초과 연락처
+    business_today = db.Column(db.Boolean, default=True)     # 오늘 비즈니스
+    business_overdue = db.Column(db.Boolean, default=True)   # 기한 초과 비즈니스
+
 
 def init_default_user():
     """Create default user if not exists. Reads credentials from environment variables."""

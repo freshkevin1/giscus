@@ -23,7 +23,8 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from config import Config
 import json
 
-from models import Article, ChatMessage, ContactChatMessage, LoginLog, MyBook, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+from models import Article, ChatMessage, ContactChatMessage, LoginLog, MyBook, NotificationPreference, PushSubscription, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+from pywebpush import webpush, WebPushException
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
 from scraper import scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_geek_news_weekly, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_wsj_ai, scrape_yes24_bestseller
@@ -80,6 +81,11 @@ def load_user(user_id):
 @app.context_processor
 def inject_csrf_token():
     return {"csrf_token": generate_csrf}
+
+
+@app.context_processor
+def inject_push_config():
+    return {'vapid_public_key': Config.VAPID_PUBLIC_KEY}
 
 
 PASSWORD_EXPIRY_DAYS = 30
@@ -326,6 +332,83 @@ scheduler.add_job(
     hour=Config.SCRAPE_HOUR_UTC,
     minute=Config.SCRAPE_MINUTE,
     id="daily_scrape",
+)
+
+
+def send_daily_push_notifications():
+    """매일 06:00 KST (21:00 UTC): 연락처/비즈니스 follow-up 알림 발송."""
+    if not Config.VAPID_PRIVATE_KEY or not Config.VAPID_PUBLIC_KEY:
+        logger.warning("push_notify: VAPID keys not configured, skipping")
+        return
+    try:
+        from sheets import get_all_contacts
+        from sheets_entities import get_all_entities
+    except Exception as e:
+        logger.error("push_notify: import error: %s", e)
+        return
+
+    today = date.today().isoformat()
+    try:
+        contacts = get_all_contacts()
+        entities = get_all_entities()
+    except Exception as e:
+        logger.error("push_notify: failed to load data: %s", e)
+        return
+
+    c_today = [c for c in contacts if c.get("follow_up_date") == today]
+    c_over  = [c for c in contacts if c.get("follow_up_date") and c.get("follow_up_date") < today]
+    b_today = [b for b in entities if b.get("follow_up_date") == today]
+    b_over  = [b for b in entities if b.get("follow_up_date") and b.get("follow_up_date") < today]
+
+    with app.app_context():
+        subscriptions = PushSubscription.query.all()
+        for sub in subscriptions:
+            pref = NotificationPreference.query.filter_by(user_id=sub.user_id).first()
+            parts = []
+            if (not pref or pref.contacts_today) and c_today:
+                parts.append(f"오늘 연락처 {len(c_today)}명")
+            if (not pref or pref.contacts_overdue) and c_over:
+                parts.append(f"기한 초과 연락처 {len(c_over)}명")
+            if (not pref or pref.business_today) and b_today:
+                parts.append(f"오늘 비즈니스 {len(b_today)}건")
+            if (not pref or pref.business_overdue) and b_over:
+                parts.append(f"기한 초과 비즈니스 {len(b_over)}건")
+            if not parts:
+                continue
+            payload = json.dumps({
+                "title": "오늘의 연락 현황",
+                "body": " | ".join(parts),
+                "url": "/contacts"
+            })
+            try:
+                webpush(
+                    subscription_info={
+                        "endpoint": sub.endpoint,
+                        "keys": {"p256dh": sub.p256dh, "auth": sub.auth}
+                    },
+                    data=payload,
+                    vapid_private_key=Config.VAPID_PRIVATE_KEY,
+                    vapid_claims={"sub": f"mailto:{Config.VAPID_CLAIM_EMAIL}"}
+                )
+                logger.info("push_notify: sent to endpoint ...%s", sub.endpoint[-20:])
+            except WebPushException as e:
+                if e.response and e.response.status_code in (404, 410):
+                    db.session.delete(sub)
+                    db.session.commit()
+                    logger.info("push_notify: removed expired subscription")
+                else:
+                    logger.error("push_notify: error: %s", e)
+
+    if not subscriptions:
+        logger.info("push_notify: no subscriptions, nothing sent")
+
+
+scheduler.add_job(
+    send_daily_push_notifications,
+    "cron",
+    hour=21,
+    minute=0,
+    id="daily_push_notify",
 )
 
 
@@ -1856,6 +1939,9 @@ def admin_security():
     csrf_enabled = "csrf" in app.extensions
     login_ratelimit_set = True
 
+    push_sub_count = PushSubscription.query.count()
+    push_pref = NotificationPreference.query.filter_by(user_id=current_user.id).first()
+
     return render_template("admin_security.html",
         recent_logs=recent_logs,
         today_success=today_success, today_fail=today_fail,
@@ -1868,7 +1954,81 @@ def admin_security():
         dashboard_user_set=dashboard_user_set,
         csrf_enabled=csrf_enabled,
         login_ratelimit_set=login_ratelimit_set,
+        push_sub_count=push_sub_count,
+        push_pref=push_pref,
     )
+
+
+@app.route("/api/push/subscribe", methods=["POST"])
+@login_required
+def push_subscribe():
+    data = request.get_json()
+    endpoint = data.get("endpoint")
+    p256dh = data.get("keys", {}).get("p256dh")
+    auth = data.get("keys", {}).get("auth")
+    if not all([endpoint, p256dh, auth]):
+        return jsonify({"error": "Invalid subscription data"}), 400
+    existing = PushSubscription.query.filter_by(endpoint=endpoint).first()
+    if existing:
+        existing.p256dh = p256dh
+        existing.auth = auth
+    else:
+        db.session.add(PushSubscription(
+            user_id=current_user.id, endpoint=endpoint, p256dh=p256dh, auth=auth
+        ))
+    db.session.commit()
+    return jsonify({"status": "subscribed"}), 201
+
+
+@app.route("/api/push/unsubscribe", methods=["DELETE"])
+@login_required
+def push_unsubscribe():
+    data = request.get_json()
+    endpoint = data.get("endpoint")
+    PushSubscription.query.filter_by(
+        endpoint=endpoint, user_id=current_user.id
+    ).delete()
+    db.session.commit()
+    return jsonify({"status": "unsubscribed"}), 200
+
+
+@app.route("/api/push/preferences", methods=["GET"])
+@login_required
+def push_get_prefs():
+    pref = NotificationPreference.query.filter_by(user_id=current_user.id).first()
+    if not pref:
+        pref = NotificationPreference(user_id=current_user.id)
+        db.session.add(pref)
+        db.session.commit()
+    return jsonify({
+        "contacts_today": pref.contacts_today,
+        "contacts_overdue": pref.contacts_overdue,
+        "business_today": pref.business_today,
+        "business_overdue": pref.business_overdue,
+    })
+
+
+@app.route("/api/push/preferences", methods=["PUT"])
+@login_required
+def push_update_prefs():
+    data = request.get_json()
+    pref = NotificationPreference.query.filter_by(user_id=current_user.id).first()
+    if not pref:
+        pref = NotificationPreference(user_id=current_user.id)
+        db.session.add(pref)
+    pref.contacts_today = bool(data.get("contacts_today", True))
+    pref.contacts_overdue = bool(data.get("contacts_overdue", True))
+    pref.business_today = bool(data.get("business_today", True))
+    pref.business_overdue = bool(data.get("business_overdue", True))
+    db.session.commit()
+    return jsonify({"status": "saved"})
+
+
+@app.route("/api/push/test", methods=["POST"])
+@login_required
+def push_test():
+    send_daily_push_notifications()
+    return jsonify({"message": f"테스트 알림 발송 완료 (구독 {PushSubscription.query.count()}개)"})
 
 
 @app.route("/api/admin/clear-logs", methods=["POST"])
