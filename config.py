@@ -15,8 +15,8 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Scraping schedule (KST = UTC+9, so 6:00 KST = 21:00 UTC previous day)
-    SCRAPE_HOUR_UTC = 21
+    # Scraping schedule (KST = UTC+9): 06:00, 12:00, 18:00, 24:00 KST = 21:00, 03:00, 09:00, 15:00 UTC
+    SCRAPE_HOUR_UTC = "21,3,9,15"
     SCRAPE_MINUTE = 0
 
     # Article retention limit
