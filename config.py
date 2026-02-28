@@ -6,18 +6,26 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 def _pem_to_vapid_b64url(key):
-    """PEM 포맷 VAPID private key → pywebpush용 base64url raw key 변환."""
+    """PEM 포맷 VAPID private key → pywebpush용 base64url raw key 변환.
+    변환 실패 시 multi-line PEM으로 정규화하여 반환 (pywebpush가 파싱 가능한 포맷).
+    """
     if not key or '-----' not in key:
         return key  # 이미 base64url이면 그대로
     # 이스케이프된 \n 복원
     key = key.replace('\\n', '\n')
-    # 줄바꿈이 없으면 PEM 구조 재조립 (한 줄로 저장된 경우)
+    # 줄바꿈 없으면 PEM 구조 재조립 (한 줄로 저장된 경우) — 원본 헤더/푸터 타입 보존
     if '\n' not in key:
-        m = _re.search(r'-----BEGIN [^-]+----- *([A-Za-z0-9+/=]+) *-----END', key)
+        stripped = key.replace(' ', '')
+        m = _re.search(
+            r'(-----BEGIN [^-]+-----)'
+            r'([A-Za-z0-9+/=]+)'
+            r'(-----END [^-]+-----)',
+            stripped
+        )
         if m:
-            b64 = m.group(1)
-            lines = '\n'.join(b64[i:i+64] for i in range(0, len(b64), 64))
-            key = f"-----BEGIN EC PRIVATE KEY-----\n{lines}\n-----END EC PRIVATE KEY-----\n"
+            header, body, footer = m.group(1), m.group(2), m.group(3)
+            lines = '\n'.join(body[i:i+64] for i in range(0, len(body), 64))
+            key = f"{header}\n{lines}\n{footer}\n"
     try:
         from cryptography.hazmat.primitives.serialization import (
             load_pem_private_key, Encoding, PrivateFormat, NoEncryption)
@@ -25,7 +33,7 @@ def _pem_to_vapid_b64url(key):
         raw = ec_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
         return _base64.urlsafe_b64encode(raw).decode().rstrip('=')
     except Exception:
-        return key  # 변환 실패 시 원본 반환 (기존 동작 유지)
+        return key  # 정규화된 multi-line PEM 반환 → pywebpush가 직접 파싱
 
 
 class Config:
