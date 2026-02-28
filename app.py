@@ -2027,8 +2027,37 @@ def push_update_prefs():
 @app.route("/api/push/test", methods=["POST"])
 @login_required
 def push_test():
-    send_daily_push_notifications()
-    return jsonify({"message": f"테스트 알림 발송 완료 (구독 {PushSubscription.query.count()}개)"})
+    if not Config.VAPID_PRIVATE_KEY or not Config.VAPID_PUBLIC_KEY:
+        return jsonify({"message": "VAPID 키 미설정 — Railway 환경변수를 확인하세요"})
+    subs = PushSubscription.query.all()
+    if not subs:
+        return jsonify({"message": "구독된 기기가 없습니다. 먼저 🔔를 눌러 알림을 구독하세요"})
+    sent, failed = 0, 0
+    for sub in subs:
+        payload = json.dumps({
+            "title": "테스트 알림",
+            "body": "Web Push 알림이 정상 작동합니다 ✓",
+            "url": "/contacts"
+        })
+        try:
+            webpush(
+                subscription_info={"endpoint": sub.endpoint,
+                                   "keys": {"p256dh": sub.p256dh, "auth": sub.auth}},
+                data=payload,
+                vapid_private_key=Config.VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": f"mailto:{Config.VAPID_CLAIM_EMAIL}"}
+            )
+            sent += 1
+        except WebPushException as e:
+            if e.response and e.response.status_code in (404, 410):
+                db.session.delete(sub)
+                db.session.commit()
+            logger.error("push_test: WebPushException: %s", e)
+            failed += 1
+        except Exception as e:
+            logger.error("push_test: unexpected error: %s", e)
+            failed += 1
+    return jsonify({"message": f"발송 {sent}개 / 실패 {failed}개 (전체 구독 {len(subs)}개)"})
 
 
 @app.route("/api/admin/clear-logs", methods=["POST"])

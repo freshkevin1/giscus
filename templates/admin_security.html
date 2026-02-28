@@ -315,8 +315,12 @@ function savePrefs() {
 function testPush(e) {
     e.preventDefault();
     fetch('/api/push/test', { method: 'POST' })
-        .then(r => r.json())
-        .then(d => alert(d.message || '발송 완료'));
+        .then(r => {
+            if (!r.ok) throw new Error('서버 오류 ' + r.status);
+            return r.json();
+        })
+        .then(d => alert(d.message || '발송 완료'))
+        .catch(err => alert('오류: ' + err.message));
 }
 </script>
 {% endblock %}
