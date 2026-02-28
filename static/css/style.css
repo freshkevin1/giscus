@@ -648,6 +648,55 @@ body {
     font-weight: 600;
 }
 
+/* Dark mode overrides */
+[data-bs-theme="dark"] {
+    --color-surface: #1e2530;
+    --color-primary: #7bb3e8;
+    --color-accent: #E8A838;
+}
+
+[data-bs-theme="dark"] .main-content {
+    background-color: var(--color-surface);
+}
+
+[data-bs-theme="dark"] .chat-messages {
+    background-color: #161b24;
+}
+
+[data-bs-theme="dark"] .bubble-assistant {
+    background-color: #2d3748;
+    color: #e0e6f0;
+    border-color: #3d4a5c;
+}
+
+[data-bs-theme="dark"] .contact-card {
+    background: #2d3748;
+}
+
+[data-bs-theme="dark"] .article-link {
+    color: #c8d8f0;
+}
+
+[data-bs-theme="dark"] .news-hub-card {
+    border-color: rgba(255,255,255,0.1);
+}
+
+[data-bs-theme="dark"] .news-latest-title {
+    color: #9ab0cc;
+}
+
+[data-bs-theme="dark"] .pending-action-card {
+    background-color: #2a2010;
+}
+
+[data-bs-theme="dark"] .chat-card .card-footer {
+    background: #1e2530;
+}
+
+[data-bs-theme="dark"] .wizard-step {
+    color: #7b8a9a;
+}
+
 /* Entity table */
 #entityTable th {
     font-size: 0.85rem;

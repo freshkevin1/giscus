@@ -2,6 +2,13 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <script>
+    (function(){
+      var t = localStorage.getItem('theme') ||
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-bs-theme', t);
+    })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1a1d23">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -26,7 +33,9 @@
                 <i class="bi bi-list" style="font-size:1.5rem"></i>
             </button>
             <span class="navbar-brand text-white mb-0">{% block mobile_title %}Dashboard{% endblock %}</span>
-            <div style="width:40px"></div>
+            <button id="themeToggleMobile" class="btn btn-link text-white p-0" style="width:40px">
+                <i class="bi bi-moon-fill" id="themeIconMobile"></i>
+            </button>
         </div>
     </nav>
 
@@ -51,6 +60,13 @@
                 <i class="bi bi-speedometer2"></i> Dashboard
             </a>
             {% include "_sidebar_nav.html" %}
+            <div class="mt-auto pt-3 border-top border-secondary">
+                <button id="themeToggle" class="btn btn-sm w-100 text-start text-secondary"
+                        style="background:transparent; border:none;">
+                    <i class="bi bi-moon-fill" id="themeIcon"></i>
+                    <span id="themeLabel" class="ms-2">다크 모드</span>
+                </button>
+            </div>
         </nav>
 
         <!-- Main Content -->
@@ -107,6 +123,32 @@
             tokenInput.value = csrfToken;
             form.appendChild(tokenInput);
         });
+    })();
+    </script>
+    <script>
+    (function(){
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            var isDark = theme === 'dark';
+            var icon = isDark ? 'bi-sun-fill' : 'bi-moon-fill';
+            var label = isDark ? '라이트 모드' : '다크 모드';
+            document.querySelector('meta[name="theme-color"]').content = '#1a1d23';
+            document.getElementById('themeIcon').className = 'bi ' + icon;
+            document.getElementById('themeLabel').textContent = label;
+            document.getElementById('themeIconMobile').className = 'bi ' + icon;
+        }
+
+        function toggle() {
+            var cur = document.documentElement.getAttribute('data-bs-theme');
+            var next = cur === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('theme', next);
+            applyTheme(next);
+        }
+
+        document.getElementById('themeToggle').addEventListener('click', toggle);
+        document.getElementById('themeToggleMobile').addEventListener('click', toggle);
+
+        applyTheme(document.documentElement.getAttribute('data-bs-theme') || 'light');
     })();
     </script>
     {% block scripts %}{% endblock %}
