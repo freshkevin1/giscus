@@ -1247,7 +1247,31 @@ def api_delete_saved_book(book_id):
 @login_required
 def api_book_saved_to_reading(book_id):
     saved = SavedBook.query.get_or_404(book_id)
-    book = MyBook(title=saved.title, author=saved.author, shelf="reading")
+
+    extra = {}
+    try:
+        params = {"q": f"{saved.title} {saved.author}", "maxResults": 1, "printType": "books"}
+        api_key = os.environ.get("GOOGLE_BOOKS_API_KEY")
+        if api_key:
+            params["key"] = api_key
+        r = http_requests.get("https://www.googleapis.com/books/v1/volumes", params=params, timeout=5)
+        if r.ok:
+            items = r.json().get("items", [])
+            if items:
+                info = items[0].get("volumeInfo", {})
+                isbns = {i["type"]: i["identifier"] for i in info.get("industryIdentifiers", [])}
+                pub_date = info.get("publishedDate", "")
+                extra = {
+                    "isbn": isbns.get("ISBN_10", ""),
+                    "isbn13": isbns.get("ISBN_13", ""),
+                    "publisher": info.get("publisher", ""),
+                    "year_published": int(pub_date[:4]) if pub_date and pub_date[:4].isdigit() else 0,
+                    "average_rating": info.get("averageRating", 0.0),
+                }
+    except Exception:
+        pass
+
+    book = MyBook(title=saved.title, author=saved.author, shelf="reading", **extra)
     db.session.add(book)
     db.session.delete(saved)
     db.session.commit()
@@ -1572,7 +1596,32 @@ def api_delete_saved_screen(screen_id):
 @login_required
 def api_screen_saved_to_watching(screen_id):
     saved = SavedScreen.query.get_or_404(screen_id)
-    screen = MyScreen(title=saved.title, media_type=saved.media_type or "movie", shelf="watching")
+    media_type = saved.media_type or "movie"
+
+    extra = {}
+    api_key = os.environ.get("TMDB_API_KEY", "")
+    if api_key:
+        try:
+            endpoint = f"{TMDB_BASE_URL}/search/{'movie' if media_type == 'movie' else 'tv'}"
+            params = _tmdb_params({"query": saved.title, "language": "ko-KR", "include_adult": False})
+            r = http_requests.get(endpoint, params=params, headers={"accept": "application/json"}, timeout=5)
+            if r.ok:
+                items = r.json().get("results", [])
+                if items:
+                    item = items[0]
+                    year_str = item.get("release_date" if media_type == "movie" else "first_air_date", "")
+                    extra = {
+                        "tmdb_id": item.get("id"),
+                        "original_title": item.get("original_title") or item.get("original_name", ""),
+                        "year": int(year_str[:4]) if year_str and year_str[:4].isdigit() else 0,
+                        "poster_url": _tmdb_poster_url(item.get("poster_path", "")),
+                        "overview": item.get("overview", ""),
+                        "tmdb_rating": item.get("vote_average", 0.0),
+                    }
+        except Exception:
+            pass
+
+    screen = MyScreen(title=saved.title, media_type=media_type, shelf="watching", **extra)
     db.session.add(screen)
     db.session.delete(saved)
     db.session.commit()
