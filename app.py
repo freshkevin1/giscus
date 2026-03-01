@@ -302,11 +302,13 @@ def run_scrape(source="mk"):
         logger.info("Replaced %s list with %d books", source, len(articles))
         return len(articles)
 
+    # Batch-load existing URLs to avoid N+1 queries
+    existing_read = {r.url for r in ReadArticle.query.with_entities(ReadArticle.url).all()}
+    existing_art = {r.url for r in Article.query.filter_by(source=source).with_entities(Article.url).all()}
+
     count = 0
     for a in articles:
-        if ReadArticle.query.filter_by(url=a["url"]).first():
-            continue
-        if Article.query.filter_by(url=a["url"]).first():
+        if a["url"] in existing_read or a["url"] in existing_art:
             continue
         article = Article(
             title=a["title"],
@@ -1097,10 +1099,10 @@ def api_books_chat():
     # Load conversation history from DB (last 50 messages for context window management)
     db_messages = (
         ChatMessage.query
-        .order_by(ChatMessage.created_at.asc())
-        .all()
+        .order_by(ChatMessage.created_at.desc())
+        .limit(50).all()
     )
-    history = [{"role": m.role, "content": m.content} for m in db_messages[-50:]]
+    history = [{"role": m.role, "content": m.content} for m in reversed(db_messages)]
 
     try:
         result = chat_recommendation(user_message, history, books, saved_books=saved_books)
@@ -1122,9 +1124,11 @@ def api_books_chat():
 @login_required
 def api_chat_history():
     """Return full chat history for page reload restoration."""
-    messages = ChatMessage.query.order_by(ChatMessage.created_at.asc()).all()
+    messages = (ChatMessage.query
+                .order_by(ChatMessage.created_at.desc())
+                .limit(50).all())
     result = []
-    for m in messages:
+    for m in reversed(messages):
         entry = {"role": m.role, "content": m.content}
         if m.recommendations_json:
             try:
@@ -1579,11 +1583,13 @@ def api_contact_chat():
             return jsonify({"error": "메시지는 2자 이상 2000자 이하로 입력해 주세요."}), 400
 
         # Get conversation history from DB
-        history_msgs = ContactChatMessage.query.order_by(
-            ContactChatMessage.created_at.asc()
-        ).all()
+        history_msgs = (
+            ContactChatMessage.query
+            .order_by(ContactChatMessage.created_at.desc())
+            .limit(50).all()
+        )
         conversation_history = [
-            {"role": m.role, "content": m.content} for m in history_msgs
+            {"role": m.role, "content": m.content} for m in reversed(history_msgs)
         ]
 
         # Call AI agent
@@ -1910,9 +1916,9 @@ def api_contact_chat_confirm():
 @login_required
 def api_contact_chat_history():
     """Get contact chat history."""
-    messages = ContactChatMessage.query.order_by(
-        ContactChatMessage.created_at.asc()
-    ).all()
+    messages = (ContactChatMessage.query
+                .order_by(ContactChatMessage.created_at.desc())
+                .limit(50).all())
     return jsonify({
         "messages": [
             {
@@ -1921,7 +1927,7 @@ def api_contact_chat_history():
                 "actions_json": m.actions_json,
                 "created_at": m.created_at.isoformat() if m.created_at else "",
             }
-            for m in messages
+            for m in reversed(messages)
         ]
     })
 
