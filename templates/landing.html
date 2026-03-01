@@ -80,6 +80,7 @@
 .anki-cta {
     flex-shrink: 0;
     padding: 7px 16px;
+    border: none;
     border-radius: 7px;
     background: var(--color-accent);
     color: #1a1d23;
@@ -88,6 +89,7 @@
     text-decoration: none;
     transition: opacity 0.15s;
     white-space: nowrap;
+    cursor: pointer;
 }
 .anki-cta:hover { opacity: 0.85; color: #1a1d23; }
 .anki-done-text {
@@ -100,6 +102,47 @@
     color: var(--text-muted);
     margin-top: 2px;
 }
+.anki-modal-card {
+    min-height: 160px;
+    padding: 1.75rem 2rem;
+    border-radius: 12px;
+    border: 2px solid rgba(0,0,0,0.08);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.anki-modal-card:hover { background: var(--surface-overlay, #f0ece6); }
+[data-bs-theme="dark"] .anki-modal-card { border-color: rgba(255,255,255,0.1); }
+[data-bs-theme="dark"] .anki-modal-card:hover { background: rgba(255,255,255,0.05); }
+.anki-modal-face {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 1.05rem;
+    line-height: 1.65;
+    text-align: center;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.anki-rate-btn {
+    flex: 1;
+    max-width: 110px;
+    padding: 8px 4px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    line-height: 1.3;
+    transition: opacity 0.15s;
+}
+.anki-rate-btn:hover { opacity: 0.85; }
+.anki-rate-btn:disabled { opacity: 0.5; cursor: default; }
+.anki-rate-again { background: #ef4444; }
+.anki-rate-hard  { background: #f97316; }
+.anki-rate-good  { background: #22c55e; }
+.anki-rate-easy  { background: #3b82f6; }
 </style>
 
 {% if anki_due_count > 0 %}
@@ -117,7 +160,9 @@
         </div>
     </div>
     {% endif %}
-    <a href="{{ url_for('anki_review') }}" class="anki-cta">⚡ Review Now</a>
+    <button type="button" class="anki-cta" data-bs-toggle="modal" data-bs-target="#ankiReviewModal">
+        ⚡ Review Now
+    </button>
 </div>
 {% else %}
 <div class="anki-strip anki-strip--done">
@@ -854,6 +899,54 @@
     </div>
 </div>
 
+<!-- Anki Review Modal -->
+<div class="modal fade" id="ankiReviewModal" tabindex="-1" aria-labelledby="ankiModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:560px">
+    <div class="modal-content">
+
+      <div class="modal-header border-0 pb-0">
+        <span class="fw-semibold" id="ankiModalTitle">
+          <i class="bi bi-lightning-charge-fill text-warning"></i> Daily Review
+        </span>
+        <span class="ms-auto me-3 text-muted" style="font-size:0.82rem" id="ankiModalRemaining"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body pt-2">
+        <!-- Progress -->
+        <div class="progress mb-3" style="height:4px">
+          <div class="progress-bar bg-warning" id="ankiModalProgress" style="width:0%;transition:width 0.3s"></div>
+        </div>
+
+        <!-- Review area -->
+        <div id="ankiModalReview">
+          <div id="ankiModalCard" class="anki-modal-card" onclick="ankiModalFlip()">
+            <div id="ankiModalFront" class="anki-modal-face"></div>
+            <div id="ankiModalBack" class="anki-modal-face" style="display:none"></div>
+          </div>
+          <p class="text-center text-muted mt-2 mb-0" id="ankiModalHint" style="font-size:0.78rem">
+            클릭하여 뒤집기
+          </p>
+          <div id="ankiModalRating" class="d-flex justify-content-center gap-2 mt-3" style="display:none!important">
+            <button class="anki-rate-btn anki-rate-again" onclick="ankiModalRate(1)">Again<br><small>&lt;1일</small></button>
+            <button class="anki-rate-btn anki-rate-hard"  onclick="ankiModalRate(2)">Hard<br><small>어려웠어요</small></button>
+            <button class="anki-rate-btn anki-rate-good"  onclick="ankiModalRate(3)">Good<br><small>잘 기억함</small></button>
+            <button class="anki-rate-btn anki-rate-easy"  onclick="ankiModalRate(4)">Easy<br><small>완벽 기억</small></button>
+          </div>
+        </div>
+
+        <!-- Done screen -->
+        <div id="ankiModalDone" class="text-center py-5" style="display:none">
+          <i class="bi bi-check-circle-fill text-success" style="font-size:3rem"></i>
+          <h5 class="mt-3 mb-1">세션 완료!</h5>
+          <p class="text-muted mb-0" id="ankiModalDoneMsg"></p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- Add/Edit Opportunity Modal -->
 <div class="modal fade" id="oppModal" tabindex="-1">
     <div class="modal-dialog">
@@ -1490,6 +1583,99 @@ async function familyToggle(habitName, idx, event) {
         setBtnFeedback(btn, 'error', '오류');
     }
 }
+
+// --- Anki Review Modal ---
+(function() {
+    let _cards = [], _idx = 0, _reviewed = 0, _flipped = false;
+
+    const modal = document.getElementById('ankiReviewModal');
+    if (!modal) return;
+
+    modal.addEventListener('show.bs.modal', async () => {
+        _cards = []; _idx = 0; _reviewed = 0;
+        document.getElementById('ankiModalDone').style.display = 'none';
+        document.getElementById('ankiModalReview').style.display = '';
+        document.getElementById('ankiModalProgress').style.width = '0%';
+
+        try {
+            const res = await fetch('/api/anki/due');
+            _cards = await res.json();
+        } catch(e) { _cards = []; }
+
+        _ankiShow();
+    });
+
+    window.ankiModalFlip = function() {
+        if (_flipped) return;
+        _flipped = true;
+        document.getElementById('ankiModalFront').style.display = 'none';
+        document.getElementById('ankiModalBack').style.display = '';
+        document.getElementById('ankiModalHint').style.display = 'none';
+        document.getElementById('ankiModalRating').style.removeProperty('display');
+    };
+
+    window.ankiModalRate = async function(rating) {
+        const card = _cards[_idx];
+        document.querySelectorAll('.anki-rate-btn').forEach(b => b.disabled = true);
+        try {
+            await fetch(`/api/anki/cards/${card.id}/review`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({rating})
+            });
+        } catch(e) {}
+        _reviewed++;
+        _idx++;
+        document.querySelectorAll('.anki-rate-btn').forEach(b => b.disabled = false);
+        _ankiShow();
+    };
+
+    function _ankiShow() {
+        if (_idx >= _cards.length) { _ankiDone(); return; }
+        _flipped = false;
+        const card = _cards[_idx];
+        const total = _cards.length;
+        const pct = Math.round((_idx / total) * 100);
+
+        document.getElementById('ankiModalFront').textContent = card.front;
+        document.getElementById('ankiModalBack').textContent  = card.back;
+        document.getElementById('ankiModalFront').style.display = '';
+        document.getElementById('ankiModalBack').style.display  = 'none';
+        document.getElementById('ankiModalHint').style.display  = '';
+        document.getElementById('ankiModalRating').style.display = 'none';
+        document.getElementById('ankiModalProgress').style.width = pct + '%';
+        document.getElementById('ankiModalRemaining').textContent =
+            (total - _idx) + ' / ' + total;
+    }
+
+    function _ankiDone() {
+        document.getElementById('ankiModalProgress').style.width = '100%';
+        document.getElementById('ankiModalRemaining').textContent = '완료!';
+        document.getElementById('ankiModalReview').style.display = 'none';
+        document.getElementById('ankiModalDone').style.display = '';
+        document.getElementById('ankiModalDoneMsg').textContent =
+            `오늘 ${_reviewed}개 카드를 복습했습니다.`;
+
+        setTimeout(() => {
+            const m = bootstrap.Modal.getInstance(modal);
+            if (m) m.hide();
+            const strip = document.querySelector('.anki-strip');
+            if (strip) {
+                strip.classList.add('anki-strip--done');
+                strip.style.borderLeftColor = '#22c55e';
+                strip.innerHTML = `
+                    <div>
+                        <div class="anki-done-text">
+                            <i class="bi bi-check-circle-fill"></i> All caught up for today
+                        </div>
+                        <div class="anki-done-sub">
+                            다음 복습은 내일 — <a href="/anki" class="text-muted">덱 보기</a>
+                        </div>
+                    </div>`;
+            }
+        }, 1500);
+    }
+})();
 
 // --- Compliment Modal ---
 document.getElementById('saveComplimentBtn').addEventListener('click', async function() {
