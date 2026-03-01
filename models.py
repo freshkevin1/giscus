@@ -201,6 +201,10 @@ class SavedScreen(db.Model):
     reason = db.Column(db.Text, default="")
     category = db.Column(db.String(100), default="")
     saved_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    tmdb_id = db.Column(db.Integer, nullable=True)
+    tmdb_title = db.Column(db.String(500), nullable=True)
+    year = db.Column(db.Integer, nullable=True)
+    poster_url = db.Column(db.String(500), nullable=True)
 
 
 class ScreenChatMessage(db.Model):

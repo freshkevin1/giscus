@@ -1297,6 +1297,37 @@ def _tmdb_poster_url(poster_path):
     return ""
 
 
+def _tmdb_enrich(title, media_type="movie"):
+    """Search TMDB for title and return {tmdb_id, tmdb_title, year, poster_url}. Returns {} on failure."""
+    api_key = os.environ.get("TMDB_API_KEY", "")
+    if not api_key or not title:
+        return {}
+    try:
+        endpoint = f"{TMDB_BASE_URL}/search/{'movie' if media_type == 'movie' else 'tv'}"
+        params = {"query": title, "language": "ko-KR", "include_adult": False, "api_key": api_key}
+        r = http_requests.get(endpoint, params=params, headers={"accept": "application/json"}, timeout=5)
+        if not r.ok:
+            return {}
+        items = r.json().get("results", [])
+        if not items:
+            return {}
+        item = items[0]
+        if media_type == "movie":
+            tmdb_title = item.get("title") or item.get("original_title", "")
+            year_str = item.get("release_date", "")
+        else:
+            tmdb_title = item.get("name") or item.get("original_name", "")
+            year_str = item.get("first_air_date", "")
+        return {
+            "tmdb_id": item.get("id"),
+            "tmdb_title": tmdb_title,
+            "year": int(year_str[:4]) if year_str and year_str[:4].isdigit() else None,
+            "poster_url": _tmdb_poster_url(item.get("poster_path", "")),
+        }
+    except Exception:
+        return {}
+
+
 @app.route("/screens")
 @login_required
 def my_screens():
@@ -1529,6 +1560,9 @@ def api_screens_chat():
         logger.error("Screen chat recommendation failed: %s", e)
         return jsonify({"status": "error", "message": "처리 중 오류가 발생했습니다."}), 500
 
+    for rec in result.get("recommendations", []):
+        rec.update(_tmdb_enrich(rec["title"], rec.get("media_type", "movie")))
+
     db.session.add(ScreenChatMessage(role="user", content=user_message))
     recs_json = json.dumps(result.get("recommendations", []), ensure_ascii=False) if result.get("recommendations") else ""
     db.session.add(ScreenChatMessage(role="assistant", content=result["message"], recommendations_json=recs_json))
@@ -1575,6 +1609,10 @@ def api_save_screen():
         media_type=data.get("media_type", "movie"),
         reason=data.get("reason", "").strip(),
         category=data.get("category", "").strip(),
+        tmdb_id=data.get("tmdb_id") or None,
+        tmdb_title=data.get("tmdb_title", "").strip() or None,
+        year=data.get("year") or None,
+        poster_url=data.get("poster_url", "").strip() or None,
     )
     db.session.add(screen)
     db.session.commit()
@@ -1597,19 +1635,28 @@ def api_delete_saved_screen(screen_id):
 def api_screen_saved_to_watching(screen_id):
     saved = SavedScreen.query.get_or_404(screen_id)
     media_type = saved.media_type or "movie"
+    display_title = saved.tmdb_title or saved.title
 
     extra = {}
     api_key = os.environ.get("TMDB_API_KEY", "")
     if api_key:
         try:
-            endpoint = f"{TMDB_BASE_URL}/search/{'movie' if media_type == 'movie' else 'tv'}"
-            params = _tmdb_params({"query": saved.title, "language": "ko-KR", "include_adult": False})
-            r = http_requests.get(endpoint, params=params, headers={"accept": "application/json"}, timeout=5)
-            if r.ok:
-                items = r.json().get("results", [])
-                if items:
-                    item = items[0]
-                    year_str = item.get("release_date" if media_type == "movie" else "first_air_date", "")
+            if saved.tmdb_id:
+                # Direct fetch by ID — exact match, no ambiguity
+                mtype = "movie" if media_type == "movie" else "tv"
+                endpoint = f"{TMDB_BASE_URL}/{mtype}/{saved.tmdb_id}"
+                params = _tmdb_params({"language": "ko-KR"})
+                r = http_requests.get(endpoint, params=params, headers={"accept": "application/json"}, timeout=5)
+                if r.ok:
+                    item = r.json()
+                    if media_type == "movie":
+                        fetched_title = item.get("title") or item.get("original_title", "")
+                        year_str = item.get("release_date", "")
+                    else:
+                        fetched_title = item.get("name") or item.get("original_name", "")
+                        year_str = item.get("first_air_date", "")
+                    if fetched_title:
+                        display_title = fetched_title
                     extra = {
                         "tmdb_id": item.get("id"),
                         "original_title": item.get("original_title") or item.get("original_name", ""),
@@ -1618,10 +1665,28 @@ def api_screen_saved_to_watching(screen_id):
                         "overview": item.get("overview", ""),
                         "tmdb_rating": item.get("vote_average", 0.0),
                     }
+            else:
+                # Fallback: search by title (legacy — no tmdb_id stored)
+                endpoint = f"{TMDB_BASE_URL}/search/{'movie' if media_type == 'movie' else 'tv'}"
+                params = _tmdb_params({"query": saved.title, "language": "ko-KR", "include_adult": False})
+                r = http_requests.get(endpoint, params=params, headers={"accept": "application/json"}, timeout=5)
+                if r.ok:
+                    items = r.json().get("results", [])
+                    if items:
+                        item = items[0]
+                        year_str = item.get("release_date" if media_type == "movie" else "first_air_date", "")
+                        extra = {
+                            "tmdb_id": item.get("id"),
+                            "original_title": item.get("original_title") or item.get("original_name", ""),
+                            "year": int(year_str[:4]) if year_str and year_str[:4].isdigit() else 0,
+                            "poster_url": _tmdb_poster_url(item.get("poster_path", "")),
+                            "overview": item.get("overview", ""),
+                            "tmdb_rating": item.get("vote_average", 0.0),
+                        }
         except Exception:
             pass
 
-    screen = MyScreen(title=saved.title, media_type=media_type, shelf="watching", **extra)
+    screen = MyScreen(title=display_title, media_type=media_type, shelf="watching", **extra)
     db.session.add(screen)
     db.session.delete(saved)
     db.session.commit()
@@ -2935,6 +3000,12 @@ with app.app_context():
         if "password_changed_at" not in user_columns:
             conn.execute(sqlalchemy.text("ALTER TABLE user ADD COLUMN password_changed_at DATETIME"))
             conn.commit()
+        # Migrate: add TMDB columns to saved_screen if missing
+        ss_columns = [r[1] for r in conn.execute(sqlalchemy.text("PRAGMA table_info(saved_screen)"))]
+        for col, col_type in [("tmdb_id", "INTEGER"), ("tmdb_title", "VARCHAR(500)"), ("year", "INTEGER"), ("poster_url", "VARCHAR(500)")]:
+            if col not in ss_columns:
+                conn.execute(sqlalchemy.text(f"ALTER TABLE saved_screen ADD COLUMN {col} {col_type}"))
+                conn.commit()
     # Migrate: create login_log table if missing
     from sqlalchemy import inspect as sa_inspect
     inspector = sa_inspect(db.engine)

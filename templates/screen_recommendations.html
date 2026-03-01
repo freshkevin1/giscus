@@ -157,7 +157,11 @@ function addAIBubble(message, recommendations) {
                             data-title="${escapeHtml(rec.title).replace(/"/g, '&quot;')}"
                             data-media-type="${rec.media_type}"
                             data-reason="${escapeHtml(rec.reason).replace(/"/g, '&quot;')}"
-                            data-category="${escapeHtml(rec.category).replace(/"/g, '&quot;')}">
+                            data-category="${escapeHtml(rec.category).replace(/"/g, '&quot;')}"
+                            data-tmdb-id="${rec.tmdb_id != null ? rec.tmdb_id : ''}"
+                            data-tmdb-title="${rec.tmdb_title ? escapeHtml(rec.tmdb_title).replace(/"/g, '&quot;') : ''}"
+                            data-year="${rec.year != null ? rec.year : ''}"
+                            data-poster-url="${rec.poster_url ? rec.poster_url.replace(/"/g, '&quot;') : ''}">
                         <i class="bi bi-bookmark"></i> 찜하기
                     </button>
                 </div>
@@ -182,6 +186,10 @@ async function saveScreen(btn) {
                 media_type: btn.dataset.mediaType,
                 reason: btn.dataset.reason,
                 category: btn.dataset.category,
+                tmdb_id: btn.dataset.tmdbId ? parseInt(btn.dataset.tmdbId) : null,
+                tmdb_title: btn.dataset.tmdbTitle || null,
+                year: btn.dataset.year ? parseInt(btn.dataset.year) : null,
+                poster_url: btn.dataset.posterUrl || null,
             }),
         });
         if (resp.ok) { btn.innerHTML = '<i class="bi bi-bookmark-fill"></i> 찜 완료'; btn.classList.add('saved'); btn.classList.remove('btn-outline-primary'); }
