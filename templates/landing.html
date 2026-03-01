@@ -61,11 +61,26 @@
         <span class="badge bg-primary">이번 주 {{ weekly_total }}건</span>
     </div>
     <div class="card-body">
-        <!-- 요약 지표 -->
-        <div class="d-flex gap-2 mb-3 flex-wrap">
-            <span class="badge bg-secondary fs-6">전체 연락처 {{ total_contacts }}명</span>
-            <span class="badge bg-danger fs-6">FU0 긴급 {{ fu0_count }}명</span>
-            <span class="badge bg-warning text-dark fs-6">기한 초과 {{ overdue_count }}명</span>
+        <!-- KPI 지표 카드 -->
+        <div class="row g-2 mb-3">
+            <div class="col-4">
+                <div class="kpi-stat">
+                    <div class="kpi-value">{{ total_contacts }}</div>
+                    <div class="kpi-label">전체 연락처</div>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="kpi-stat kpi-stat--danger">
+                    <div class="kpi-value">{{ fu0_count }}</div>
+                    <div class="kpi-label">FU0 긴급</div>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="kpi-stat kpi-stat--warning">
+                    <div class="kpi-value">{{ overdue_count }}</div>
+                    <div class="kpi-label">기한 초과</div>
+                </div>
+            </div>
         </div>
         <!-- CSS 막대 차트 (Habit Log 스타일) -->
         <div class="d-flex gap-1 align-items-end" style="height:56px">

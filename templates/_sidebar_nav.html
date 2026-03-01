@@ -116,6 +116,15 @@
         <i class="bi bi-shield-lock"></i> Admin
     </a>
     {% endif %}
+    {% if current_user.is_authenticated %}
+    <div class="d-flex align-items-center gap-2 px-1 py-2">
+        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center flex-shrink-0"
+             style="width:22px;height:22px;font-size:0.65rem;color:#fff;font-weight:600">
+            {{ current_user.username[0].upper() }}
+        </div>
+        <span class="text-secondary small text-truncate">{{ current_user.username }}</span>
+    </div>
+    {% endif %}
     <form action="{{ url_for('logout') }}" method="post" class="mt-1">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="nav-link text-muted border-0 bg-transparent w-100 text-start">

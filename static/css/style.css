@@ -1,21 +1,73 @@
-/* === CSS Variables === */
+/* === Design Tokens === */
 :root {
     --sat: env(safe-area-inset-top);
     --sab: env(safe-area-inset-bottom);
-    /* Design tokens */
     --color-primary: #1B2A4A;
     --color-accent: #E8A838;
-    --color-surface: #F7F4EF;
+    /* Layered surface system */
+    --surface-base: #F7F4EF;
+    --surface-raised: #ffffff;
+    --surface-overlay: #eeeae4;
+    /* Text */
+    --text-primary: #1a1d23;
+    --text-secondary: #495057;
+    --text-muted: #6c757d;
+    /* Shadows */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.09);
+    /* Legacy aliases */
+    --color-surface: var(--surface-base);
     --overdue-bg: #fff4db;
     --overdue-fg: #5c3300;
     --overdue-accent: #dc3545;
 }
 
+[data-bs-theme="dark"] {
+    --color-primary: #7bb3e8;
+    --color-accent: #E8A838;
+    /* Layered surface system */
+    --surface-base: #14171f;
+    --surface-raised: #1e2530;
+    --surface-overlay: #262d3d;
+    /* Text */
+    --text-primary: #e8eaf0;
+    --text-secondary: #9ba3b4;
+    --text-muted: #5c6478;
+    /* Shadows (dark: border-based depth) */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.07);
+    /* Legacy aliases */
+    --color-surface: var(--surface-base);
+    --overdue-bg: #3a2a14;
+    --overdue-fg: #ffdca8;
+    --overdue-accent: #ff7b7b;
+}
+
+/* === Theme Transition === */
+*, *::before, *::after {
+    transition: background-color 0.2s ease, color 0.15s ease, border-color 0.2s ease;
+}
+
+/* Cards and interactive elements: add shadow + transform */
+.card, .menu-card, .news-hub-card, .btn, .nav-link, .list-group-item, .alert {
+    transition: background-color 0.2s ease, color 0.15s ease, border-color 0.2s ease,
+                box-shadow 0.2s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+
+/* Preserve keyframe animations */
+.typing-dots span {
+    transition: none !important;
+}
+.chat-bubble-wrapper {
+    transition: none;
+}
+
+/* === Base === */
 body {
     font-family: 'IBM Plex Sans', system-ui, -apple-system, Arial, sans-serif;
 }
 
-/* App root layout */
+/* === App Root Layout === */
 .app-root {
     min-height: 100vh;
     display: flex;
@@ -23,9 +75,7 @@ body {
 }
 
 @supports (min-height: 100dvh) {
-    .app-root {
-        min-height: 100dvh;
-    }
+    .app-root { min-height: 100dvh; }
 }
 
 .app-shell {
@@ -33,15 +83,17 @@ body {
     min-height: 0;
 }
 
-/* Sidebar */
+/* === Sidebar === */
 .sidebar {
-    width: 250px;
+    width: 240px;
     min-height: 100vh;
     background-color: #1a1d23;
     color: #c2c7d0;
     position: sticky;
     top: 0;
     flex-shrink: 0;
+    /* Sidebar is always dark — no theme transition */
+    transition: none;
 }
 
 .sidebar-brand {
@@ -51,6 +103,7 @@ body {
     font-weight: 600;
     font-family: 'Fraunces', Georgia, serif;
     letter-spacing: -0.01em;
+    transition: color 0.15s ease;
 }
 
 .sidebar-brand:hover {
@@ -62,7 +115,7 @@ body {
     border-radius: 6px;
     margin-bottom: 2px;
     padding: 0.6rem 0.8rem;
-    transition: all 0.2s;
+    transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .sidebar .nav-link:hover {
@@ -95,14 +148,14 @@ body {
     padding-left: calc(0.8rem - 3px);
 }
 
-/* Main content */
+/* === Main Content === */
 .main-content {
     min-height: 0;
-    background-color: var(--color-surface);
+    background-color: var(--surface-base);
     overflow-y: auto;
 }
 
-/* Chat page layout (JS adds this class on chat pages) */
+/* === Chat Page Layout === */
 .chat-page-layout {
     overflow: hidden !important;
     display: flex !important;
@@ -116,9 +169,20 @@ body {
     overflow: hidden;
     min-height: 0;
     height: 0;
+    animation: none;
 }
 
-/* Login page */
+/* === Page Fade-In Animation === */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.main-content > .container-fluid {
+    animation: fadeInUp 0.22s ease-out;
+}
+
+/* === Login Page === */
 .login-body {
     background: linear-gradient(135deg, #1a1d23 0%, #2d3748 100%);
     min-height: 100vh;
@@ -143,30 +207,76 @@ body {
     color: var(--color-accent);
 }
 
-/* Menu cards */
+/* === Card Polish === */
+.card {
+    box-shadow: var(--shadow-sm);
+    border-color: rgba(0, 0, 0, 0.07);
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+[data-bs-theme="dark"] .card {
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* === Menu Cards (Dashboard) === */
 .menu-card {
     border: none;
     border-radius: 10px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: var(--shadow-sm);
 }
 
 .menu-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--shadow-md);
 }
 
-/* News hub cards */
+/* === KPI Stat Cards (Dashboard) === */
+.kpi-stat {
+    background: rgba(27, 42, 74, 0.06);
+    border-radius: 8px;
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+}
+
+.kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--color-primary);
+}
+
+.kpi-label {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    white-space: nowrap;
+}
+
+.kpi-stat--danger  .kpi-value { color: #dc3545; }
+.kpi-stat--warning .kpi-value { color: #e07b00; }
+.kpi-stat--info    .kpi-value { color: #0d6efd; }
+
+[data-bs-theme="dark"] .kpi-stat {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+[data-bs-theme="dark"] .kpi-stat--danger  .kpi-value { color: #ff7b7b; }
+[data-bs-theme="dark"] .kpi-stat--warning .kpi-value { color: #ffb347; }
+[data-bs-theme="dark"] .kpi-stat--info    .kpi-value { color: #7bb3e8; }
+
+/* === News Hub Cards === */
 .news-hub-card {
     border: 1px solid rgba(27, 42, 74, 0.1);
     border-radius: 10px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    box-shadow: var(--shadow-sm);
 }
 
 .news-hub-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 14px rgba(27, 42, 74, 0.1);
+    box-shadow: var(--shadow-md);
     border-color: rgba(232, 168, 56, 0.4);
 }
 
@@ -208,7 +318,6 @@ body {
     font-size: 0.8rem;
     padding: 0.3rem 0.8rem;
     border-radius: 6px;
-    transition: background-color 0.2s, opacity 0.2s;
 }
 
 .news-hub-btn:hover {
@@ -216,7 +325,7 @@ body {
     color: #fff;
 }
 
-/* Source filter pills */
+/* === Source Filter Pills === */
 #source-filters .btn {
     font-size: 0.8rem;
     padding: 0.25rem 0.6rem;
@@ -228,7 +337,7 @@ body {
     color: #fff;
 }
 
-/* Article list */
+/* === Article List === */
 .article-link {
     text-decoration: none;
     color: #212529;
@@ -244,19 +353,15 @@ body {
     border-left: 3px solid transparent;
     border-right: none;
     padding: 0.75rem 1rem;
-    transition: background-color 0.15s, border-left-color 0.15s;
 }
 #article-list .list-group-item:hover {
     background-color: rgba(27, 42, 74, 0.05);
     border-left-color: var(--color-primary);
 }
 #article-list { max-width: 900px; }
+#article-list .list-group-item:first-child { border-top: none; }
 
-#article-list .list-group-item:first-child {
-    border-top: none;
-}
-
-/* Score badge (Contact List) */
+/* === Score Badge === */
 .score-badge {
     font-size: 0.8rem;
     min-width: 40px;
@@ -264,7 +369,7 @@ body {
     text-align: center;
 }
 
-/* Overdue row (Contact List) */
+/* === Overdue Row === */
 .overdue-row {
     background-color: var(--overdue-bg) !important;
     border-left: 3px solid var(--overdue-accent) !important;
@@ -276,15 +381,10 @@ body {
     color: var(--overdue-fg) !important;
 }
 
-.overdue-row .text-danger {
-    color: var(--overdue-accent) !important;
-}
+.overdue-row .text-danger { color: var(--overdue-accent) !important; }
+.overdue-row:hover { background-color: var(--overdue-bg) !important; }
 
-.overdue-row:hover {
-    background-color: var(--overdue-bg) !important;
-}
-
-/* Contact table */
+/* === Contact Table === */
 #contactTable th {
     font-size: 0.85rem;
     font-weight: 600;
@@ -296,7 +396,7 @@ body {
     font-size: 0.9rem;
 }
 
-/* Chat (Contact AI Chat) */
+/* === Chat Card === */
 .chat-card {
     flex: 1;
     min-height: 0;
@@ -316,18 +416,20 @@ body {
     background-color: #f8f9fa;
 }
 
+/* === Chat Bubble Enter Animation === */
+@keyframes bubbleIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
 .chat-bubble-wrapper {
     display: flex;
     margin-bottom: 12px;
+    animation: bubbleIn 0.2s ease-out;
 }
 
-.chat-bubble-wrapper.user-msg {
-    justify-content: flex-end;
-}
-
-.chat-bubble-wrapper.assistant-msg {
-    justify-content: flex-start;
-}
+.chat-bubble-wrapper.user-msg      { justify-content: flex-end; }
+.chat-bubble-wrapper.assistant-msg { justify-content: flex-start; }
 
 .chat-bubble {
     max-width: 75%;
@@ -351,7 +453,7 @@ body {
     border-bottom-left-radius: 4px;
 }
 
-/* Typing indicator */
+/* === Typing Indicator === */
 .typing-dots {
     display: flex;
     gap: 4px;
@@ -366,52 +468,46 @@ body {
     animation: typing 1.4s infinite;
 }
 
-.typing-dots span:nth-child(2) {
-    animation-delay: 0.2s;
-}
-
-.typing-dots span:nth-child(3) {
-    animation-delay: 0.4s;
-}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
 
 @keyframes typing {
     0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-    30% { opacity: 1; transform: translateY(-4px); }
+    30%           { opacity: 1;   transform: translateY(-4px); }
 }
 
-/* Action results */
-.action-result .alert {
-    border-radius: 12px;
-}
+/* === Action Results === */
+.action-result .alert { border-radius: 12px; }
 
-/* Pending action card */
+/* === Pending Action Card === */
 .pending-action-card {
     border-left: 4px solid #fd7e14;
     background-color: #fff9f0;
 }
 
-/* Suggestion chips */
+/* === Suggestion Chips === */
 .suggestion-chip {
     border-radius: 20px;
     font-size: 0.8rem;
 }
 
-/* Mobile top bar */
+/* === Mobile Top Bar === */
 .mobile-topbar {
     background-color: #1a1d23;
     position: sticky;
     top: 0;
     z-index: 1030;
     padding-top: var(--sat);
+    transition: none;
 }
 
-/* Offcanvas sidebar nav styling (reuse sidebar styles) */
+/* === Offcanvas (Mobile Sidebar) === */
 .offcanvas .nav-link {
     color: #8b929a;
     border-radius: 6px;
     margin-bottom: 2px;
     padding: 0.6rem 0.8rem;
-    transition: all 0.2s;
+    transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .offcanvas .nav-link:hover {
@@ -444,23 +540,23 @@ body {
     padding-left: calc(0.8rem - 3px);
 }
 
-/* Bestseller images */
+/* === Bestseller Images === */
 .bestseller-img {
     height: 220px;
     object-fit: contain;
     width: 100%;
 }
 
-/* Bestseller card hover */
+/* === Bestseller Card Hover === */
 #book-grid .card {
-    transition: transform 0.18s, box-shadow 0.18s;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 #book-grid .card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    box-shadow: var(--shadow-md);
 }
 
-/* Contact table row hover */
+/* === Contact Table Row Hover === */
 #contactTable tbody tr {
     transition: background-color 0.12s;
 }
@@ -468,10 +564,9 @@ body {
     background-color: rgba(27, 42, 74, 0.05);
 }
 
-/* Book Library sort header hover */
+/* === Book Library === */
 #book-table th.sortable:hover { background-color: rgba(27, 42, 74, 0.06); }
 
-/* Book library wizard step indicator */
 .wizard-step {
     font-size: 0.7rem;
     font-weight: 500;
@@ -492,13 +587,13 @@ body {
 }
 #book-table th .sort-icon { transition: color 0.15s; }
 
-/* Global focus-visible */
+/* === Global Focus Visible === */
 :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
 }
 
-/* Book recommendations chat container */
+/* === Book Chat Container === */
 .book-chat-container {
     flex: 1;
     min-height: 0;
@@ -506,151 +601,20 @@ body {
     flex-direction: column;
 }
 
-/* Contact cards (desktop: hidden) */
-.contact-cards {
-    display: none;
-}
+/* === Contact Cards (mobile only) === */
+.contact-cards { display: none; }
 
-/* Security dashboard badges */
-.security-badge-success {
-    background-color: #198754;
-    color: #fff;
-}
-.security-badge-fail {
-    background-color: #dc3545;
-    color: #fff;
-}
+/* === Security Badges === */
+.security-badge-success { background-color: #198754; color: #fff; }
+.security-badge-fail    { background-color: #dc3545; color: #fff; }
 
-/* Habit Log bar chart */
+/* === Habit Log Bar Chart === */
 .habit-bar-today {
     outline: 2px solid var(--bs-primary);
     outline-offset: 1px;
 }
 
-/* ===== Touch feedback (touch devices) ===== */
-@media (hover: none) and (pointer: coarse) {
-    .btn:active { transform: scale(0.96); transition: transform 0.1s; }
-    .list-group-item:active { background-color: #e9ecef; }
-    .card:active { transform: scale(0.98); transition: transform 0.1s; }
-}
-
-/* ===== Mobile (<768px) ===== */
-@media (max-width: 767.98px) {
-    /* Main content padding */
-    .main-content .container-fluid {
-        padding: 1rem !important;
-    }
-
-    /* Touch target minimum sizes */
-    .btn-sm { min-height: 44px; min-width: 44px; }
-    .nav-pills .nav-link { min-height: 44px; display: inline-flex; align-items: center; }
-    .form-control, .form-select { min-height: 44px; font-size: 16px; }
-
-    /* Heading size reduction */
-    h2 { font-size: 1.25rem; }
-    h4 { font-size: 1.1rem; }
-
-    /* Chat card footer sticky on mobile */
-    .chat-card .card-footer {
-        position: sticky; bottom: 0;
-        background: #fff; z-index: 10;
-        padding-bottom: calc(0.75rem + var(--sab));
-    }
-
-    /* Suggestion chips horizontal scroll */
-    #suggestionChips {
-        display: flex; overflow-x: auto; flex-wrap: nowrap;
-        gap: 8px; padding-bottom: 4px;
-        -webkit-overflow-scrolling: touch;
-    }
-    #suggestionChips .suggestion-chip { flex-shrink: 0; white-space: nowrap; }
-
-    /* Chat bubble wider on mobile */
-    .chat-bubble {
-        max-width: 88%;
-    }
-
-    /* Contact table font size */
-    #contactTable th { font-size: 0.75rem; }
-    #contactTable td { font-size: 0.8rem; }
-
-    /* Modal → Bottom sheet */
-    .modal-dialog {
-        margin: 0;
-        max-width: 100%;
-        display: flex;
-        align-items: flex-end;
-        min-height: 100vh;
-    }
-    .modal-content {
-        border-radius: 16px 16px 0 0;
-        border: none;
-        max-height: 90vh;
-        overflow-y: auto;
-        padding-bottom: var(--sab);
-    }
-    .modal-lg { max-width: 100%; }
-    .modal.fade .modal-dialog {
-        transform: translateY(100%);
-        transition: transform 0.3s ease-out;
-    }
-    .modal.show .modal-dialog {
-        transform: translateY(0);
-    }
-    /* Drag indicator */
-    .modal-header::before {
-        content: '';
-        display: block;
-        width: 36px; height: 4px;
-        background: #dee2e6; border-radius: 2px;
-        position: absolute; top: 8px; left: 50%;
-        transform: translateX(-50%);
-    }
-    .modal-header { position: relative; padding-top: 20px; }
-    /* Force full-width columns in modals */
-    .modal-body .col-md-6,
-    .modal-body .col-md-4,
-    .modal-body .col-md-8 { flex: 0 0 100%; max-width: 100%; }
-
-    /* News header buttons wrap */
-    .d-flex.justify-content-between.align-items-center.mb-4 {
-        flex-wrap: wrap; gap: 8px;
-    }
-
-    /* News card grid single column */
-    .menu-card { margin-bottom: 0.75rem; }
-
-    /* Bestseller images smaller on mobile */
-    .bestseller-img { height: 150px; }
-    .card-body .card-title { font-size: 0.8rem; }
-    .bestseller-card img { max-height: 120px; }
-
-    /* Book recommendations chat — flex inherited from desktop */
-
-    /* Book Library table optimization */
-    #book-table th:nth-child(2), #book-table td:nth-child(2) { display: none; }
-    #book-table .star-icon { font-size: 1.4rem !important; padding: 2px; }
-    #book-table .text-nowrap .btn { min-width: 40px; min-height: 40px; padding: 6px; }
-
-    /* Contact cards (mobile: show cards, hide table) */
-    #contactTable { display: none; }
-    .contact-cards { display: block !important; }
-    .contact-card {
-        background: #fff; border-radius: 10px;
-        padding: 12px 14px; margin-bottom: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-    .contact-card.overdue-card {
-        background: var(--overdue-bg);
-        border-left: 3px solid var(--overdue-accent);
-    }
-    .contact-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-    .contact-card-name { font-weight: 600; font-size: 0.95rem; }
-    .contact-card-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 0.8rem; color: #6c757d; }
-    .contact-card-actions { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f0f0f0; }
-}
-
-/* Business Priority badges */
+/* === Business Priority Badges === */
 .bp-critical {
     background-color: #dc3545;
     color: #fff;
@@ -687,32 +651,146 @@ body {
     font-weight: 600;
 }
 
-/* Dark mode overrides */
-[data-bs-theme="dark"] {
-    --color-surface: #1e2530;
-    --color-primary: #7bb3e8;
-    --color-accent: #E8A838;
-    --overdue-bg: #3a2a14;
-    --overdue-fg: #ffdca8;
-    --overdue-accent: #ff7b7b;
+/* === Touch Feedback === */
+@media (hover: none) and (pointer: coarse) {
+    .btn:active    { transform: scale(0.96); transition: transform 0.1s; }
+    .card:active   { transform: scale(0.98); transition: transform 0.1s; }
 }
 
+/* === Mobile (<768px) === */
+@media (max-width: 767.98px) {
+    /* Main content padding */
+    .main-content .container-fluid { padding: 1rem !important; }
+
+    /* Touch target minimum sizes */
+    .btn-sm            { min-height: 44px; min-width: 44px; }
+    .nav-pills .nav-link { min-height: 44px; display: inline-flex; align-items: center; }
+    .form-control, .form-select { min-height: 44px; font-size: 16px; }
+
+    /* Heading size reduction */
+    h2 { font-size: 1.25rem; }
+    h4 { font-size: 1.1rem; }
+
+    /* Chat footer sticky */
+    .chat-card .card-footer {
+        position: sticky; bottom: 0;
+        background: #fff; z-index: 10;
+        padding-bottom: calc(0.75rem + var(--sab));
+    }
+
+    /* Suggestion chips horizontal scroll */
+    #suggestionChips {
+        display: flex; overflow-x: auto; flex-wrap: nowrap;
+        gap: 8px; padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+    }
+    #suggestionChips .suggestion-chip { flex-shrink: 0; white-space: nowrap; }
+
+    /* Chat bubble wider on mobile */
+    .chat-bubble { max-width: 88%; }
+
+    /* Contact table sizing */
+    #contactTable th { font-size: 0.75rem; }
+    #contactTable td { font-size: 0.8rem; }
+
+    /* Modal → Bottom sheet */
+    .modal-dialog {
+        margin: 0;
+        max-width: 100%;
+        display: flex;
+        align-items: flex-end;
+        min-height: 100vh;
+    }
+    .modal-content {
+        border-radius: 16px 16px 0 0;
+        border: none;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding-bottom: var(--sab);
+    }
+    .modal-lg { max-width: 100%; }
+    .modal.fade .modal-dialog {
+        transform: translateY(100%);
+        transition: transform 0.3s ease-out;
+    }
+    .modal.show .modal-dialog { transform: translateY(0); }
+    /* Drag indicator */
+    .modal-header::before {
+        content: '';
+        display: block;
+        width: 36px; height: 4px;
+        background: #dee2e6; border-radius: 2px;
+        position: absolute; top: 8px; left: 50%;
+        transform: translateX(-50%);
+    }
+    .modal-header { position: relative; padding-top: 20px; }
+    .modal-body .col-md-6,
+    .modal-body .col-md-4,
+    .modal-body .col-md-8 { flex: 0 0 100%; max-width: 100%; }
+
+    /* News header buttons wrap */
+    .d-flex.justify-content-between.align-items-center.mb-4 { flex-wrap: wrap; gap: 8px; }
+
+    /* Menu card margin */
+    .menu-card { margin-bottom: 0.75rem; }
+
+    /* Bestseller images smaller */
+    .bestseller-img { height: 150px; }
+    .card-body .card-title { font-size: 0.8rem; }
+    .bestseller-card img { max-height: 120px; }
+
+    /* Book library table */
+    #book-table th:nth-child(2), #book-table td:nth-child(2) { display: none; }
+    #book-table .star-icon { font-size: 1.4rem !important; padding: 2px; }
+    #book-table .text-nowrap .btn { min-width: 40px; min-height: 40px; padding: 6px; }
+
+    /* Contact cards (mobile: show cards, hide table) */
+    #contactTable  { display: none; }
+    .contact-cards { display: block !important; }
+    .contact-card {
+        background: #fff; border-radius: 10px;
+        padding: 12px 14px; margin-bottom: 8px;
+        box-shadow: var(--shadow-sm);
+    }
+    .contact-card.overdue-card {
+        background: var(--overdue-bg);
+        border-left: 3px solid var(--overdue-accent);
+    }
+    .contact-card-header  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .contact-card-name    { font-weight: 600; font-size: 0.95rem; }
+    .contact-card-meta    { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 0.8rem; color: #6c757d; }
+    .contact-card-actions { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f0f0f0; }
+}
+
+/* === Entity Table === */
+#entityTable th {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+#entityTable td {
+    vertical-align: middle;
+    font-size: 0.9rem;
+}
+
+/* === Dark Mode Overrides === */
 [data-bs-theme="dark"] .main-content {
-    background-color: var(--color-surface);
+    background-color: var(--surface-base);
 }
 
 [data-bs-theme="dark"] .chat-messages {
-    background-color: #161b24;
+    background-color: #0f1117;
 }
 
 [data-bs-theme="dark"] .bubble-assistant {
-    background-color: #2d3748;
-    color: #e0e6f0;
-    border-color: #3d4a5c;
+    background-color: var(--surface-raised);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 [data-bs-theme="dark"] .contact-card {
-    background: #2d3748;
+    background: var(--surface-raised);
 }
 
 [data-bs-theme="dark"] .contact-card.overdue-card {
@@ -725,7 +803,7 @@ body {
 }
 
 [data-bs-theme="dark"] .news-hub-card {
-    border-color: rgba(255,255,255,0.1);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 [data-bs-theme="dark"] .news-latest-title {
@@ -737,21 +815,9 @@ body {
 }
 
 [data-bs-theme="dark"] .chat-card .card-footer {
-    background: #1e2530;
+    background: var(--surface-raised);
 }
 
 [data-bs-theme="dark"] .wizard-step {
     color: #7b8a9a;
-}
-
-/* Entity table */
-#entityTable th {
-    font-size: 0.85rem;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-#entityTable td {
-    vertical-align: middle;
-    font-size: 0.9rem;
 }
