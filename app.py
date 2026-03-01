@@ -360,7 +360,8 @@ def send_daily_push_notifications():
         logger.error("push_notify: import error: %s", e)
         return
 
-    today = date.today().isoformat()
+    today = date.today()
+    today_iso = today.isoformat()
     try:
         contacts = get_all_contacts()
         entities = get_all_entities()
@@ -368,52 +369,77 @@ def send_daily_push_notifications():
         logger.error("push_notify: failed to load data: %s", e)
         return
 
-    c_today = [c for c in contacts if c.get("follow_up_date") == today]
-    c_over  = [c for c in contacts if c.get("follow_up_date") and c.get("follow_up_date") < today]
-    b_today = [b for b in entities if b.get("follow_up_date") == today]
-    b_over  = [b for b in entities if b.get("follow_up_date") and b.get("follow_up_date") < today]
+    c_today = [c for c in contacts if c.get("follow_up_date") == today_iso]
+    c_over  = [c for c in contacts if c.get("follow_up_date") and c.get("follow_up_date") < today_iso]
+    b_today = [b for b in entities if b.get("follow_up_date") == today_iso]
+    b_over  = [b for b in entities if b.get("follow_up_date") and b.get("follow_up_date") < today_iso]
+
+    def _names(items, max_names=4):
+        parts = []
+        for item in items[:max_names]:
+            name = item.get("name", "").strip() or "이름없음"
+            fdate = item.get("follow_up_date", "")
+            if fdate and fdate < today_iso:
+                days = (today - date.fromisoformat(fdate)).days
+                parts.append(f"{name}({days}일 초과)")
+            else:
+                parts.append(name)
+        if len(items) > max_names:
+            parts.append(f"외 {len(items) - max_names}명")
+        return ", ".join(parts)
+
+    def _send(sub, title, body_lines, tag, url):
+        payload = json.dumps({
+            "title": title,
+            "body": "\n".join(body_lines),
+            "tag": tag,
+            "url": url,
+        })
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub.endpoint,
+                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth}
+                },
+                data=payload,
+                vapid_private_key=Config.VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": f"mailto:{Config.VAPID_CLAIM_EMAIL}"}
+            )
+            logger.info("push_notify[%s]: sent to ...%s", tag, sub.endpoint[-20:])
+        except WebPushException as e:
+            if e.response and e.response.status_code in (404, 410):
+                db.session.delete(sub)
+                db.session.commit()
+                logger.info("push_notify: removed expired subscription")
+            else:
+                logger.error("push_notify: error: %s", e)
 
     with app.app_context():
         subscriptions = PushSubscription.query.all()
+        if not subscriptions:
+            logger.info("push_notify: no subscriptions, nothing sent")
+            return
+
         for sub in subscriptions:
             pref = NotificationPreference.query.filter_by(user_id=sub.user_id).first()
-            parts = []
-            if (not pref or pref.contacts_today) and c_today:
-                parts.append(f"오늘 연락처 {len(c_today)}명")
-            if (not pref or pref.contacts_overdue) and c_over:
-                parts.append(f"기한 초과 연락처 {len(c_over)}명")
-            if (not pref or pref.business_today) and b_today:
-                parts.append(f"오늘 비즈니스 {len(b_today)}건")
-            if (not pref or pref.business_overdue) and b_over:
-                parts.append(f"기한 초과 비즈니스 {len(b_over)}건")
-            if not parts:
-                continue
-            payload = json.dumps({
-                "title": "오늘의 연락 현황",
-                "body": " | ".join(parts),
-                "url": "/contacts"
-            })
-            try:
-                webpush(
-                    subscription_info={
-                        "endpoint": sub.endpoint,
-                        "keys": {"p256dh": sub.p256dh, "auth": sub.auth}
-                    },
-                    data=payload,
-                    vapid_private_key=Config.VAPID_PRIVATE_KEY,
-                    vapid_claims={"sub": f"mailto:{Config.VAPID_CLAIM_EMAIL}"}
-                )
-                logger.info("push_notify: sent to endpoint ...%s", sub.endpoint[-20:])
-            except WebPushException as e:
-                if e.response and e.response.status_code in (404, 410):
-                    db.session.delete(sub)
-                    db.session.commit()
-                    logger.info("push_notify: removed expired subscription")
-                else:
-                    logger.error("push_notify: error: %s", e)
 
-    if not subscriptions:
-        logger.info("push_notify: no subscriptions, nothing sent")
+            # ── 연락처 알림 ──
+            c_lines = []
+            if (not pref or pref.contacts_today) and c_today:
+                c_lines.append(f"오늘: {_names(c_today)}")
+            if (not pref or pref.contacts_overdue) and c_over:
+                c_lines.append(f"⚠️ 초과: {_names(c_over)}")
+            if c_lines:
+                _send(sub, "연락처 팔로업", c_lines, "contacts-digest", "/contacts")
+
+            # ── 비즈니스 알림 ──
+            b_lines = []
+            if (not pref or pref.business_today) and b_today:
+                b_lines.append(f"오늘: {_names(b_today)}")
+            if (not pref or pref.business_overdue) and b_over:
+                b_lines.append(f"⚠️ 초과: {_names(b_over)}")
+            if b_lines:
+                _send(sub, "비즈니스 팔로업", b_lines, "business-digest", "/business")
 
 
 scheduler.add_job(
