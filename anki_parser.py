@@ -201,6 +201,49 @@ def _normalize_whitespace(text: str) -> str:
     return re.sub(r'\s+', ' ', (text or '')).strip()
 
 
+# ---------------------------------------------------------------------------
+# Kindle Notebook PDF (exported from Kindle app "My Notebook")
+# ---------------------------------------------------------------------------
+
+def _is_kindle_notebook_pdf(text: str) -> bool:
+    return '| Highlight' in text and 'Annotations (' in text
+
+
+def parse_kindle_notebook_pdf(page_texts: list, filename: str = '') -> list:
+    """Parse Kindle Notebook PDF export (Kindle app → My Notebook → Export PDF)."""
+    # Strip leading PDF page number from each page (e.g. "1\n..." or "2Page 60")
+    cleaned = [re.sub(r'^\d+\n?', '', t) for t in page_texts]
+    full_text = '\n'.join(cleaned)
+
+    # Extract title and author from first page header lines
+    lines = [l.strip() for l in cleaned[0].splitlines() if l.strip()]
+    title = lines[0] if lines else (_title_from_filename(filename) or 'Kindle Highlights')
+    author = ''
+    for line in lines[1:6]:
+        if line.lower().startswith('by '):
+            author = line[3:].strip()
+            break
+
+    date_pat = r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2}, \d{4}'
+    highlight_re = re.compile(
+        r'Page (\d+)\s*\n\s*\|\s*Highlight[^\n]*\n(.*?)\n' + date_pat,
+        re.DOTALL,
+    )
+    cards = []
+    for m in highlight_re.finditer(full_text):
+        text = _normalize_whitespace(m.group(2))
+        if len(text) < 10:
+            continue
+        cards.append({
+            'deck_name':  title,
+            'author':     author,
+            'front':      title,
+            'back':       text,
+            'source_ref': f'p.{m.group(1)}',
+        })
+    return cards
+
+
 def _clean_pdf_title(title: str) -> str:
     title = _normalize_whitespace(title or '')
     title = title.strip('"\'')
@@ -294,6 +337,10 @@ def parse_pdf_bytes(content, filename: str = '') -> list:
             page_texts.append((page_num, text))
     except Exception:
         return []
+
+    raw_texts = [text for _, text in page_texts]
+    if _is_kindle_notebook_pdf('\n'.join(raw_texts[:3])):
+        return parse_kindle_notebook_pdf(raw_texts, filename)
 
     first_page_text = next((text for _, text in page_texts if text), '')
     deck_name = _extract_pdf_title(reader, first_page_text, filename)
