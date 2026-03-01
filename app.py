@@ -307,7 +307,19 @@ def run_scrape(source="mk"):
     db.session.commit()
     logger.info("Added %d new articles for %s", count, source)
 
-    # Enforce per-source article limit
+    # Enforce retention policy: time-based (60 days) + count (2000)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=Config.MAX_ARTICLE_AGE_DAYS)
+    expired = Article.query.filter(
+        Article.source == source,
+        Article.scraped_at < cutoff
+    ).all()
+    if expired:
+        for old in expired:
+            db.session.delete(old)
+        db.session.commit()
+        logger.info("Removed %d expired %s articles (older than %d days)",
+                    len(expired), source, Config.MAX_ARTICLE_AGE_DAYS)
+
     total = Article.query.filter_by(source=source).count()
     if total > Config.MAX_ARTICLES:
         excess = total - Config.MAX_ARTICLES
@@ -2028,7 +2040,7 @@ def push_update_prefs():
 @login_required
 def push_test():
     if not Config.VAPID_PRIVATE_KEY or not Config.VAPID_PUBLIC_KEY:
-        return jsonify({"message": "VAPID 키 미설정 — Railway 환경변수를 확인하세요"})
+        return jsonify({"message": "VAPID 키 미설정/형식오류 — Railway 환경변수를 확인하세요"})
     subs = PushSubscription.query.all()
     if not subs:
         return jsonify({"message": "구독된 기기가 없습니다. 먼저 🔔를 눌러 알림을 구독하세요"})

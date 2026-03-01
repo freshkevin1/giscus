@@ -6,13 +6,19 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 def _pem_to_vapid_b64url(key):
-    """PEM 포맷 VAPID private key → pywebpush용 base64url raw key 변환.
-    변환 실패 시 multi-line PEM으로 정규화하여 반환 (pywebpush가 파싱 가능한 포맷).
-    """
-    if not key or '-----' not in key:
-        return key  # 이미 base64url이면 그대로
+    """PEM 포맷 VAPID private key를 py_vapid 호환 base64url(raw 32-byte)로 변환."""
+    if not key:
+        return ""
+
+    key = key.strip()
+    if len(key) >= 2 and key[0] == key[-1] and key[0] in {"'", '"'}:
+        key = key[1:-1].strip()
+
+    if '-----' not in key:
+        return key  # 이미 base64url 또는 DER(base64url) 문자열이면 그대로
+
     # 이스케이프된 \n 복원
-    key = key.replace('\\n', '\n')
+    key = key.replace('\\r', '').replace('\\n', '\n').strip()
     # 줄바꿈 없으면 PEM 구조 재조립 (한 줄로 저장된 경우) — 원본 헤더/푸터 타입 보존
     if '\n' not in key:
         stripped = key.replace(' ', '')
@@ -27,13 +33,14 @@ def _pem_to_vapid_b64url(key):
             lines = '\n'.join(body[i:i+64] for i in range(0, len(body), 64))
             key = f"{header}\n{lines}\n{footer}\n"
     try:
-        from cryptography.hazmat.primitives.serialization import (
-            load_pem_private_key, Encoding, PrivateFormat, NoEncryption)
+        from cryptography.hazmat.primitives.serialization import load_pem_private_key
         ec_key = load_pem_private_key(key.encode(), password=None)
-        raw = ec_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+        # py_vapid는 P-256 개인키를 32-byte raw(base64url) 형태로 기대한다.
+        private_value = ec_key.private_numbers().private_value
+        raw = private_value.to_bytes(32, "big")
         return _base64.urlsafe_b64encode(raw).decode().rstrip('=')
     except Exception:
-        return key  # 정규화된 multi-line PEM 반환 → pywebpush가 직접 파싱
+        return ""
 
 
 class Config:
@@ -53,7 +60,8 @@ class Config:
     SCRAPE_MINUTE = 0
 
     # Article retention limit
-    MAX_ARTICLES = 500
+    MAX_ARTICLES = 2000
+    MAX_ARTICLE_AGE_DAYS = 60  # 2개월
 
     # Target URL
     MK_URL = "https://www.mk.co.kr/today-paper"
