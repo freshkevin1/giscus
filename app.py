@@ -23,9 +23,9 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from config import Config
 import json
 
-from models import AnkiCard, AnkiDeck, Article, ChatMessage, Compliment, ContactChatMessage, LoginLog, MyBook, NotificationPreference, PushSubscription, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+from models import AnkiCard, AnkiDeck, Article, ChatMessage, Compliment, ContactChatMessage, LoginLog, MyBook, MyScreen, NotificationPreference, PushSubscription, ReadArticle, Recommendation, SavedBook, SavedScreen, ScreenChatMessage, User, db, init_default_user
 from pywebpush import webpush, WebPushException
-from recommender import chat_recommendation, generate_recommendations
+from recommender import chat_recommendation, chat_screen_recommendation, generate_recommendations
 import requests as http_requests
 from scraper import scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_fieldai_news, scrape_geek_news_weekly, scrape_ifr_press_releases, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_vention_press, scrape_wsj_ai, scrape_yes24_bestseller
 
@@ -1239,6 +1239,320 @@ def api_delete_saved_book(book_id):
     if not book:
         return jsonify({"status": "not_found"}), 404
     db.session.delete(book)
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
+
+# --- My Screens Routes ---
+
+TMDB_BASE_URL = "https://api.themoviedb.org/3"
+TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
+
+
+def _tmdb_params(extra=None):
+    params = {"api_key": os.environ.get("TMDB_API_KEY", "")}
+    if extra:
+        params.update(extra)
+    return params
+
+
+def _tmdb_poster_url(poster_path):
+    if poster_path:
+        return f"{TMDB_IMAGE_BASE}{poster_path}"
+    return ""
+
+
+@app.route("/screens")
+@login_required
+def my_screens():
+    watched = MyScreen.query.filter_by(shelf="watched").all()
+    total_watched = len(watched)
+    rated = [s for s in watched if s.my_rating > 0]
+    avg_rating = sum(s.my_rating for s in rated) / len(rated) if rated else 0
+    hall_of_fame_count = MyScreen.query.filter_by(hall_of_fame=True).count()
+    watching_count = MyScreen.query.filter_by(shelf="watching").count()
+    want_count = MyScreen.query.filter_by(shelf="want-to-watch").count()
+    return render_template(
+        "screens.html",
+        total_watched=total_watched,
+        avg_rating=round(avg_rating, 1),
+        hall_of_fame_count=hall_of_fame_count,
+        watching_count=watching_count,
+        want_count=want_count,
+    )
+
+
+@app.route("/screens/library")
+@login_required
+def screen_library():
+    screens = MyScreen.query.filter_by(shelf="watched").order_by(MyScreen.date_watched.desc()).all()
+    return render_template("screen_library.html", screens=screens)
+
+
+@app.route("/screens/watching")
+@login_required
+def screen_watching():
+    screens = MyScreen.query.filter_by(shelf="watching").order_by(MyScreen.added_at.desc()).all()
+    return render_template("screen_watching.html", screens=screens)
+
+
+@app.route("/screens/hall-of-fame")
+@login_required
+def screen_hall_of_fame():
+    screens = MyScreen.query.filter_by(hall_of_fame=True).order_by(MyScreen.my_rating.desc()).all()
+    return render_template("screen_hall_of_fame.html", screens=screens)
+
+
+@app.route("/screens/recommendations")
+@login_required
+def screen_recommendations():
+    return render_template("screen_recommendations.html")
+
+
+@app.route("/screens/saved")
+@login_required
+def screen_saved():
+    screens = SavedScreen.query.order_by(SavedScreen.saved_at.desc()).all()
+    return render_template("screen_saved.html", screens=screens)
+
+
+@app.route("/api/screens/search")
+@login_required
+def api_screen_search():
+    q = request.args.get("q", "").strip()
+    media_type = request.args.get("type", "all")  # movie | tv | all
+    if not q:
+        return jsonify({"results": []})
+
+    api_key = os.environ.get("TMDB_API_KEY", "")
+    if not api_key:
+        return jsonify({"results": [], "error": "TMDB_API_KEY가 설정되지 않았습니다."})
+
+    params = {"query": q, "language": "ko-KR", "include_adult": False, "api_key": api_key}
+
+    if media_type == "movie":
+        endpoint = f"{TMDB_BASE_URL}/search/movie"
+    elif media_type == "tv":
+        endpoint = f"{TMDB_BASE_URL}/search/tv"
+    else:
+        endpoint = f"{TMDB_BASE_URL}/search/multi"
+
+    try:
+        r = http_requests.get(endpoint, params=params, headers={"accept": "application/json"}, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        items = data.get("results", [])
+    except Exception as e:
+        logger.error("TMDB API error: %s", e)
+        return jsonify({"results": [], "error": "처리 중 오류가 발생했습니다."})
+
+    results = []
+    for item in items:
+        mtype = item.get("media_type", media_type)
+        if mtype not in ("movie", "tv"):
+            continue
+        if mtype == "movie":
+            title = item.get("title") or item.get("original_title", "")
+            original_title = item.get("original_title", "")
+            year_str = item.get("release_date", "")
+        else:
+            title = item.get("name") or item.get("original_name", "")
+            original_title = item.get("original_name", "")
+            year_str = item.get("first_air_date", "")
+        year = int(year_str[:4]) if year_str and year_str[:4].isdigit() else 0
+        results.append({
+            "tmdb_id": item.get("id"),
+            "title": title,
+            "original_title": original_title,
+            "media_type": mtype,
+            "year": year,
+            "overview": item.get("overview", ""),
+            "tmdb_rating": item.get("vote_average", 0.0),
+            "poster_url": _tmdb_poster_url(item.get("poster_path", "")),
+        })
+
+    return jsonify({"results": results[:20]})
+
+
+@app.route("/screens/add", methods=["POST"])
+@login_required
+def screen_add():
+    title = request.form.get("title", "").strip()
+    if not title:
+        flash("제목을 입력해 주세요.", "danger")
+        return redirect(url_for("screen_library"))
+
+    date_watched_raw = request.form.get("date_watched", "").strip()
+    date_watched = date_watched_raw.replace("-", "/") if date_watched_raw else ""
+
+    my_rating = int(request.form.get("my_rating", 0) or 0)
+    if my_rating < 0 or my_rating > 5:
+        my_rating = 0
+
+    screen = MyScreen(
+        tmdb_id=int(request.form.get("tmdb_id") or 0) or None,
+        title=title,
+        original_title=request.form.get("original_title", "").strip(),
+        media_type=request.form.get("media_type", "movie"),
+        genres=request.form.get("genres", "").strip(),
+        director=request.form.get("director", "").strip(),
+        year=int(request.form.get("year", 0) or 0),
+        poster_url=request.form.get("poster_url", "").strip(),
+        overview=request.form.get("overview", "").strip(),
+        tmdb_rating=float(request.form.get("tmdb_rating", 0) or 0),
+        my_rating=my_rating,
+        date_watched=date_watched,
+        shelf=request.form.get("shelf", "watched"),
+    )
+    db.session.add(screen)
+    db.session.commit()
+    flash(f'"{title}" 추가 완료', "success")
+    shelf = request.form.get("shelf", "watched")
+    if shelf == "watching":
+        return redirect(url_for("screen_watching"))
+    return redirect(url_for("screen_library"))
+
+
+@app.route("/api/screens/<int:screen_id>/rate", methods=["POST"])
+@login_required
+def api_rate_screen(screen_id):
+    screen = db.session.get(MyScreen, screen_id)
+    if not screen:
+        return jsonify({"status": "not_found"}), 404
+    data = request.get_json()
+    rating = data.get("rating", 0)
+    if not isinstance(rating, int) or rating < 0 or rating > 5:
+        return jsonify({"status": "error", "message": "Rating must be 0-5"}), 400
+    screen.my_rating = rating
+    db.session.commit()
+    return jsonify({"status": "ok", "rating": rating})
+
+
+@app.route("/api/screens/<int:screen_id>/delete", methods=["POST"])
+@login_required
+def api_delete_screen(screen_id):
+    screen = db.session.get(MyScreen, screen_id)
+    if not screen:
+        return jsonify({"status": "not_found"}), 404
+    db.session.delete(screen)
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/screens/<int:screen_id>/complete", methods=["POST"])
+@login_required
+def api_complete_screen(screen_id):
+    screen = db.session.get(MyScreen, screen_id)
+    if not screen:
+        return jsonify({"status": "not_found"}), 404
+    data = request.get_json()
+    rating = data.get("my_rating", 0)
+    if not isinstance(rating, int) or rating < 1 or rating > 5:
+        return jsonify({"status": "error", "message": "별점을 선택해 주세요."}), 400
+    date_raw = data.get("date_watched", "").strip()
+    screen.shelf = "watched"
+    screen.my_rating = rating
+    screen.date_watched = date_raw.replace("-", "/") if date_raw else ""
+    screen.hall_of_fame = bool(data.get("hall_of_fame", False))
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/screens/<int:screen_id>/hall-of-fame", methods=["POST"])
+@login_required
+def api_toggle_screen_hall_of_fame(screen_id):
+    screen = db.session.get(MyScreen, screen_id)
+    if not screen:
+        return jsonify({"status": "not_found"}), 404
+    data = request.get_json()
+    screen.hall_of_fame = bool(data.get("hall_of_fame", not screen.hall_of_fame))
+    db.session.commit()
+    return jsonify({"status": "ok", "hall_of_fame": screen.hall_of_fame})
+
+
+@app.route("/api/screens/chat", methods=["POST"])
+@login_required
+def api_screens_chat():
+    data = request.get_json()
+    if not data or not data.get("message", "").strip():
+        return jsonify({"status": "error", "message": "메시지를 입력해 주세요."}), 400
+
+    user_message = data["message"].strip()
+    screens = MyScreen.query.all()
+    saved_screens = SavedScreen.query.all()
+
+    db_messages = (
+        ScreenChatMessage.query
+        .order_by(ScreenChatMessage.created_at.desc())
+        .limit(50).all()
+    )
+    history = [{"role": m.role, "content": m.content} for m in reversed(db_messages)]
+
+    try:
+        result = chat_screen_recommendation(user_message, history, screens, saved_screens=saved_screens)
+    except Exception as e:
+        logger.error("Screen chat recommendation failed: %s", e)
+        return jsonify({"status": "error", "message": "처리 중 오류가 발생했습니다."}), 500
+
+    db.session.add(ScreenChatMessage(role="user", content=user_message))
+    recs_json = json.dumps(result.get("recommendations", []), ensure_ascii=False) if result.get("recommendations") else ""
+    db.session.add(ScreenChatMessage(role="assistant", content=result["message"], recommendations_json=recs_json))
+    db.session.commit()
+
+    return jsonify(result)
+
+
+@app.route("/api/screens/chat/history", methods=["GET"])
+@login_required
+def api_screen_chat_history():
+    messages = (ScreenChatMessage.query
+                .order_by(ScreenChatMessage.created_at.desc())
+                .limit(50).all())
+    result = []
+    for m in reversed(messages):
+        entry = {"role": m.role, "content": m.content}
+        if m.recommendations_json:
+            try:
+                entry["recommendations"] = json.loads(m.recommendations_json)
+            except (json.JSONDecodeError, TypeError):
+                entry["recommendations"] = []
+        result.append(entry)
+    return jsonify({"messages": result})
+
+
+@app.route("/api/screens/chat/clear", methods=["POST"])
+@login_required
+def api_screen_chat_clear():
+    count = ScreenChatMessage.query.delete()
+    db.session.commit()
+    return jsonify({"status": "ok", "cleared": count})
+
+
+@app.route("/api/screens/saved", methods=["POST"])
+@login_required
+def api_save_screen():
+    data = request.get_json()
+    if not data or not data.get("title", "").strip():
+        return jsonify({"status": "error", "message": "제목이 필요합니다."}), 400
+
+    screen = SavedScreen(
+        title=data["title"].strip(),
+        media_type=data.get("media_type", "movie"),
+        reason=data.get("reason", "").strip(),
+        category=data.get("category", "").strip(),
+    )
+    db.session.add(screen)
+    db.session.commit()
+    return jsonify({"status": "ok", "id": screen.id})
+
+
+@app.route("/api/screens/saved/<int:screen_id>", methods=["DELETE"])
+@login_required
+def api_delete_saved_screen(screen_id):
+    screen = db.session.get(SavedScreen, screen_id)
+    if not screen:
+        return jsonify({"status": "not_found"}), 404
+    db.session.delete(screen)
     db.session.commit()
     return jsonify({"status": "ok"})
 

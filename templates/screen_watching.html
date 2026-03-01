@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block title %}Now Watching - Dashboard{% endblock %}
+{% block mobile_title %}Watching{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-play-circle"></i> Now Watching</h2>
+    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addScreenModal">
+        <i class="bi bi-plus-lg"></i> Add
+    </button>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}{% for category, message in messages %}
+    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+      {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}{% endif %}
+{% endwith %}
+
+{% if screens %}
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3" id="watching-cards">
+    {% for s in screens %}
+    <div class="col" id="card-{{ s.id }}">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex gap-3">
+                    {% if s.poster_url %}
+                    <img src="{{ s.poster_url }}" alt="" style="height: 90px; width: 60px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
+                    {% endif %}
+                    <div>
+                        <h5 class="card-title mb-1">{{ s.title }}</h5>
+                        {% if s.media_type == 'movie' %}
+                        <span class="badge bg-primary mb-1">영화</span>
+                        {% else %}
+                        <span class="badge bg-success mb-1">드라마</span>
+                        {% endif %}
+                        {% if s.year %}<small class="text-muted ms-1">{{ s.year }}</small>{% endif %}
+                        {% if s.genres %}<p class="text-muted small mb-0 mt-1">{{ s.genres }}</p>{% endif %}
+                    </div>
+                </div>
+                {% if s.added_at %}
+                <p class="card-text text-muted small mt-2">
+                    <i class="bi bi-calendar-plus"></i> Added {{ s.added_at.strftime('%Y/%m/%d') }}
+                </p>
+                {% endif %}
+            </div>
+            <div class="card-footer d-flex gap-2">
+                <button class="btn btn-success btn-sm flex-grow-1 btn-complete"
+                        data-screen-id="{{ s.id }}"
+                        data-screen-title="{{ s.title | e }}">
+                    <i class="bi bi-check2-circle"></i> 시청 완료
+                </button>
+                <button class="btn btn-outline-danger btn-sm btn-delete" data-screen-id="{{ s.id }}">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5" id="empty-state">
+    <i class="bi bi-play-circle" style="font-size: 3rem;"></i>
+    <p class="mt-2">현재 시청 중인 작품이 없습니다.</p>
+</div>
+{% endif %}
+
+<!-- Complete Modal -->
+<div class="modal fade" id="completeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-check2-circle"></i> 시청 완료 등록</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3" id="complete-title-display"></p>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">별점 <span class="text-danger">*</span></label>
+                    <div id="complete-rating-stars" class="d-flex gap-1" style="font-size: 1.6rem;">
+                        {% for i in range(1, 6) %}
+                        <i class="bi bi-star complete-star" data-value="{{ i }}" style="cursor: pointer; color: #ffc107;"></i>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" id="complete-rating" value="0">
+                    <div id="complete-rating-error" class="text-danger small mt-1" style="display:none;">별점을 선택해 주세요.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">시청 완료일</label>
+                    <input type="date" id="complete-date" class="form-control">
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="complete-hof">
+                    <label class="form-check-label" for="complete-hof">
+                        <i class="bi bi-trophy-fill text-warning"></i> Hall of Fame 등록
+                    </label>
+                </div>
+                <div id="complete-error-msg" class="alert alert-danger" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-success" id="complete-submit-btn">
+                    <i class="bi bi-check-lg"></i> 저장
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Screen Modal -->
+<div class="modal fade" id="addScreenModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Movie / Drama</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="phase-search">
+                    <div class="input-group mb-2">
+                        <input type="text" id="screen-search-input" class="form-control" placeholder="영화 또는 드라마 제목 검색..." autofocus>
+                        <button class="btn btn-primary" type="button" id="screen-search-btn"><i class="bi bi-search"></i> 검색</button>
+                    </div>
+                    <div class="d-flex gap-2 mb-3">
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="search-type" id="type-all" value="all" checked><label class="form-check-label" for="type-all">전체</label></div>
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="search-type" id="type-movie" value="movie"><label class="form-check-label" for="type-movie">영화</label></div>
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="search-type" id="type-tv" value="tv"><label class="form-check-label" for="type-tv">드라마/TV</label></div>
+                    </div>
+                    <div class="text-center"><a href="#" id="manual-entry-link" class="text-muted small">직접 입력하기</a></div>
+                </div>
+                <div id="phase-results" style="display:none;">
+                    <div class="d-flex align-items-center mb-3">
+                        <button class="btn btn-sm btn-outline-secondary me-2" id="back-to-search"><i class="bi bi-arrow-left"></i></button>
+                        <span class="text-muted" id="results-query"></span>
+                    </div>
+                    <div id="search-results" style="max-height: 400px; overflow-y: auto;"></div>
+                    <div id="no-results" style="display:none;" class="text-center py-4">
+                        <p class="text-muted">검색 결과가 없습니다.</p>
+                        <button class="btn btn-outline-primary btn-sm" id="manual-entry-btn">직접 입력하기</button>
+                    </div>
+                </div>
+                <div id="phase-confirm" style="display:none;">
+                    <div class="d-flex align-items-center mb-3">
+                        <button class="btn btn-sm btn-outline-secondary me-2" id="back-to-results"><i class="bi bi-arrow-left"></i></button>
+                        <span class="text-muted">작품 정보 확인</span>
+                    </div>
+                    <form action="{{ url_for('screen_add') }}" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <div class="mb-3"><label class="form-label">Title</label><input type="text" name="title" id="confirm-title" class="form-control" required></div>
+                                <div class="row">
+                                    <div class="col-6 mb-3"><label class="form-label">Type</label><select name="media_type" id="confirm-media-type" class="form-select"><option value="movie">영화</option><option value="tv">드라마/TV</option></select></div>
+                                    <div class="col-6 mb-3"><label class="form-label">Year</label><input type="number" name="year" id="confirm-year" class="form-control"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-center"><img id="confirm-poster" src="" alt="" class="img-fluid rounded shadow-sm" style="max-height: 180px; display:none;"></div>
+                        </div>
+                        <input type="hidden" name="tmdb_id" id="confirm-tmdb-id">
+                        <input type="hidden" name="original_title" id="confirm-original-title">
+                        <input type="hidden" name="poster_url" id="confirm-poster-url">
+                        <input type="hidden" name="overview" id="confirm-overview">
+                        <input type="hidden" name="tmdb_rating" id="confirm-tmdb-rating">
+                        <input type="hidden" name="shelf" value="watching">
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg"></i> 저장</button>
+                        </div>
+                    </form>
+                </div>
+                <div id="search-loading" style="display:none;" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2">검색 중...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Complete modal
+(function() {
+    let currentScreenId = null;
+    const completeModal = new bootstrap.Modal(document.getElementById('completeModal'));
+    const ratingInput = document.getElementById('complete-rating');
+    const ratingError = document.getElementById('complete-rating-error');
+    const errorMsg = document.getElementById('complete-error-msg');
+
+    document.querySelectorAll('.btn-complete').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentScreenId = this.dataset.screenId;
+            document.getElementById('complete-title-display').textContent = this.dataset.screenTitle;
+            setCompleteRating(0);
+            ratingError.style.display = 'none';
+            errorMsg.style.display = 'none';
+            document.getElementById('complete-hof').checked = false;
+            const today = new Date();
+            document.getElementById('complete-date').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+            completeModal.show();
+        });
+    });
+
+    document.querySelectorAll('.complete-star').forEach(star => {
+        star.addEventListener('click', function() {
+            const val = parseInt(this.dataset.value);
+            const current = parseInt(ratingInput.value);
+            setCompleteRating(val === current ? 0 : val);
+        });
+    });
+
+    function setCompleteRating(val) {
+        ratingInput.value = val;
+        document.querySelectorAll('.complete-star').forEach((s, idx) => {
+            s.className = `bi bi-star${idx < val ? '-fill' : ''} complete-star`;
+        });
+    }
+
+    document.getElementById('complete-submit-btn').addEventListener('click', async function() {
+        const rating = parseInt(ratingInput.value);
+        ratingError.style.display = 'none';
+        errorMsg.style.display = 'none';
+        if (!rating || rating < 1) { ratingError.style.display = ''; return; }
+        try {
+            const resp = await fetch(`/api/screens/${currentScreenId}/complete`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    my_rating: rating,
+                    date_watched: document.getElementById('complete-date').value,
+                    hall_of_fame: document.getElementById('complete-hof').checked,
+                }),
+            });
+            const data = await resp.json();
+            if (resp.ok && data.status === 'ok') {
+                completeModal.hide();
+                const card = document.getElementById(`card-${currentScreenId}`);
+                if (card) card.remove();
+                if (document.querySelectorAll('#watching-cards .col').length === 0) {
+                    const container = document.getElementById('watching-cards');
+                    if (container) container.remove();
+                }
+            } else {
+                errorMsg.textContent = data.message || '저장에 실패했습니다.';
+                errorMsg.style.display = '';
+            }
+        } catch (e) { errorMsg.textContent = '서버 오류가 발생했습니다.'; errorMsg.style.display = ''; }
+    });
+})();
+
+// Delete
+document.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        if (!confirm('삭제하시겠습니까?')) return;
+        const resp = await fetch(`/api/screens/${this.dataset.screenId}/delete`, {method: 'POST'});
+        if (resp.ok) { document.getElementById(`card-${this.dataset.screenId}`)?.remove(); }
+    });
+});
+
+// Add Screen Wizard (same logic as library)
+(function() {
+    const phaseSearch = document.getElementById('phase-search');
+    const phaseResults = document.getElementById('phase-results');
+    const phaseConfirm = document.getElementById('phase-confirm');
+    const loading = document.getElementById('search-loading');
+
+    function showPhase(phase) {
+        phaseSearch.style.display = phase === 'search' ? '' : 'none';
+        phaseResults.style.display = phase === 'results' ? '' : 'none';
+        phaseConfirm.style.display = phase === 'confirm' ? '' : 'none';
+        loading.style.display = phase === 'loading' ? '' : 'none';
+    }
+
+    document.getElementById('addScreenModal').addEventListener('show.bs.modal', function() { showPhase('search'); document.getElementById('screen-search-input').value = ''; });
+    document.getElementById('screen-search-btn').addEventListener('click', doSearch);
+    document.getElementById('screen-search-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
+
+    async function doSearch() {
+        const q = document.getElementById('screen-search-input').value.trim();
+        if (!q) return;
+        const type = document.querySelector('input[name="search-type"]:checked').value;
+        showPhase('loading');
+        try {
+            const resp = await fetch(`/api/screens/search?q=${encodeURIComponent(q)}&type=${type}`);
+            const data = await resp.json();
+            renderResults(q, data.results || []);
+        } catch { renderResults(q, []); }
+    }
+
+    function renderResults(query, results) {
+        document.getElementById('results-query').textContent = `"${query}" 검색 결과 (${results.length}건)`;
+        const container = document.getElementById('search-results');
+        container.innerHTML = '';
+        if (results.length === 0) { container.style.display = 'none'; document.getElementById('no-results').style.display = ''; showPhase('results'); return; }
+        container.style.display = ''; document.getElementById('no-results').style.display = 'none';
+        results.forEach(item => {
+            const typeLabel = item.media_type === 'movie' ? '영화' : '드라마';
+            const typeColor = item.media_type === 'movie' ? 'bg-primary' : 'bg-success';
+            const div = document.createElement('div');
+            div.className = 'card mb-2'; div.style.cursor = 'pointer';
+            div.innerHTML = `<div class="card-body p-2 d-flex align-items-center"><div style="width:45px;min-width:45px;height:65px;margin-right:12px;" class="d-flex align-items-center justify-content-center">${item.poster_url ? `<img src="${item.poster_url}" style="max-height:65px;max-width:45px;border-radius:3px;" alt="">` : `<i class="bi bi-film text-muted" style="font-size:1.5rem;"></i>`}</div><div class="flex-grow-1" style="min-width:0;"><div class="fw-bold text-truncate">${escHtml(item.title)}</div><span class="badge ${typeColor} me-1">${typeLabel}</span>${item.year ? `<small class="text-muted">${item.year}</small>` : ''}</div></div>`;
+            div.addEventListener('click', () => selectScreen(item));
+            container.appendChild(div);
+        });
+        showPhase('results');
+    }
+
+    function selectScreen(item) {
+        document.getElementById('confirm-title').value = item.title || '';
+        document.getElementById('confirm-title').readOnly = true;
+        document.getElementById('confirm-media-type').value = item.media_type || 'movie';
+        document.getElementById('confirm-year').value = item.year || '';
+        document.getElementById('confirm-year').readOnly = true;
+        document.getElementById('confirm-tmdb-id').value = item.tmdb_id || '';
+        document.getElementById('confirm-original-title').value = item.original_title || '';
+        document.getElementById('confirm-poster-url').value = item.poster_url || '';
+        document.getElementById('confirm-overview').value = item.overview || '';
+        document.getElementById('confirm-tmdb-rating').value = item.tmdb_rating || 0;
+        const poster = document.getElementById('confirm-poster');
+        if (item.poster_url) { poster.src = item.poster_url; poster.style.display = ''; } else { poster.style.display = 'none'; }
+        showPhase('confirm');
+    }
+
+    function openManualEntry() {
+        document.getElementById('confirm-title').value = ''; document.getElementById('confirm-title').readOnly = false;
+        document.getElementById('confirm-year').value = ''; document.getElementById('confirm-year').readOnly = false;
+        document.getElementById('confirm-poster').style.display = 'none';
+        showPhase('confirm');
+    }
+
+    document.getElementById('manual-entry-link').addEventListener('click', function(e) { e.preventDefault(); openManualEntry(); });
+    document.getElementById('manual-entry-btn').addEventListener('click', openManualEntry);
+    document.getElementById('back-to-search').addEventListener('click', () => showPhase('search'));
+    document.getElementById('back-to-results').addEventListener('click', () => showPhase('results'));
+
+    function escHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
+})();
+</script>
+{% endblock %}

@@ -170,6 +170,48 @@ class AnkiCard(db.Model):
     last_reviewed = db.Column(db.DateTime, nullable=True)
 
 
+class MyScreen(db.Model):
+    """Tracks movies/TV shows the user has watched or wants to watch."""
+    id = db.Column(db.Integer, primary_key=True)
+    tmdb_id = db.Column(db.Integer, nullable=True)
+    title = db.Column(db.String(500), nullable=False)
+    original_title = db.Column(db.String(500), default="")
+    media_type = db.Column(db.String(10), default="movie")  # "movie" | "tv"
+    genres = db.Column(db.String(300), default="")  # comma-separated
+    director = db.Column(db.String(300), default="")  # movie: director, tv: creator
+    year = db.Column(db.Integer, default=0)
+    poster_url = db.Column(db.String(500), default="")
+    overview = db.Column(db.Text, default="")
+    tmdb_rating = db.Column(db.Float, default=0.0)
+    my_rating = db.Column(db.Integer, default=0)  # 0-5
+    date_watched = db.Column(db.String(20), default="")  # YYYY/MM/DD
+    shelf = db.Column(db.String(20), default="watched")  # watched|watching|want-to-watch
+    hall_of_fame = db.Column(db.Boolean, default=False)
+    added_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f"<MyScreen {self.title[:30]}>"
+
+
+class SavedScreen(db.Model):
+    """찜한 영화/드라마 — AI 추천에서 저장한 콘텐츠."""
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(500), nullable=False)
+    media_type = db.Column(db.String(10), default="movie")
+    reason = db.Column(db.Text, default="")
+    category = db.Column(db.String(100), default="")
+    saved_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ScreenChatMessage(db.Model):
+    """Persisted chat messages for the screen recommendation conversation."""
+    id = db.Column(db.Integer, primary_key=True)
+    role = db.Column(db.String(20), nullable=False)  # "user" or "assistant"
+    content = db.Column(db.Text, nullable=False)
+    recommendations_json = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 def init_default_user():
     """Create default user if not exists. Reads credentials from environment variables."""
     username = os.environ.get("DASHBOARD_USER")

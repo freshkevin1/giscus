@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Screen Hall of Fame - Dashboard{% endblock %}
+{% block mobile_title %}Hall of Fame{% endblock %}
+
+{% block content %}
+<style>
+.hof-trophy-icon { font-size: 2rem; color: var(--color-accent); }
+.hof-title { font-size: 1.4rem; font-weight: 700; }
+.hof-sub { font-size: 0.85rem; }
+
+@keyframes hofCardIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.hof-card {
+    background: var(--surface-raised);
+    border: 1px solid var(--bubble-assistant-border);
+    border-top: 3px solid var(--color-accent);
+    box-shadow: var(--shadow-sm);
+    animation: hofCardIn 0.25s ease-out both;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hof-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.hof-card-title { font-size: 1rem; font-weight: 700; line-height: 1.3; }
+.hof-star { color: var(--color-accent); font-size: 1rem; }
+</style>
+
+<div class="d-flex align-items-center gap-3 mb-4">
+    <i class="bi bi-trophy-fill hof-trophy-icon"></i>
+    <div>
+        <h2 class="mb-0 hof-title">Hall of Fame</h2>
+        <p class="text-muted mb-0 hof-sub">다시 보고 싶은 인생 작품 컬렉션</p>
+    </div>
+</div>
+
+{% if screens %}
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3" id="hof-grid">
+    {% for s in screens %}
+    <div class="col" id="card-{{ s.id }}">
+        <div class="card hof-card h-100">
+            <div class="card-body d-flex gap-3">
+                {% if s.poster_url %}
+                <img src="{{ s.poster_url }}" alt="" style="height: 100px; width: 67px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
+                {% endif %}
+                <div>
+                    <h5 class="hof-card-title">{{ s.title }}</h5>
+                    <div class="mb-1">
+                        {% if s.media_type == 'movie' %}
+                        <span class="badge bg-primary">영화</span>
+                        {% else %}
+                        <span class="badge bg-success">드라마</span>
+                        {% endif %}
+                        {% if s.year %}<small class="text-muted ms-1">{{ s.year }}</small>{% endif %}
+                    </div>
+                    {% if s.genres %}<p class="text-muted mb-1" style="font-size:0.8rem;">{{ s.genres }}</p>{% endif %}
+                    <div class="hof-stars">
+                        {% for i in range(1, 6) %}
+                        <i class="bi bi-star{% if i <= s.my_rating %}-fill{% endif %} hof-star"></i>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <small class="text-muted">
+                    {% if s.date_watched and '/' in s.date_watched %}
+                        {{ s.date_watched.split('/')[1] }}/{{ s.date_watched.split('/')[0] }}
+                    {% else %}-{% endif %}
+                </small>
+                <button class="btn btn-sm btn-outline-secondary btn-remove-hof"
+                        data-screen-id="{{ s.id }}" title="Remove from Hall of Fame">
+                    <i class="bi bi-trophy-fill"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-trophy-fill" style="font-size: 3rem; color: var(--color-accent);"></i>
+    <p class="mt-2">아직 Hall of Fame에 추가된 작품이 없습니다.</p>
+    <a href="{{ url_for('screen_library') }}" class="btn btn-outline-secondary btn-sm mt-1">Library에서 추가하기</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.btn-remove-hof').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const screenId = this.dataset.screenId;
+        const resp = await fetch(`/api/screens/${screenId}/hall-of-fame`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({hall_of_fame: false})
+        });
+        if (resp.ok) {
+            document.getElementById(`card-${screenId}`).remove();
+            const grid = document.getElementById('hof-grid');
+            if (grid && grid.children.length === 0) {
+                grid.outerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-trophy-fill" style="font-size: 3rem; color: var(--color-accent);"></i>
+                        <p class="mt-2">아직 Hall of Fame에 추가된 작품이 없습니다.</p>
+                        <a href="{{ url_for('screen_library') }}" class="btn btn-outline-secondary btn-sm mt-1">Library에서 추가하기</a>
+                    </div>`;
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

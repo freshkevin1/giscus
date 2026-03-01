@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Saved Screens - Dashboard{% endblock %}
+{% block mobile_title %}Saved Screens{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-bookmark-star"></i> Saved Screens</h2>
+    <span class="text-muted">{{ screens|length }}편</span>
+</div>
+
+{% if screens %}
+<div class="row row-cols-1 row-cols-md-2 g-3" id="saved-list">
+    {% for s in screens %}
+    <div class="col" id="saved-{{ s.id }}">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title mb-0">{{ s.title }}</h5>
+                    <div class="d-flex gap-1 ms-2 flex-shrink-0">
+                        {% if s.media_type == 'movie' %}
+                        <span class="badge bg-primary">영화</span>
+                        {% else %}
+                        <span class="badge bg-success">드라마</span>
+                        {% endif %}
+                        {% if s.category %}
+                        <span class="badge bg-info text-dark">{{ s.category }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if s.reason %}
+                <p class="card-text" style="font-size: 0.9rem;">{{ s.reason }}</p>
+                {% endif %}
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <small class="text-muted">{{ s.saved_at.strftime('%Y-%m-%d') }}</small>
+                    <button class="btn btn-outline-danger btn-sm" onclick="removeSaved({{ s.id }})">
+                        <i class="bi bi-trash"></i> 제거
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-bookmark" style="font-size: 3rem;"></i>
+    <p class="mt-2">찜한 작품이 없습니다.</p>
+    <p style="font-size: 0.9rem;">
+        <a href="{{ url_for('screen_recommendations') }}">AI Screen Advisor</a>에서 추천받은 작품을 찜해 보세요.
+    </p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function removeSaved(id) {
+    try {
+        const resp = await fetch(`/api/screens/saved/${id}`, {method: 'DELETE'});
+        if (resp.ok) {
+            const el = document.getElementById('saved-' + id);
+            if (el) { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }
+        }
+    } catch (err) { console.error('Remove failed:', err); }
+}
+</script>
+{% endblock %}

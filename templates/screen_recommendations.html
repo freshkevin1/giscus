@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}AI Screen Recommendations - Dashboard{% endblock %}
+{% block mobile_title %}AI Screen Advisor{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column book-chat-container">
+    <!-- Header -->
+    <div class="book-advisor-header d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-film" style="color: #6f42c1; font-size: 1.4rem;"></i>
+            <div>
+                <h2 class="mb-0 book-advisor-title">AI Screen Advisor</h2>
+                <p class="text-muted mb-0 book-advisor-sub">시청 이력 기반 맞춤 추천 · 장르·감독·배우로 자유롭게 질문하세요</p>
+            </div>
+        </div>
+        <button id="btn-new-chat" class="btn btn-outline-secondary btn-sm" onclick="clearChat()">
+            <i class="bi bi-arrow-counterclockwise"></i> 새 대화
+        </button>
+    </div>
+
+    <!-- Chat Messages Area -->
+    <div id="chat-messages" class="flex-grow-1 overflow-auto mb-3 p-3 rounded shadow-sm" style="background-color: var(--chat-bg);">
+        <div id="welcome-msg" class="text-center text-muted py-5">
+            <i class="bi bi-film" style="font-size: 3rem; color: #6f42c1;"></i>
+            <p class="mt-3 mb-1 fw-semibold" style="font-size: 1.05rem;">어떤 작품을 찾고 계신가요?</p>
+            <p style="font-size: 0.9rem;">
+                "최근 본 드라마와 비슷한 작품 추천해줘"<br>
+                "K-드라마 추천", "오스카 수상 영화" 등 자유롭게 질문해 보세요.
+            </p>
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="book-chat-footer rounded shadow-sm p-3">
+        <form id="chat-form" class="d-flex gap-2">
+            <input type="text" id="chat-input" class="form-control"
+                   placeholder="영화·드라마 추천을 요청하세요..." autocomplete="off">
+            <button type="submit" id="btn-send" class="btn px-4" style="white-space: nowrap; background-color: #6f42c1; border-color: #6f42c1; color: #fff; font-weight: 600;">
+                <i class="bi bi-send"></i> 전송
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>document.querySelector('.main-content').classList.add('chat-page-layout');</script>
+<style>
+    .book-advisor-title { font-size: 1.2rem; font-weight: 700; }
+    .book-advisor-sub { font-size: 0.82rem; }
+    .book-chat-footer { background-color: var(--chat-footer-bg); }
+
+    @keyframes bubbleIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .chat-bubble {
+        animation: bubbleIn 0.2s ease-out;
+        max-width: 80%;
+        padding: 0.75rem 1rem;
+        border-radius: 14px;
+        margin-bottom: 0.75rem;
+        line-height: 1.5;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+    }
+    .chat-bubble-user {
+        background: linear-gradient(135deg, #5a2da0, #6f42c1);
+        color: #fff;
+        margin-left: auto;
+        border-bottom-right-radius: 4px;
+    }
+    .chat-bubble-ai {
+        background-color: var(--bubble-assistant-bg);
+        color: var(--bubble-assistant-color);
+        border: 1px solid var(--bubble-assistant-border);
+        margin-right: auto;
+        border-bottom-left-radius: 4px;
+    }
+    .rec-card {
+        background: var(--surface-raised);
+        border: 1px solid var(--bubble-assistant-border);
+        border-left: 3px solid #6f42c1;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin-top: 0.5rem;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .rec-card:hover { transform: translateX(3px); box-shadow: var(--shadow-md); }
+    .rec-card .badge { font-size: 0.75rem; }
+    .btn-save { font-size: 0.8rem; padding: 0.25rem 0.6rem; }
+    .btn-save.saved { background-color: #198754; border-color: #198754; color: #fff; pointer-events: none; }
+    .typing-indicator { display: flex; gap: 4px; padding: 0.75rem 1rem; background-color: var(--bubble-assistant-bg); border-radius: 14px; border-bottom-left-radius: 4px; width: fit-content; margin-bottom: 0.75rem; }
+    .typing-indicator span { width: 8px; height: 8px; background-color: var(--typing-dot-color); border-radius: 50%; animation: typing 1.2s infinite; }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+</style>
+
+<script>
+const chatMessages = document.getElementById('chat-messages');
+const chatForm = document.getElementById('chat-form');
+const chatInput = document.getElementById('chat-input');
+const btnSend = document.getElementById('btn-send');
+
+function scrollToBottom() { chatMessages.scrollTop = chatMessages.scrollHeight; }
+function removeWelcome() { const w = document.getElementById('welcome-msg'); if (w) w.remove(); }
+
+function addUserBubble(text) {
+    removeWelcome();
+    const div = document.createElement('div');
+    div.className = 'd-flex';
+    div.innerHTML = `<div class="chat-bubble chat-bubble-user">${escapeHtml(text)}</div>`;
+    chatMessages.appendChild(div);
+    scrollToBottom();
+}
+
+function addTypingIndicator() {
+    const div = document.createElement('div');
+    div.id = 'typing'; div.className = 'd-flex';
+    div.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+    chatMessages.appendChild(div);
+    scrollToBottom();
+}
+function removeTypingIndicator() { const el = document.getElementById('typing'); if (el) el.remove(); }
+function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+
+function addAIBubble(message, recommendations) {
+    removeWelcome();
+    const wrapper = document.createElement('div');
+    wrapper.className = 'd-flex flex-column';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble chat-bubble-ai';
+    bubble.textContent = message;
+    wrapper.appendChild(bubble);
+
+    if (recommendations && recommendations.length > 0) {
+        const recsContainer = document.createElement('div');
+        recsContainer.style.maxWidth = '80%';
+        recsContainer.style.marginBottom = '0.75rem';
+
+        recommendations.forEach(rec => {
+            const typeLabel = rec.media_type === 'movie' ? '영화' : '드라마';
+            const typeColor = rec.media_type === 'movie' ? 'bg-primary' : 'bg-success';
+            const card = document.createElement('div');
+            card.className = 'rec-card';
+            card.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>${escapeHtml(rec.title)}</strong>
+                        <span class="badge ${typeColor} ms-2">${typeLabel}</span>
+                        ${rec.category ? `<span class="badge bg-info text-dark ms-1">${escapeHtml(rec.category)}</span>` : ''}
+                    </div>
+                    <button class="btn btn-outline-primary btn-save btn-sm ms-2"
+                            onclick="saveScreen(this)"
+                            data-title="${escapeHtml(rec.title).replace(/"/g, '&quot;')}"
+                            data-media-type="${rec.media_type}"
+                            data-reason="${escapeHtml(rec.reason).replace(/"/g, '&quot;')}"
+                            data-category="${escapeHtml(rec.category).replace(/"/g, '&quot;')}">
+                        <i class="bi bi-bookmark"></i> 찜하기
+                    </button>
+                </div>
+                <div style="font-size: 0.85rem; margin-top: 0.25rem;">${escapeHtml(rec.reason)}</div>
+            `;
+            recsContainer.appendChild(card);
+        });
+        wrapper.appendChild(recsContainer);
+    }
+
+    chatMessages.appendChild(wrapper);
+    scrollToBottom();
+}
+
+async function saveScreen(btn) {
+    try {
+        const resp = await fetch('/api/screens/saved', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                title: btn.dataset.title,
+                media_type: btn.dataset.mediaType,
+                reason: btn.dataset.reason,
+                category: btn.dataset.category,
+            }),
+        });
+        if (resp.ok) { btn.innerHTML = '<i class="bi bi-bookmark-fill"></i> 찜 완료'; btn.classList.add('saved'); btn.classList.remove('btn-outline-primary'); }
+    } catch (err) { console.error('Save failed:', err); }
+}
+
+async function loadChatHistory() {
+    try {
+        const resp = await fetch('/api/screens/chat/history');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.messages && data.messages.length > 0) {
+            removeWelcome();
+            data.messages.forEach(msg => {
+                if (msg.role === 'user') addUserBubble(msg.content);
+                else addAIBubble(msg.content, msg.recommendations || []);
+            });
+        }
+    } catch (err) { console.error('Failed to load chat history:', err); }
+}
+
+async function clearChat() {
+    if (!confirm('대화 기록을 모두 삭제하고 새 대화를 시작하시겠습니까?')) return;
+    try {
+        const resp = await fetch('/api/screens/chat/clear', {method: 'POST'});
+        if (resp.ok) {
+            chatMessages.innerHTML = `<div id="welcome-msg" class="text-center text-muted py-5">
+                <i class="bi bi-film" style="font-size: 3rem; color: #6f42c1;"></i>
+                <p class="mt-3 mb-1 fw-semibold">어떤 작품을 찾고 계신가요?</p>
+                <p style="font-size: 0.9rem;">"K-드라마 추천", "오스카 수상 영화" 등 자유롭게 질문해 보세요.</p>
+            </div>`;
+        }
+    } catch (err) { console.error('Clear chat failed:', err); }
+}
+
+chatForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const message = chatInput.value.trim();
+    if (!message) return;
+    chatInput.value = '';
+    btnSend.disabled = true;
+    addUserBubble(message);
+    addTypingIndicator();
+    try {
+        const resp = await fetch('/api/screens/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message}),
+        });
+        removeTypingIndicator();
+        if (resp.ok) {
+            const data = await resp.json();
+            addAIBubble(data.message, data.recommendations);
+        } else {
+            const err = await resp.json();
+            addAIBubble('오류가 발생했습니다: ' + (err.message || 'Unknown error'), []);
+        }
+    } catch (err) {
+        removeTypingIndicator();
+        addAIBubble('네트워크 오류가 발생했습니다. 다시 시도해 주세요.', []);
+    }
+    btnSend.disabled = false;
+    chatInput.focus();
+});
+
+loadChatHistory();
+</script>
+{% endblock %}

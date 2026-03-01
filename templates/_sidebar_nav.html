@@ -101,6 +101,46 @@
         </ul>
         {% endif %}
     </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ('my_screens', 'screen_library', 'screen_watching', 'screen_hall_of_fame', 'screen_recommendations', 'screen_saved') %}active{% endif %}"
+           href="{{ url_for('my_screens') }}">
+            <i class="bi bi-film"></i> My Screens
+        </a>
+        {% if request.endpoint in ('my_screens', 'screen_library', 'screen_watching', 'screen_hall_of_fame', 'screen_recommendations', 'screen_saved') %}
+        <ul class="nav flex-column ms-3">
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'screen_watching' %}active{% endif %}"
+                   href="{{ url_for('screen_watching') }}">
+                    Now Watching
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'screen_library' %}active{% endif %}"
+                   href="{{ url_for('screen_library') }}">
+                    Library
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'screen_hall_of_fame' %}active{% endif %}"
+                   href="{{ url_for('screen_hall_of_fame') }}">
+                    Hall of Fame
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'screen_recommendations' %}active{% endif %}"
+                   href="{{ url_for('screen_recommendations') }}">
+                    Recommendations
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link sub-link {% if request.endpoint == 'screen_saved' %}active{% endif %}"
+                   href="{{ url_for('screen_saved') }}">
+                    Saved
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+    </li>
     <hr style="border-color: rgba(255,255,255,0.1); margin: 8px 0;">
     <li class="nav-item">
         <a class="nav-link {% if request.endpoint in ('anki_hub', 'anki_review', 'anki_deck') %}active{% endif %}"

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}My Screens - Dashboard{% endblock %}
+{% block mobile_title %}My Screens{% endblock %}
+
+{% block content %}
+<style>
+.screens-nav-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md) !important;
+}
+</style>
+
+<h2 class="mb-4"><i class="bi bi-film"></i> My Screens</h2>
+
+<div class="row g-4 mb-4 justify-content-center">
+    <div class="col-6 col-md-3">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--text-primary);">{{ total_watched }}</div>
+                <small class="text-muted">Watched</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--color-accent);">{{ avg_rating }}</div>
+                <small class="text-muted">Avg Rating</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body">
+                <div style="font-size: 2rem; font-weight: 700; color: #0d6efd;">{{ watching_count }}</div>
+                <small class="text-muted">Watching</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body">
+                <div style="font-size: 2rem; font-weight: 700; color: #6f42c1;">{{ want_count }}</div>
+                <small class="text-muted">Want to Watch</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('screen_library') }}" class="text-decoration-none">
+            <div class="card h-100 shadow-sm border-0 screens-nav-card">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-collection-play" style="font-size: 3rem; color: var(--color-primary);"></i>
+                    <h4 class="mt-3">Library</h4>
+                    <p class="text-muted mb-0">시청 완료 목록 · 평점 관리</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('screen_watching') }}" class="text-decoration-none">
+            <div class="card h-100 shadow-sm border-0 screens-nav-card">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-play-circle" style="font-size: 3rem; color: #0d6efd;"></i>
+                    <h4 class="mt-3">Now Watching</h4>
+                    <p class="text-muted mb-0">현재 시청 중인 작품</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('screen_hall_of_fame') }}" class="text-decoration-none">
+            <div class="card h-100 shadow-sm border-0 screens-nav-card">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-trophy" style="font-size: 3rem; color: var(--color-accent);"></i>
+                    <h4 class="mt-3">Hall of Fame</h4>
+                    <p class="text-muted mb-0">인생 작품 {{ hall_of_fame_count }}편</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('screen_recommendations') }}" class="text-decoration-none">
+            <div class="card h-100 shadow-sm border-0 screens-nav-card">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-stars" style="font-size: 3rem; color: #6f42c1;"></i>
+                    <h4 class="mt-3">Recommendations</h4>
+                    <p class="text-muted mb-0">AI 맞춤 영화·드라마 추천</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('screen_saved') }}" class="text-decoration-none">
+            <div class="card h-100 shadow-sm border-0 screens-nav-card">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-bookmark-star" style="font-size: 3rem; color: #198754;"></i>
+                    <h4 class="mt-3">Saved</h4>
+                    <p class="text-muted mb-0">찜한 콘텐츠 목록</p>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}
