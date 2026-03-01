@@ -74,8 +74,12 @@ async function addToWatching(id, btn) {
     btn.textContent = '등록 중...';
     const res = await fetch(`/api/screens/saved/${id}/to-watching`, { method: 'POST' });
     if (res.ok) {
-        btn.textContent = '✓ 등록됨';
-        btn.classList.add('registered');
+        const el = document.getElementById('saved-' + id);
+        if (el) {
+            el.style.transition = 'opacity 0.3s';
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 300);
+        }
     } else {
         btn.textContent = '오류';
         btn.disabled = false;

@@ -1249,6 +1249,7 @@ def api_book_saved_to_reading(book_id):
     saved = SavedBook.query.get_or_404(book_id)
     book = MyBook(title=saved.title, author=saved.author, shelf="reading")
     db.session.add(book)
+    db.session.delete(saved)
     db.session.commit()
     return jsonify({"ok": True, "book_id": book.id})
 
@@ -1573,6 +1574,7 @@ def api_screen_saved_to_watching(screen_id):
     saved = SavedScreen.query.get_or_404(screen_id)
     screen = MyScreen(title=saved.title, media_type=saved.media_type or "movie", shelf="watching")
     db.session.add(screen)
+    db.session.delete(saved)
     db.session.commit()
     return jsonify({"ok": True, "screen_id": screen.id})
 
