@@ -3,6 +3,7 @@ import json
 import logging
 import re
 from datetime import date, datetime, timedelta
+from urllib.parse import urljoin, urlparse, urlunparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -18,6 +19,201 @@ HEADERS = {
 }
 
 ARTICLE_URL_RE = re.compile(r"/news/[^/]+/\d{5,}")
+SITE_BOOTSTRAP_CUTOFF = date(2026, 3, 1)
+SITE_BOOTSTRAP_OLD_LIMIT = 2
+
+
+def _normalize_url(raw_url: str, base_url: str) -> str:
+    """Resolve relative URL and remove query/fragment for dedup."""
+    full_url = urljoin(base_url, (raw_url or "").strip())
+    parsed = urlparse(full_url)
+    if parsed.scheme not in ("http", "https"):
+        return ""
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+
+
+def _parse_date_from_text(text: str):
+    """Parse a date from free-form text. Returns date or None."""
+    if not text:
+        return None
+
+    value = " ".join(text.strip().split())
+    if not value:
+        return None
+
+    # ISO-like
+    iso_match = re.search(r"\b(\d{4})[-./](\d{1,2})[-./](\d{1,2})\b", value)
+    if iso_match:
+        try:
+            year, month, day = map(int, iso_match.groups())
+            return date(year, month, day)
+        except ValueError:
+            pass
+
+    # US-like
+    us_match = re.search(r"\b(\d{1,2})[-./](\d{1,2})[-./](\d{4})\b", value)
+    if us_match:
+        try:
+            month, day, year = map(int, us_match.groups())
+            return date(year, month, day)
+        except ValueError:
+            pass
+
+    candidates = [value]
+    for pattern in (
+        r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s+\d{4}\b",
+        r"\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{4}\b",
+    ):
+        match = re.search(pattern, value, flags=re.IGNORECASE)
+        if match:
+            candidates.insert(0, match.group(0))
+
+    formats = (
+        "%B %d, %Y",
+        "%b %d, %Y",
+        "%d %B %Y",
+        "%d %b %Y",
+    )
+    for cand in candidates:
+        normalized = cand.replace("Sept ", "Sep ")
+        for fmt in formats:
+            try:
+                return datetime.strptime(normalized, fmt).date()
+            except ValueError:
+                continue
+
+    return None
+
+
+def _extract_nearby_pub_date(tag):
+    """Find a nearby publication date around an anchor."""
+    scope = tag
+    for _ in range(5):
+        if scope is None:
+            break
+
+        for time_el in scope.find_all("time"):
+            dt = _parse_date_from_text(time_el.get("datetime", ""))
+            if dt is None:
+                dt = _parse_date_from_text(time_el.get_text(" ", strip=True))
+            if dt is not None:
+                return dt
+
+        for date_el in scope.find_all(attrs={"class": re.compile(r"(date|time|publish|posted)", re.IGNORECASE)}):
+            dt = _parse_date_from_text(date_el.get_text(" ", strip=True))
+            if dt is not None:
+                return dt
+
+        scope = scope.parent
+
+    return None
+
+
+def _extract_anchor_title(a_tag):
+    """Extract a reasonable title from an anchor element."""
+    heading = a_tag.find(["h1", "h2", "h3", "h4", "h5", "h6"])
+    if heading:
+        title = heading.get_text(" ", strip=True)
+    else:
+        title = a_tag.get_text(" ", strip=True)
+
+    if not title:
+        return ""
+
+    title = html_module.unescape(" ".join(title.split()))
+    lower = title.lower()
+    if lower in {"news", "press", "read more", "learn more", "view all"}:
+        return ""
+    if len(title) < 6:
+        return ""
+    return title
+
+
+def _scrape_listing_with_cutoff(
+    listing_url: str,
+    link_pattern: str,
+    section: str,
+    cutoff_date=SITE_BOOTSTRAP_CUTOFF,
+    old_limit=SITE_BOOTSTRAP_OLD_LIMIT,
+    skip_path_pattern: str = "",
+):
+    """Scrape a listing page and apply cutoff policy.
+
+    Policy:
+    - pub_date > cutoff_date: include all
+    - pub_date <= cutoff_date: include up to old_limit
+    - pub_date unavailable: include
+    """
+    articles = []
+    seen_urls = set()
+    link_re = re.compile(link_pattern)
+    skip_re = re.compile(skip_path_pattern) if skip_path_pattern else None
+
+    try:
+        resp = requests.get(listing_url, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch %s: %s", listing_url, e)
+        return articles
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    candidates = []
+
+    for a_tag in soup.find_all("a", href=True):
+        href = _normalize_url(a_tag.get("href", ""), listing_url)
+        if not href:
+            continue
+        if href.rstrip("/") == listing_url.rstrip("/"):
+            continue
+        if not link_re.search(href):
+            continue
+
+        path = urlparse(href).path
+        if skip_re and skip_re.search(path):
+            continue
+
+        title = _extract_anchor_title(a_tag)
+        if not title:
+            continue
+
+        if href in seen_urls:
+            continue
+        seen_urls.add(href)
+
+        candidates.append({
+            "title": title,
+            "url": href,
+            "section": section,
+            "pub_date": _extract_nearby_pub_date(a_tag),
+        })
+
+    old_count = 0
+    for item in candidates:
+        pub_date = item["pub_date"]
+        if pub_date is None or pub_date > cutoff_date:
+            articles.append({
+                "title": item["title"],
+                "url": item["url"],
+                "section": item["section"],
+            })
+            continue
+
+        if old_count < old_limit:
+            articles.append({
+                "title": item["title"],
+                "url": item["url"],
+                "section": item["section"],
+            })
+            old_count += 1
+
+    logger.info(
+        "Scraped %d articles from %s (cutoff=%s, old_limit=%d)",
+        len(articles),
+        listing_url,
+        cutoff_date.isoformat(),
+        old_limit,
+    )
+    return articles
 
 
 def _get_recent_weekday():
@@ -1168,6 +1364,34 @@ def scrape_aitimes():
 
     logger.info("Scraped %d articles from aitimes", len(articles))
     return articles
+
+
+def scrape_fieldai_news():
+    """Scrape Field AI news with bootstrap cutoff policy."""
+    return _scrape_listing_with_cutoff(
+        listing_url="https://www.fieldai.com/news",
+        link_pattern=r"fieldai\.com/news/[^/?#]+",
+        section="Field AI",
+    )
+
+
+def scrape_vention_press():
+    """Scrape Vention press releases with bootstrap cutoff policy."""
+    return _scrape_listing_with_cutoff(
+        listing_url="https://vention.io/press",
+        link_pattern=r"vention\.io/press/[^/?#]+",
+        section="Vention",
+    )
+
+
+def scrape_ifr_press_releases():
+    """Scrape IFR press releases with bootstrap cutoff policy."""
+    return _scrape_listing_with_cutoff(
+        listing_url="https://ifr.org/ifr-press-releases/",
+        link_pattern=r"ifr\.org/ifr-press-releases/[^?#]+",
+        section="IFR",
+        skip_path_pattern=r"/ifr-press-releases/(?:page/\d+/?|feed/?)$",
+    )
 
 
 def scrape_the_decoder():

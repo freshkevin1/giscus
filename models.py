@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
@@ -129,6 +129,14 @@ class NotificationPreference(db.Model):
     contacts_overdue = db.Column(db.Boolean, default=True)   # 기한 초과 연락처
     business_today = db.Column(db.Boolean, default=True)     # 오늘 비즈니스
     business_overdue = db.Column(db.Boolean, default=True)   # 기한 초과 비즈니스
+
+
+class Compliment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    recipient = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    given_at = db.Column(db.Date, nullable=False, default=date.today)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 def init_default_user():

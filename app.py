@@ -23,7 +23,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from config import Config
 import json
 
-from models import Article, ChatMessage, ContactChatMessage, LoginLog, MyBook, NotificationPreference, PushSubscription, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+from models import Article, ChatMessage, Compliment, ContactChatMessage, LoginLog, MyBook, NotificationPreference, PushSubscription, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
 from pywebpush import webpush, WebPushException
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
@@ -651,6 +651,33 @@ def index():
     article_yearly_avg  = round(article_yearly_count / 52, 1)
     article_today_count = article_weekly_stats[-1]["count"] if article_weekly_stats else 0
 
+    # 최근 7일 칭찬 집계
+    compliment_daily_counts = {}
+    for row in Compliment.query.all():
+        d_str = row.given_at.isoformat()
+        compliment_daily_counts[d_str] = compliment_daily_counts.get(d_str, 0) + 1
+
+    compliment_weekly_stats = []
+    for i in range(6, -1, -1):
+        d = date.today() - timedelta(days=i)
+        d_str = d.isoformat()
+        compliment_weekly_stats.append({
+            "date": d_str,
+            "label": d.strftime("%-m/%-d"),
+            "weekday": ["월", "화", "수", "목", "금", "토", "일"][d.weekday()],
+            "count": compliment_daily_counts.get(d_str, 0),
+            "is_today": i == 0,
+        })
+
+    compliment_weekly_total = sum(s["count"] for s in compliment_weekly_stats)
+    compliment_max_daily = max((s["count"] for s in compliment_weekly_stats), default=1) or 1
+    compliment_monthly_count = sum(v for k, v in compliment_daily_counts.items() if k >= one_month_ago_str)
+    compliment_yearly_count  = sum(v for k, v in compliment_daily_counts.items() if k >= one_year_ago_str)
+    compliment_monthly_avg = round(compliment_monthly_count / 4, 1)
+    compliment_yearly_avg  = round(compliment_yearly_count / 52, 1)
+    compliment_today_count = compliment_weekly_stats[-1]["count"] if compliment_weekly_stats else 0
+    total_compliments = sum(compliment_daily_counts.values())
+
     total_contacts = len(contacts)
     fu0_count = sum(1 for c in contacts if c.get("follow_up_priority") == "FU0")
     overdue_count = sum(1 for c in contacts if c.get("follow_up_date", "") and c.get("follow_up_date", "") < today_str)
@@ -718,6 +745,13 @@ def index():
         contact_yearly_avg=contact_yearly_avg,
         article_monthly_avg=article_monthly_avg,
         article_yearly_avg=article_yearly_avg,
+        compliment_weekly_stats=compliment_weekly_stats,
+        compliment_weekly_total=compliment_weekly_total,
+        compliment_max_daily=compliment_max_daily,
+        compliment_today_count=compliment_today_count,
+        total_compliments=total_compliments,
+        compliment_monthly_avg=compliment_monthly_avg,
+        compliment_yearly_avg=compliment_yearly_avg,
     )
 
 
@@ -1187,6 +1221,50 @@ def api_delete_saved_book(book_id):
     db.session.delete(book)
     db.session.commit()
     return jsonify({"status": "ok"})
+
+
+# --- Compliment API ---
+
+@app.route("/api/compliments", methods=["GET"])
+@login_required
+def api_get_compliments():
+    thirty_days_ago = date.today() - timedelta(days=30)
+    rows = Compliment.query.filter(Compliment.given_at >= thirty_days_ago)\
+        .order_by(Compliment.given_at.desc(), Compliment.created_at.desc()).all()
+    return jsonify([{
+        "id": r.id, "recipient": r.recipient,
+        "content": r.content, "given_at": r.given_at.isoformat(),
+    } for r in rows])
+
+
+@app.route("/api/compliments", methods=["POST"])
+@login_required
+def api_add_compliment():
+    data = request.get_json()
+    recipient = (data.get("recipient") or "").strip()
+    content = (data.get("content") or "").strip()
+    given_at_str = (data.get("given_at") or "").strip()
+    if not recipient or not content:
+        return jsonify({"error": "recipient and content are required"}), 400
+    try:
+        given_at = date.fromisoformat(given_at_str) if given_at_str else date.today()
+    except ValueError:
+        return jsonify({"error": "invalid given_at date"}), 400
+    c = Compliment(recipient=recipient, content=content, given_at=given_at)
+    db.session.add(c)
+    db.session.commit()
+    return jsonify({"id": c.id, "recipient": c.recipient, "content": c.content, "given_at": c.given_at.isoformat()}), 201
+
+
+@app.route("/api/compliments/<int:compliment_id>", methods=["DELETE"])
+@login_required
+def api_delete_compliment(compliment_id):
+    c = db.session.get(Compliment, compliment_id)
+    if not c:
+        return jsonify({"error": "not found"}), 404
+    db.session.delete(c)
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 # --- Habit Log API ---
