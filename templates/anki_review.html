@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}Review — Anki{% endblock %}
+{% block mobile_title %}Review{% endblock %}
+
+{% block content %}
+<style>
+.flip-container {
+    perspective: 1200px;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+}
+.flip-card {
+    position: relative;
+    width: 100%;
+    min-height: 240px;
+    transform-style: preserve-3d;
+    transition: transform 0.45s ease;
+    cursor: pointer;
+}
+.flip-card.flipped {
+    transform: rotateY(180deg);
+}
+.flip-front, .flip-back {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
+.flip-front {
+    background: var(--card-bg, #fff);
+    border: 2px solid var(--border-color, #e0e0e0);
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+.flip-back {
+    background: var(--color-primary, #4f46e5);
+    color: #fff;
+    transform: rotateY(180deg);
+    font-size: 1rem;
+    line-height: 1.6;
+}
+.rating-btns {
+    display: none;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 1.5rem;
+}
+.rating-btns.visible { display: flex; }
+.rating-btn {
+    min-width: 90px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: opacity 0.15s;
+}
+.rating-btn:hover { opacity: 0.85; }
+.btn-again  { background: #ef4444; color: #fff; }
+.btn-hard   { background: #f97316; color: #fff; }
+.btn-good   { background: #22c55e; color: #fff; }
+.btn-easy   { background: #3b82f6; color: #fff; }
+.flip-hint {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #888);
+    margin-top: 0.75rem;
+    text-align: center;
+}
+.done-screen {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+</style>
+
+<!-- Header -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <a href="{{ url_for('anki_hub') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+    <span id="progressText" class="text-muted small">Loading…</span>
+</div>
+
+<!-- Progress bar -->
+<div class="progress mb-4" style="height: 6px;">
+    <div class="progress-bar" id="progressBar" style="width: 0%; background: var(--color-accent);"></div>
+</div>
+
+<!-- Review area -->
+<div id="reviewArea">
+    <div class="flip-container">
+        <div class="flip-card" id="flipCard" onclick="flipCard()">
+            <div class="flip-front" id="cardFrontText">
+                <div id="frontContent"></div>
+            </div>
+            <div class="flip-back" id="cardBackText">
+                <div id="backContent"></div>
+            </div>
+        </div>
+    </div>
+    <p class="flip-hint" id="flipHint">클릭하여 뒤집기</p>
+
+    <div class="rating-btns" id="ratingBtns">
+        <button class="rating-btn btn-again" onclick="submitRating(1)">Again<br><small style="font-weight:400;font-size:0.75rem;">&lt;1일</small></button>
+        <button class="rating-btn btn-hard" onclick="submitRating(2)">Hard<br><small style="font-weight:400;font-size:0.75rem;">어려웠어요</small></button>
+        <button class="rating-btn btn-good" onclick="submitRating(3)">Good<br><small style="font-weight:400;font-size:0.75rem;">잘 기억함</small></button>
+        <button class="rating-btn btn-easy" onclick="submitRating(4)">Easy<br><small style="font-weight:400;font-size:0.75rem;">완벽 기억</small></button>
+    </div>
+</div>
+
+<!-- Done screen -->
+<div id="doneScreen" class="done-screen" style="display:none;">
+    <i class="bi bi-check-circle-fill" style="font-size: 4rem; color: var(--color-accent);"></i>
+    <h3 class="mt-3">세션 완료!</h3>
+    <p class="text-muted" id="doneMessage"></p>
+    <a href="{{ url_for('anki_hub') }}" class="btn btn-primary mt-2">
+        <i class="bi bi-house"></i> Back to Anki
+    </a>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let cards = [];
+let currentIndex = 0;
+let reviewedCount = 0;
+let isFlipped = false;
+
+async function loadDueCards() {
+    const res = await fetch('/api/anki/due');
+    cards = await res.json();
+    if (cards.length === 0) {
+        showDone(0);
+        return;
+    }
+    showCard(0);
+}
+
+function showCard(index) {
+    if (index >= cards.length) {
+        showDone(reviewedCount);
+        return;
+    }
+    const card = cards[index];
+    document.getElementById('frontContent').textContent = card.front;
+    document.getElementById('backContent').textContent = card.back;
+
+    // Reset flip state
+    const flipCard = document.getElementById('flipCard');
+    flipCard.classList.remove('flipped');
+    isFlipped = false;
+    document.getElementById('flipHint').style.display = '';
+    document.getElementById('ratingBtns').classList.remove('visible');
+
+    updateProgress(index, cards.length);
+}
+
+function flipCard() {
+    if (isFlipped) return;
+    isFlipped = true;
+    document.getElementById('flipCard').classList.add('flipped');
+    document.getElementById('flipHint').style.display = 'none';
+    document.getElementById('ratingBtns').classList.add('visible');
+}
+
+async function submitRating(rating) {
+    const card = cards[currentIndex];
+    // Disable buttons to prevent double-tap
+    document.querySelectorAll('.rating-btn').forEach(b => b.disabled = true);
+
+    await fetch(`/api/anki/cards/${card.id}/review`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({rating}),
+    });
+
+    reviewedCount++;
+    currentIndex++;
+    document.querySelectorAll('.rating-btn').forEach(b => b.disabled = false);
+    showCard(currentIndex);
+}
+
+function updateProgress(index, total) {
+    const pct = total > 0 ? Math.round((index / total) * 100) : 0;
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('progressText').textContent = `${index} / ${total} 완료`;
+}
+
+function showDone(count) {
+    document.getElementById('reviewArea').style.display = 'none';
+    document.getElementById('doneScreen').style.display = '';
+    document.getElementById('progressBar').style.width = '100%';
+    document.getElementById('progressText').textContent = '완료';
+    document.getElementById('doneMessage').textContent =
+        count > 0 ? `오늘 ${count}개 카드를 복습했습니다.` : '오늘 복습할 카드가 없습니다.';
+}
+
+loadDueCards();
+</script>
+{% endblock %}

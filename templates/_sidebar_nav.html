@@ -101,6 +101,13 @@
         </ul>
         {% endif %}
     </li>
+    <hr style="border-color: rgba(255,255,255,0.1); margin: 8px 0;">
+    <li class="nav-item">
+        <a class="nav-link {% if request.endpoint in ('anki_hub', 'anki_review', 'anki_deck') %}active{% endif %}"
+           href="{{ url_for('anki_hub') }}">
+            <i class="bi bi-lightning-charge"></i> Anki
+        </a>
+    </li>
 </ul>
 <div class="mt-auto">
     <hr style="border-color: rgba(255,255,255,0.1); margin: 8px 0;">

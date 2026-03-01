@@ -15,3 +15,4 @@ google-auth==2.38.0
 cryptography==44.0.0
 tenacity>=8.2.0
 pywebpush
+PyPDF2==3.0.1

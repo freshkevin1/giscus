@@ -23,7 +23,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from config import Config
 import json
 
-from models import Article, ChatMessage, Compliment, ContactChatMessage, LoginLog, MyBook, NotificationPreference, PushSubscription, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
+from models import AnkiCard, AnkiDeck, Article, ChatMessage, Compliment, ContactChatMessage, LoginLog, MyBook, NotificationPreference, PushSubscription, ReadArticle, Recommendation, SavedBook, User, db, init_default_user
 from pywebpush import webpush, WebPushException
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
@@ -2233,6 +2233,266 @@ def clear_read_history(keyword):
     return jsonify({"status": "ok", "cleared": count, "keyword": keyword})
 
 
+# --- Anki SRS ---
+
+def _apply_srs_review(card, rating):
+    """Apply SM-2 algorithm. rating: 1=Again, 2=Hard, 3=Good, 4=Easy."""
+    if rating == 1:
+        card.repetitions = 0
+        card.interval = 1
+        card.ease_factor = max(1.3, card.ease_factor - 0.2)
+    elif rating == 2:
+        card.interval = max(1, round(card.interval * 1.2))
+        card.ease_factor = max(1.3, card.ease_factor - 0.15)
+    elif rating == 3:
+        if card.repetitions == 0:
+            card.interval = 1
+        elif card.repetitions == 1:
+            card.interval = 6
+        else:
+            card.interval = round(card.interval * card.ease_factor)
+        card.repetitions += 1
+    elif rating == 4:
+        if card.repetitions == 0:
+            card.interval = 4
+        else:
+            card.interval = round(card.interval * card.ease_factor * 1.3)
+        card.ease_factor = min(2.5, card.ease_factor + 0.15)
+        card.repetitions += 1
+    card.next_review = date.today() + timedelta(days=card.interval)
+    card.last_reviewed = datetime.now(timezone.utc)
+
+
+@app.route("/anki")
+@login_required
+def anki_hub():
+    today = date.today()
+    due_count = AnkiCard.query.filter(
+        AnkiCard.status == 'active',
+        AnkiCard.next_review <= today
+    ).count()
+    total_active = AnkiCard.query.filter_by(status='active').count()
+    total_archived = AnkiCard.query.filter_by(status='archived').count()
+    decks = AnkiDeck.query.order_by(AnkiDeck.created_at.desc()).all()
+
+    deck_stats = []
+    for deck in decks:
+        active = AnkiCard.query.filter_by(deck_id=deck.id, status='active').count()
+        due = AnkiCard.query.filter(
+            AnkiCard.deck_id == deck.id,
+            AnkiCard.status == 'active',
+            AnkiCard.next_review <= today
+        ).count()
+        deck_stats.append({'deck': deck, 'active_count': active, 'due_count': due})
+
+    return render_template(
+        "anki.html",
+        due_count=due_count,
+        total_active=total_active,
+        total_archived=total_archived,
+        deck_stats=deck_stats,
+    )
+
+
+@app.route("/anki/review")
+@login_required
+def anki_review():
+    return render_template("anki_review.html")
+
+
+@app.route("/anki/deck/<int:deck_id>")
+@login_required
+def anki_deck(deck_id):
+    deck = db.session.get(AnkiDeck, deck_id)
+    if not deck:
+        return redirect(url_for('anki_hub'))
+    cards = AnkiCard.query.filter_by(deck_id=deck_id).order_by(AnkiCard.next_review.asc()).all()
+    return render_template("anki_deck.html", deck=deck, cards=cards, today=date.today())
+
+
+@app.route("/api/anki/due")
+@login_required
+def api_anki_due():
+    today = date.today()
+    cards = AnkiCard.query.filter(
+        AnkiCard.status == 'active',
+        AnkiCard.next_review <= today
+    ).order_by(AnkiCard.next_review.asc()).all()
+    return jsonify([{
+        'id': c.id,
+        'front': c.front,
+        'back': c.back,
+        'card_type': c.card_type,
+        'source_ref': c.source_ref,
+        'interval': c.interval,
+        'repetitions': c.repetitions,
+    } for c in cards])
+
+
+@app.route("/api/anki/upload/preview", methods=["POST"])
+@login_required
+def api_anki_upload_preview():
+    if 'file' not in request.files:
+        return jsonify({"error": "파일이 없습니다."}), 400
+    f = request.files['file']
+    filename = f.filename or ''
+    if filename.lower().endswith('.pdf'):
+        content = f.read()
+    else:
+        content = f.read().decode('utf-8', errors='replace')
+
+    from anki_parser import parse_auto
+    cards = parse_auto(content, filename)
+    if not cards:
+        return jsonify({"error": "카드를 파싱할 수 없습니다. 파일 형식을 확인하세요."}), 422
+
+    # Check for duplicate deck by source_file
+    duplicate = AnkiDeck.query.filter_by(source_file=filename).first()
+    dup_info = None
+    if duplicate:
+        dup_info = {'id': duplicate.id, 'name': duplicate.name}
+
+    # Auto-detect deck name and author from first card
+    deck_name = cards[0].get('deck_name', '') if cards else ''
+    author = cards[0].get('author', '') if cards else ''
+
+    return jsonify({
+        'total': len(cards),
+        'preview': cards[:5],
+        'all_cards': cards,
+        'deck_name': deck_name,
+        'author': author,
+        'source_file': filename,
+        'duplicate_deck': dup_info,
+    })
+
+
+@app.route("/api/anki/upload/confirm", methods=["POST"])
+@login_required
+def api_anki_upload_confirm():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "데이터가 없습니다."}), 400
+
+    cards_data = data.get('cards', [])
+    deck_name = data.get('deck_name', '').strip()
+    author = data.get('author', '').strip()
+    source_file = data.get('source_file', '').strip()
+    overwrite = data.get('overwrite', False)
+
+    if not deck_name:
+        return jsonify({"error": "덱 이름이 필요합니다."}), 400
+    if not cards_data:
+        return jsonify({"error": "카드 데이터가 없습니다."}), 400
+
+    if overwrite and source_file:
+        existing = AnkiDeck.query.filter_by(source_file=source_file).first()
+        if existing:
+            db.session.delete(existing)
+            db.session.commit()
+
+    deck = AnkiDeck(
+        name=deck_name,
+        author=author,
+        source_file=source_file,
+        source_type='highlight',
+    )
+    db.session.add(deck)
+    db.session.flush()  # get deck.id
+
+    for card_data in cards_data:
+        card = AnkiCard(
+            deck_id=deck.id,
+            card_type='highlight',
+            front=card_data.get('front', ''),
+            back=card_data.get('back', ''),
+            source_ref=card_data.get('source_ref', ''),
+        )
+        db.session.add(card)
+
+    db.session.commit()
+    return jsonify({"deck_id": deck.id, "card_count": len(cards_data)})
+
+
+@app.route("/api/anki/cards", methods=["POST"])
+@login_required
+def api_anki_create_card():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "데이터가 없습니다."}), 400
+
+    front = data.get('front', '').strip()
+    back = data.get('back', '').strip()
+    if not front or not back:
+        return jsonify({"error": "Front와 Back 내용이 필요합니다."}), 400
+
+    deck_id = data.get('deck_id')
+    new_deck_name = data.get('new_deck_name', '').strip()
+
+    if deck_id:
+        deck = db.session.get(AnkiDeck, int(deck_id))
+        if not deck:
+            return jsonify({"error": "덱을 찾을 수 없습니다."}), 404
+    elif new_deck_name:
+        deck = AnkiDeck(name=new_deck_name, source_type='manual')
+        db.session.add(deck)
+        db.session.flush()
+    else:
+        return jsonify({"error": "deck_id 또는 new_deck_name이 필요합니다."}), 400
+
+    card = AnkiCard(
+        deck_id=deck.id,
+        card_type='qa',
+        front=front,
+        back=back,
+        source_ref=data.get('source_ref', ''),
+    )
+    db.session.add(card)
+    db.session.commit()
+    return jsonify({"card_id": card.id, "deck_id": deck.id})
+
+
+@app.route("/api/anki/cards/<int:card_id>/review", methods=["POST"])
+@login_required
+def api_anki_review_card(card_id):
+    card = db.session.get(AnkiCard, card_id)
+    if not card:
+        return jsonify({"error": "카드를 찾을 수 없습니다."}), 404
+    data = request.get_json()
+    rating = data.get('rating')
+    if rating not in (1, 2, 3, 4):
+        return jsonify({"error": "rating은 1-4 사이여야 합니다."}), 400
+    _apply_srs_review(card, rating)
+    db.session.commit()
+    return jsonify({
+        "interval": card.interval,
+        "next_review": card.next_review.isoformat(),
+        "ease_factor": round(card.ease_factor, 2),
+    })
+
+
+@app.route("/api/anki/cards/<int:card_id>/archive", methods=["POST"])
+@login_required
+def api_anki_archive_card(card_id):
+    card = db.session.get(AnkiCard, card_id)
+    if not card:
+        return jsonify({"error": "카드를 찾을 수 없습니다."}), 404
+    card.status = 'active' if card.status == 'archived' else 'archived'
+    db.session.commit()
+    return jsonify({"status": card.status})
+
+
+@app.route("/api/anki/decks/<int:deck_id>", methods=["DELETE"])
+@login_required
+def api_anki_delete_deck(deck_id):
+    deck = db.session.get(AnkiDeck, deck_id)
+    if not deck:
+        return jsonify({"error": "덱을 찾을 수 없습니다."}), 404
+    db.session.delete(deck)
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
+
 # --- Init & Run ---
 
 with app.app_context():
@@ -2259,6 +2519,11 @@ with app.app_context():
     inspector = sa_inspect(db.engine)
     if "login_log" not in inspector.get_table_names():
         LoginLog.__table__.create(db.engine)
+    # Migrate: create anki tables if missing
+    if "anki_deck" not in inspector.get_table_names():
+        AnkiDeck.__table__.create(db.engine)
+    if "anki_card" not in inspector.get_table_names():
+        AnkiCard.__table__.create(db.engine)
     init_default_user()
 
     # One-time: migrate aicompanies/robotics_companies → ai_robotics

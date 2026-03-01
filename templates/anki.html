@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% block title %}Anki — Dashboard{% endblock %}
+{% block mobile_title %}Anki{% endblock %}
+
+{% block content %}
+<style>
+.anki-deck-card {
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.anki-deck-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md) !important;
+}
+.due-badge {
+    background: var(--color-accent);
+    color: #fff;
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+</style>
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <h2 class="mb-0"><i class="bi bi-lightning-charge"></i> Anki</h2>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#addCardModal">
+            <i class="bi bi-plus-lg"></i> Add Card
+        </button>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="bi bi-upload"></i> Upload File
+        </button>
+    </div>
+</div>
+
+<!-- Stats row -->
+<div class="row g-3 mb-4">
+    <div class="col-4">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body py-3">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--color-accent);">{{ due_count }}</div>
+                <small class="text-muted">Due Today</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body py-3">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--text-primary);">{{ total_active }}</div>
+                <small class="text-muted">Active</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body py-3">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--text-secondary);">{{ total_archived }}</div>
+                <small class="text-muted">Archived</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Start Review button -->
+<div class="mb-4">
+    {% if due_count > 0 %}
+    <a href="{{ url_for('anki_review') }}" class="btn btn-success">
+        <i class="bi bi-play-fill"></i> Start Review ({{ due_count }} cards)
+    </a>
+    {% else %}
+    <button class="btn btn-success" disabled>
+        <i class="bi bi-check-circle"></i> All caught up!
+    </button>
+    {% endif %}
+</div>
+
+<!-- Deck grid -->
+{% if deck_stats %}
+<div class="row g-3">
+    {% for ds in deck_stats %}
+    <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('anki_deck', deck_id=ds.deck.id) }}" class="text-decoration-none">
+            <div class="card shadow-sm border-0 anki-deck-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0 text-truncate me-2" title="{{ ds.deck.name }}">
+                            {{ ds.deck.name }}
+                        </h6>
+                        {% if ds.due_count > 0 %}
+                        <span class="due-badge flex-shrink-0">{{ ds.due_count }} due</span>
+                        {% endif %}
+                    </div>
+                    {% if ds.deck.author %}
+                    <small class="text-muted d-block mb-2">{{ ds.deck.author }}</small>
+                    {% endif %}
+                    <small class="text-muted">{{ ds.active_count }} active cards</small>
+                </div>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-lightning-charge" style="font-size: 3rem; opacity: 0.3;"></i>
+    <p class="mt-3">No decks yet. Upload a Kindle clippings file or add a card manually.</p>
+</div>
+{% endif %}
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-upload"></i> Upload Highlights</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="uploadStep1">
+                    <div class="mb-3">
+                        <label class="form-label">File <small class="text-muted">(.txt, .md, .pdf)</small></label>
+                        <input type="file" class="form-control" id="uploadFile" accept=".txt,.md,.pdf">
+                    </div>
+                    <button class="btn btn-primary w-100" onclick="previewUpload()">
+                        <i class="bi bi-search"></i> Parse & Preview
+                    </button>
+                </div>
+                <div id="uploadStep2" style="display:none;">
+                    <div id="dupWarning" class="alert alert-warning d-none">
+                        <strong>중복 파일:</strong> 동일한 파일명의 덱이 이미 존재합니다.
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-warning me-2" onclick="setOverwrite(true)">덮어쓰기</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="setOverwrite(false)">새 덱으로 추가</button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Deck Name</label>
+                        <input type="text" class="form-control" id="deckNameInput">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Author</label>
+                        <input type="text" class="form-control" id="deckAuthorInput">
+                    </div>
+                    <p class="text-muted small" id="previewSummary"></p>
+                    <div id="previewCards" class="mb-3" style="max-height: 200px; overflow-y: auto;"></div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-secondary flex-grow-1" onclick="resetUpload()">← 다시 선택</button>
+                        <button class="btn btn-success flex-grow-1" onclick="confirmUpload()">저장하기</button>
+                    </div>
+                </div>
+                <div id="uploadLoading" class="text-center py-3 d-none">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">파싱 중...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Card Modal -->
+<div class="modal fade" id="addCardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-lg"></i> Add Card</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Deck</label>
+                    <select class="form-select" id="addCardDeckId">
+                        <option value="">— 새 덱 만들기 —</option>
+                        {% for ds in deck_stats %}
+                        <option value="{{ ds.deck.id }}">{{ ds.deck.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3" id="newDeckNameRow" style="display:none;">
+                    <label class="form-label">New Deck Name</label>
+                    <input type="text" class="form-control" id="newDeckNameInput" placeholder="새 덱 이름">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Front (Question)</label>
+                    <textarea class="form-control" id="cardFront" rows="3" placeholder="질문 또는 문맥"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Back (Answer)</label>
+                    <textarea class="form-control" id="cardBack" rows="4" placeholder="답 또는 하이라이트 전문"></textarea>
+                </div>
+                <button class="btn btn-primary w-100" onclick="addCard()">카드 추가</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _uploadPayload = null;
+let _overwrite = false;
+
+function previewUpload() {
+    const file = document.getElementById('uploadFile').files[0];
+    if (!file) { alert('파일을 선택하세요.'); return; }
+
+    const form = new FormData();
+    form.append('file', file);
+
+    document.getElementById('uploadStep1').style.display = 'none';
+    document.getElementById('uploadLoading').classList.remove('d-none');
+
+    fetch('/api/anki/upload/preview', { method: 'POST', body: form })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('uploadLoading').classList.add('d-none');
+            if (data.error) { alert(data.error); resetUpload(); return; }
+
+            _uploadPayload = data;
+            _overwrite = false;
+
+            document.getElementById('deckNameInput').value = data.deck_name || '';
+            document.getElementById('deckAuthorInput').value = data.author || '';
+            document.getElementById('previewSummary').textContent = `총 ${data.total}개 카드가 파싱되었습니다.`;
+
+            // Show preview cards
+            const preview = document.getElementById('previewCards');
+            preview.innerHTML = (data.preview || []).map(c =>
+                `<div class="border rounded p-2 mb-2" style="font-size:0.85rem;">
+                    <div class="text-muted mb-1">${escHtml(c.front)}</div>
+                    <div>${escHtml(c.back.substring(0, 120))}${c.back.length > 120 ? '…' : ''}</div>
+                </div>`
+            ).join('');
+
+            // Duplicate warning
+            const dupWarn = document.getElementById('dupWarning');
+            if (data.duplicate_deck) {
+                dupWarn.classList.remove('d-none');
+            } else {
+                dupWarn.classList.add('d-none');
+            }
+
+            document.getElementById('uploadStep2').style.display = '';
+        })
+        .catch(() => { alert('오류가 발생했습니다.'); resetUpload(); });
+}
+
+function setOverwrite(val) {
+    _overwrite = val;
+    document.getElementById('dupWarning').innerHTML =
+        `<strong>선택:</strong> ${val ? '기존 덱 덮어쓰기' : '새 덱으로 추가'}`;
+}
+
+function resetUpload() {
+    document.getElementById('uploadStep1').style.display = '';
+    document.getElementById('uploadStep2').style.display = 'none';
+    document.getElementById('uploadLoading').classList.add('d-none');
+    document.getElementById('uploadFile').value = '';
+    _uploadPayload = null;
+}
+
+async function confirmUpload() {
+    if (!_uploadPayload) return;
+    const deckName = document.getElementById('deckNameInput').value.trim();
+    if (!deckName) { alert('덱 이름을 입력하세요.'); return; }
+
+    const res = await fetch('/api/anki/upload/confirm', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            cards: _uploadPayload.all_cards,
+            deck_name: deckName,
+            author: document.getElementById('deckAuthorInput').value.trim(),
+            source_file: _uploadPayload.source_file,
+            overwrite: _overwrite,
+        }),
+    });
+    const result = await res.json();
+    if (result.error) { alert(result.error); return; }
+    location.href = '/anki/deck/' + result.deck_id;
+}
+
+
+function addCard() {
+    const deckId = document.getElementById('addCardDeckId').value;
+    const newDeckName = document.getElementById('newDeckNameInput').value.trim();
+    const front = document.getElementById('cardFront').value.trim();
+    const back = document.getElementById('cardBack').value.trim();
+    if (!front || !back) { alert('Front와 Back을 입력하세요.'); return; }
+    const body = { front, back };
+    if (deckId) body.deck_id = parseInt(deckId);
+    else if (newDeckName) body.new_deck_name = newDeckName;
+    else { alert('덱을 선택하거나 새 덱 이름을 입력하세요.'); return; }
+
+    fetch('/api/anki/cards', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { alert(data.error); return; }
+        location.href = '/anki/deck/' + data.deck_id;
+    });
+}
+
+// Show/hide new deck name input
+document.getElementById('addCardDeckId').addEventListener('change', function() {
+    document.getElementById('newDeckNameRow').style.display = this.value ? 'none' : '';
+});
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+{% endblock %}

@@ -139,6 +139,37 @@ class Compliment(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class AnkiDeck(db.Model):
+    """A deck of Anki cards, representing a book or topic."""
+    id          = db.Column(db.Integer, primary_key=True)
+    name        = db.Column(db.String(300), nullable=False)
+    source_type = db.Column(db.String(20), default='highlight')  # 'highlight' | 'manual'
+    source_file = db.Column(db.String(300), default='')
+    author      = db.Column(db.String(300), default='')
+    created_at  = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    cards = db.relationship('AnkiCard', backref='deck', lazy=True, cascade='all, delete-orphan')
+
+
+class AnkiCard(db.Model):
+    """A single flashcard with SM-2 SRS scheduling fields."""
+    id         = db.Column(db.Integer, primary_key=True)
+    deck_id    = db.Column(db.Integer, db.ForeignKey('anki_deck.id'), nullable=False)
+    card_type  = db.Column(db.String(20), default='highlight')  # 'highlight' | 'qa'
+    front      = db.Column(db.Text, nullable=False)
+    back       = db.Column(db.Text, nullable=False)
+    source_ref = db.Column(db.String(200), default='')
+
+    # SM-2 SRS fields
+    interval    = db.Column(db.Integer, default=1)
+    ease_factor = db.Column(db.Float, default=2.5)
+    repetitions = db.Column(db.Integer, default=0)
+    next_review = db.Column(db.Date, default=date.today)
+    status      = db.Column(db.String(20), default='active')  # 'active' | 'archived'
+
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    last_reviewed = db.Column(db.DateTime, nullable=True)
+
+
 def init_default_user():
     """Create default user if not exists. Reads credentials from environment variables."""
     username = os.environ.get("DASHBOARD_USER")

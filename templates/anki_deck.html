@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}{{ deck.name }} — Anki{% endblock %}
+{% block mobile_title %}{{ deck.name }}{% endblock %}
+
+{% block content %}
+<style>
+.card-row td { vertical-align: middle; }
+.front-preview, .back-preview {
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+}
+</style>
+
+<!-- Header -->
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <a href="{{ url_for('anki_hub') }}" class="text-muted text-decoration-none small">
+            <i class="bi bi-arrow-left"></i> Anki
+        </a>
+        <h2 class="mb-0 mt-1">{{ deck.name }}</h2>
+        {% if deck.author %}
+        <div class="text-muted">{{ deck.author }}</div>
+        {% endif %}
+        <small class="text-muted">{{ cards|length }} cards total</small>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#addCardModal">
+            <i class="bi bi-plus-lg"></i> Add Card
+        </button>
+        <button class="btn btn-outline-danger btn-sm" onclick="deleteDeck({{ deck.id }})">
+            <i class="bi bi-trash"></i> Delete Deck
+        </button>
+    </div>
+</div>
+
+{% if cards %}
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Front</th>
+                    <th>Back</th>
+                    <th>Status</th>
+                    <th>Next Review</th>
+                    <th>Interval</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for card in cards %}
+                <tr class="card-row {% if card.status == 'archived' %}text-muted{% endif %}" id="row-{{ card.id }}">
+                    <td>
+                        <span class="front-preview" title="{{ card.front }}">{{ card.front }}</span>
+                    </td>
+                    <td>
+                        <span class="back-preview" title="{{ card.back }}">{{ card.back }}</span>
+                    </td>
+                    <td>
+                        {% if card.status == 'archived' %}
+                        <span class="badge bg-secondary">Archived</span>
+                        {% else %}
+                        <span class="badge bg-success">Active</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if card.status == 'active' %}
+                        <span class="{% if card.next_review <= today %}text-danger fw-semibold{% endif %}">
+                            {{ card.next_review.strftime('%m/%d') }}
+                        </span>
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    <td>{{ card.interval }}d</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary"
+                                onclick="toggleArchive({{ card.id }})">
+                            {% if card.status == 'archived' %}Unarchive{% else %}Archive{% endif %}
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-card-list" style="font-size: 3rem; opacity: 0.3;"></i>
+    <p class="mt-3">No cards in this deck yet.</p>
+</div>
+{% endif %}
+
+<!-- Add Card Modal -->
+<div class="modal fade" id="addCardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Card to "{{ deck.name }}"</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Front (Question / Context)</label>
+                    <textarea class="form-control" id="cardFront" rows="3"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Back (Answer / Highlight)</label>
+                    <textarea class="form-control" id="cardBack" rows="4"></textarea>
+                </div>
+                <button class="btn btn-primary w-100" onclick="addCard()">카드 추가</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function toggleArchive(cardId) {
+    const res = await fetch(`/api/anki/cards/${cardId}/archive`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    // Reload to reflect changes
+    location.reload();
+}
+
+async function deleteDeck(deckId) {
+    if (!confirm('이 덱과 모든 카드를 삭제하겠습니까?')) return;
+    const res = await fetch(`/api/anki/decks/${deckId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    location.href = '/anki';
+}
+
+async function addCard() {
+    const front = document.getElementById('cardFront').value.trim();
+    const back = document.getElementById('cardBack').value.trim();
+    if (!front || !back) { alert('Front와 Back을 입력하세요.'); return; }
+
+    const res = await fetch('/api/anki/cards', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ deck_id: {{ deck.id }}, front, back }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    location.reload();
+}
+</script>
+{% endblock %}
