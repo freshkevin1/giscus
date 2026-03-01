@@ -95,6 +95,7 @@ PASSWORD_EXPIRY_DAYS = 30
 ADMIN_USERNAME = "tornadogrowth"
 
 HABITS = ["아침 조깅/테니스/골프 + 스트레칭/명상"]
+FAMILY_HABITS = ["아이와 놀기", "와이프 데이트"]
 _WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
 
 
@@ -146,8 +147,16 @@ def _habit_stats(habit_name):
     yearly_count  = sum(1 for d in logged_dates if d >= one_year_ago)
     monthly_avg = round(monthly_count / 4, 1)
     yearly_avg  = round(yearly_count / 52, 1)
+    if logged_dates:
+        last = max(logged_dates)
+        days_since_last = (today - date.fromisoformat(last)).days
+    else:
+        last = None
+        days_since_last = None
     return {"name": habit_name, "today_done": today_done, "streak": streak, "total": total, "days": days,
-            "weekly_count": weekly_count, "monthly_avg": monthly_avg, "yearly_avg": yearly_avg}
+            "weekly_count": weekly_count, "monthly_avg": monthly_avg, "yearly_avg": yearly_avg,
+            "last_date": last, "days_since_last": days_since_last,
+            "yearly_count": yearly_count, "monthly_count": monthly_count}
 
 
 @app.before_request
@@ -683,6 +692,7 @@ def index():
 
     reading_books = MyBook.query.filter_by(shelf="reading").order_by(MyBook.added_at.desc()).all()
     habits_data = [_habit_stats(h) for h in HABITS]
+    family_stats = [_habit_stats(h) for h in FAMILY_HABITS]
 
     return render_template(
         "landing.html",
@@ -701,7 +711,9 @@ def index():
         fu0_count=fu0_count,
         overdue_count=overdue_count,
         habits_data=habits_data,
+        family_stats=family_stats,
         today_str=date.today().strftime("%Y년 %m월 %d일"),
+        today_str_iso=date.today().isoformat(),
         contact_monthly_avg=contact_monthly_avg,
         contact_yearly_avg=contact_yearly_avg,
         article_monthly_avg=article_monthly_avg,

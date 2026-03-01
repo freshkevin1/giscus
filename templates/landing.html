@@ -163,7 +163,16 @@
                         </thead>
                         <tbody>
                             {% for c in top5 %}
-                            <tr{% if c.days_overdue is defined %} class="table-danger"{% endif %}>
+                            <tr
+                                class="{% if c.days_overdue is defined %}table-danger {% endif %}{% if c.name_hmac %}quickview-row quickview-contact-row{% endif %}"
+                                {% if c.name_hmac %}
+                                data-contact-id="{{ c.name_hmac }}"
+                                role="button"
+                                tabindex="0"
+                                title="클릭해서 편집"
+                                aria-label="{{ c.name }} 연락처 편집"
+                                {% endif %}
+                            >
                                 <td class="fw-medium">{{ c.name }}</td>
                                 <td class="text-muted small">{{ c.employer or '—' }}</td>
                                 <td>
@@ -225,7 +234,16 @@
                         </thead>
                         <tbody>
                             {% for e in entity_top5 %}
-                            <tr{% if e.days_overdue is defined %} class="table-danger"{% endif %}>
+                            <tr
+                                class="{% if e.days_overdue is defined %}table-danger {% endif %}{% if e.entity_hmac %}quickview-row quickview-entity-row{% endif %}"
+                                {% if e.entity_hmac %}
+                                data-entity-id="{{ e.entity_hmac }}"
+                                role="button"
+                                tabindex="0"
+                                title="클릭해서 편집"
+                                aria-label="{{ e.name }} 비즈니스 엔티티 편집"
+                                {% endif %}
+                            >
                                 <td class="fw-medium">{{ e.name }}</td>
                                 <td>
                                     <span class="badge
@@ -295,7 +313,16 @@
                         </thead>
                         <tbody>
                             {% for c in incoming %}
-                            <tr>
+                            <tr
+                                class="{% if c.name_hmac %}quickview-row quickview-contact-row{% endif %}"
+                                {% if c.name_hmac %}
+                                data-contact-id="{{ c.name_hmac }}"
+                                role="button"
+                                tabindex="0"
+                                title="클릭해서 편집"
+                                aria-label="{{ c.name }} 연락처 편집"
+                                {% endif %}
+                            >
                                 <td class="fw-medium">{{ c.name }}</td>
                                 <td class="text-muted small">{{ c.employer or '—' }}</td>
                                 <td class="small">{{ c.follow_up_date or '—' }}</td>
@@ -318,6 +345,57 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- 패밀리 트래커 -->
+<div class="row g-4 mb-4">
+  {% for stat in family_stats %}
+  <div class="col-12 col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-{% if loop.first %}emoji-smile{% else %}heart{% endif %}"></i>
+        <span class="fw-semibold">{{ stat.name }}</span>
+      </div>
+      <div class="card-body">
+
+        <!-- 마지막 날짜 -->
+        <div class="mb-3 text-center">
+          <div class="text-muted small mb-1">마지막으로 {{ stat.name }}</div>
+          <div class="fs-5 fw-semibold" id="family-last-{{ loop.index }}">
+            {% if stat.last_date %}
+              {{ stat.last_date }}
+              <span class="text-muted small ms-1">({{ stat.days_since_last }}일 전)</span>
+            {% else %}
+              <span class="text-muted">아직 기록 없음</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- 통계 배지 -->
+        <div class="d-flex gap-2 justify-content-center mb-3">
+          <span class="badge bg-primary-subtle text-primary-emphasis">
+            1년 평균 {{ (stat.yearly_count / 12) | round(1) }}회/월
+          </span>
+          <span class="badge bg-secondary-subtle text-secondary-emphasis">
+            한달 {{ stat.monthly_count }}회
+          </span>
+        </div>
+
+        <!-- 날짜 선택 + 기록 CTA -->
+        <div class="d-flex gap-2">
+          <input type="date" class="form-control form-control-sm"
+                 id="family-date-{{ loop.index }}" value="{{ today_str_iso }}">
+          <button class="btn btn-sm btn-primary text-nowrap"
+                  onclick="familyToggle('{{ stat.name }}', {{ loop.index }}, event)">
+            기록하기
+          </button>
+        </div>
+        <div id="family-msg-{{ loop.index }}" class="text-center small mt-2" style="min-height:1.2em"></div>
+
+      </div>
+    </div>
+  </div>
+  {% endfor %}
 </div>
 
 <!-- Books I am reading -->
@@ -360,6 +438,233 @@
         </a>
     </div>
 </div>
+
+<!-- Edit Contact Modal (Unified with Contact List) -->
+<div class="modal fade" id="editContactModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">연락처 편집</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editContactForm">
+                    <input type="hidden" name="name_hmac" id="editNameHmac">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">이름</label>
+                            <input type="text" class="form-control" name="name" id="editName" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Priority</label>
+                            <select class="form-select" name="contact_priority" id="editCP">
+                                <option value="">선택</option>
+                                <option>1A-인생관계</option>
+                                <option>1M-Mentor, 은인</option>
+                                <option>1F-Family</option>
+                                <option>2A-비즈니스 우선순위</option>
+                                <option>2C-비즈니스</option>
+                                <option>3A-인적 우선순위</option>
+                                <option>3C-인적 네트워킹</option>
+                                <option>4A-Passive</option>
+                                <option>5A-Inactive</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">소속</label>
+                            <input type="text" class="form-control" name="employer" id="editEmployer">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">직급</label>
+                            <input type="text" class="form-control" name="title" id="editTitle">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Follow-up Priority</label>
+                            <select class="form-select" name="follow_up_priority" id="editFU">
+                                <option value="FU9">FU9 (None)</option>
+                                <option value="FU5">FU5 (Low)</option>
+                                <option value="FU3">FU3 (Medium)</option>
+                                <option value="FU1">FU1 (High)</option>
+                                <option value="FU0">FU0 (Critical)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Follow-up Date</label>
+                            <input type="date" class="form-control" name="follow_up_date" id="editFUDate">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Last Contact</label>
+                            <input type="date" class="form-control" name="last_contact" id="editLastContact">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Follow-up Note</label>
+                            <input type="text" class="form-control" name="follow_up_note" id="editFUNote">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email" id="editEmail">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-control" name="phone" id="editPhone">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">태그</label>
+                            <select class="form-select" name="tag" id="editTag">
+                                <option value="">선택</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Referred by</label>
+                            <input type="text" class="form-control" name="referred_by" id="editReferredBy">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Key Value & Interest</label>
+                            <input type="text" class="form-control" name="key_value_interest" id="editKVI">
+                        </div>
+                    </div>
+                </form>
+                <hr>
+                <h6>Interaction Log</h6>
+                <div id="interactionLogs" class="small text-muted">로딩 중...</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger btn-sm" id="deleteContactBtn">삭제</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="updateContactBtn">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View/Edit Entity Modal (Unified with Business Opportunities) -->
+<div class="modal fade" id="viewEntityModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewEntityTitle">엔티티</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <form id="editEntityForm">
+                            <input type="hidden" name="entity_hmac" id="editEntityHmac">
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Business Priority</label>
+                                    <select class="form-select" name="business_priority" id="editEntityBP">
+                                        <option value="">선택</option>
+                                        <option value="0-Critical">0-Critical</option>
+                                        <option value="1-High">1-High</option>
+                                        <option value="2-Medium">2-Medium</option>
+                                        <option value="3-Low">3-Low</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Follow-up Priority</label>
+                                    <select class="form-select" name="follow_up_priority" id="editEntityFU">
+                                        <option value="FU9">FU9 (None)</option>
+                                        <option value="FU5">FU5 (Low)</option>
+                                        <option value="FU3">FU3 (Medium)</option>
+                                        <option value="FU1">FU1 (High)</option>
+                                        <option value="FU0">FU0 (Critical)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Follow-up Date</label>
+                                    <input type="date" class="form-control" name="follow_up_date" id="editEntityFUDate">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Last Contact</label>
+                                    <input type="date" class="form-control" name="last_contact" id="editEntityLastContact">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">태그</label>
+                                    <select class="form-select" name="tag" id="editEntityTag">
+                                        <option value="">선택</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Follow-up Note</label>
+                                    <input type="text" class="form-control" name="follow_up_note" id="editEntityFUNote">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Key Value & Interest</label>
+                                    <input type="text" class="form-control" name="key_value_interest" id="editEntityKVI">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Referred by</label>
+                                    <input type="text" class="form-control" name="referred_by" id="editEntityReferredBy">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">담당자</label>
+                                    <input type="text" class="form-control" name="assignee" id="editEntityAssignee">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Related Individuals</label>
+                                    <div id="relatedIndividualsArea" class="border rounded p-2 bg-light" style="min-height:60px">
+                                        <small class="text-muted">로딩 중...</small>
+                                    </div>
+                                    <input type="hidden" name="related_individuals" id="editEntityRelated">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 fw-semibold">Opportunities</h6>
+                            <button class="btn btn-outline-primary btn-sm" id="addOppBtn">
+                                <i class="bi bi-plus-lg"></i> 추가
+                            </button>
+                        </div>
+                        <div id="opportunitiesList">
+                            <p class="text-muted small">로딩 중...</p>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <h6 class="fw-semibold">Interaction Log</h6>
+                <div id="entityInteractionLogs" class="small text-muted">로딩 중...</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger btn-sm" id="deleteEntityBtn">
+                    <i class="bi bi-trash"></i> 삭제
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="updateEntityBtn">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Opportunity Modal -->
+<div class="modal fade" id="oppModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="oppModalTitle">Opportunity 추가</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="oppEntityHmac">
+                <input type="hidden" id="oppId">
+                <div class="mb-3">
+                    <label class="form-label">Title *</label>
+                    <input type="text" class="form-control" id="oppTitle">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Details</label>
+                    <textarea class="form-control" id="oppDetails" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="saveOppBtn">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -391,6 +696,567 @@ function toggleHabit(btn) {
         btn.disabled = false;
     })
     .catch(() => { btn.disabled = false; });
+}
+
+(async function initDashboardEditableModal() {
+    const contactQuickRows = document.querySelectorAll('.quickview-contact-row');
+    const entityQuickRows = document.querySelectorAll('.quickview-entity-row');
+    const editContactModalEl = document.getElementById('editContactModal');
+    const viewEntityModalEl = document.getElementById('viewEntityModal');
+    const oppModalEl = document.getElementById('oppModal');
+
+    if (!contactQuickRows.length && !entityQuickRows.length) return;
+    if (!editContactModalEl || !viewEntityModalEl || !oppModalEl || typeof bootstrap === 'undefined') return;
+
+    const style = document.createElement('style');
+    style.textContent = '.quickview-row{cursor:pointer;} .quickview-row:focus-visible{outline:2px solid var(--bs-primary);outline-offset:-2px;}';
+    document.head.appendChild(style);
+
+    const contactSeed = {{ (top5 + incoming)|tojson }};
+    const entitySeed = {{ entity_top5|tojson }};
+    const contactsById = new Map();
+    const entitiesById = new Map();
+    let currentEntityHmac = null;
+
+    const editContactModal = bootstrap.Modal.getOrCreateInstance(editContactModalEl);
+    const viewEntityModal = bootstrap.Modal.getOrCreateInstance(viewEntityModalEl);
+    const oppModal = bootstrap.Modal.getOrCreateInstance(oppModalEl);
+
+    function normalizeDateForInput(val) {
+        if (!val) return '';
+        if (/^\d{4}-\d{2}$/.test(val)) return `${val}-01`;
+        if (/^\d{4}$/.test(val)) return `${val}-01-01`;
+        return val;
+    }
+
+    function indexContacts(items) {
+        (items || []).forEach((contact) => {
+            if (contact && contact.name_hmac) contactsById.set(contact.name_hmac, contact);
+        });
+    }
+
+    function indexEntities(items) {
+        (items || []).forEach((entity) => {
+            if (entity && entity.entity_hmac) entitiesById.set(entity.entity_hmac, entity);
+        });
+    }
+
+    async function refreshContacts() {
+        try {
+            const res = await fetch('/api/contacts');
+            const data = await res.json();
+            if (data.error) return false;
+            indexContacts(data.contacts || []);
+            return true;
+        } catch (_e) {
+            return false;
+        }
+    }
+
+    async function refreshEntities() {
+        try {
+            const res = await fetch('/api/entities');
+            const data = await res.json();
+            if (data.error) return false;
+            indexEntities(data.entities || []);
+            return true;
+        } catch (_e) {
+            return false;
+        }
+    }
+
+    async function loadTags() {
+        try {
+            const res = await fetch('/api/tags');
+            const data = await res.json();
+            const tags = data.tags || [];
+            ['editTag', 'editEntityTag'].forEach((id) => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                const current = sel.value;
+                sel.innerHTML = '<option value="">선택</option>' + tags.map((t) => `<option value="${t}">${t}</option>`).join('');
+                sel.value = current;
+            });
+        } catch (_e) {
+            // no-op
+        }
+    }
+
+    function updateUrlState(modalType, id, mode) {
+        const url = new URL(window.location.href);
+        if (modalType && id) {
+            url.searchParams.set('modal', modalType);
+            url.searchParams.set('id', id);
+        } else {
+            url.searchParams.delete('modal');
+            url.searchParams.delete('id');
+        }
+
+        if (mode === 'push') {
+            window.history.pushState({}, '', url);
+            return;
+        }
+        window.history.replaceState({}, '', url);
+    }
+
+    async function ensureContact(nameHmac) {
+        if (contactsById.has(nameHmac)) return contactsById.get(nameHmac);
+        const ok = await refreshContacts();
+        if (!ok) return null;
+        return contactsById.get(nameHmac) || null;
+    }
+
+    async function ensureEntity(entityHmac) {
+        if (entitiesById.has(entityHmac)) return entitiesById.get(entityHmac);
+        const ok = await refreshEntities();
+        if (!ok) return null;
+        return entitiesById.get(entityHmac) || null;
+    }
+
+    async function openContactEdit(nameHmac, historyMode) {
+        const contact = await ensureContact(nameHmac);
+        if (!contact) return false;
+
+        document.getElementById('editNameHmac').value = nameHmac;
+        document.getElementById('editName').value = contact.name || '';
+        document.getElementById('editCP').value = contact.contact_priority || '';
+        document.getElementById('editEmployer').value = contact.employer || '';
+        document.getElementById('editTitle').value = contact.title || '';
+        document.getElementById('editFU').value = contact.follow_up_priority || 'FU9';
+        document.getElementById('editFUDate').value = normalizeDateForInput(contact.follow_up_date || '');
+        document.getElementById('editLastContact').value = normalizeDateForInput(contact.last_contact || '');
+        document.getElementById('editFUNote').value = contact.follow_up_note || '';
+        document.getElementById('editEmail').value = contact.email || '';
+        document.getElementById('editPhone').value = contact.phone || '';
+        document.getElementById('editTag').value = contact.tag || '';
+        document.getElementById('editReferredBy').value = contact.referred_by || '';
+        document.getElementById('editKVI').value = contact.key_value_interest || '';
+
+        const logsDiv = document.getElementById('interactionLogs');
+        logsDiv.innerHTML = '로딩 중...';
+        try {
+            const res = await fetch(`/api/contacts/${nameHmac}/logs`);
+            const data = await res.json();
+            const logs = data.logs || [];
+            if (!logs.length) {
+                logsDiv.innerHTML = '<p class="text-muted">기록 없음</p>';
+            } else {
+                logsDiv.innerHTML = logs.map((l) => `
+                    <div class="border-bottom py-2">
+                        <strong>${l.date}</strong> — ${l.context}
+                        ${l.key_value_extracted ? `<br><small class="text-primary">Key: ${l.key_value_extracted}</small>` : ''}
+                    </div>
+                `).join('');
+            }
+        } catch (_e) {
+            logsDiv.innerHTML = '<p class="text-danger">로그 로딩 실패</p>';
+        }
+
+        viewEntityModal.hide();
+        editContactModal.show();
+        if (historyMode) updateUrlState('contact', nameHmac, historyMode);
+        return true;
+    }
+
+    async function loadSuggestedContacts(entityHmac, relatedRaw) {
+        const area = document.getElementById('relatedIndividualsArea');
+        area.innerHTML = '<small class="text-muted">로딩 중...</small>';
+
+        try {
+            const res = await fetch(`/api/entities/${entityHmac}/suggested-contacts`);
+            const data = await res.json();
+            const relatedSet = new Set((relatedRaw || '').split(',').map((s) => s.trim()).filter(Boolean));
+
+            function renderContact(c) {
+                const isChecked = relatedSet.has(c.name_hmac);
+                const badgeHtml = c.match_reason
+                    ? `<span class="badge bg-info text-dark ms-1" style="font-size:0.7em">${c.match_reason}</span>`
+                    : '';
+                return `<div class="form-check">
+                    <input class="form-check-input related-check" type="checkbox" value="${c.name_hmac}" id="rc_${c.name_hmac}" ${isChecked ? 'checked' : ''}>
+                    <label class="form-check-label" for="rc_${c.name_hmac}">${c.display_name}${badgeHtml}</label>
+                </div>`;
+            }
+
+            let html = '';
+            if (data.suggested && data.suggested.length) {
+                html += '<div class="mb-2"><small class="text-muted fw-semibold">추천 (Employer 매칭)</small></div>';
+                html += data.suggested.map(renderContact).join('');
+            }
+            if (data.others && data.others.length) {
+                if (html) html += '<hr class="my-2">';
+                html += '<details><summary class="small text-muted" style="cursor:pointer">기타 연락처 더보기</summary><div class="mt-1">';
+                html += data.others.map(renderContact).join('');
+                html += '</div></details>';
+            }
+
+            area.innerHTML = html || '<small class="text-muted">연락처 없음</small>';
+            area.querySelectorAll('.related-check').forEach((cb) => {
+                cb.addEventListener('change', updateRelatedHidden);
+            });
+        } catch (_e) {
+            area.innerHTML = '<small class="text-danger">로드 실패</small>';
+        }
+    }
+
+    function updateRelatedHidden() {
+        const checked = Array.from(document.querySelectorAll('#relatedIndividualsArea .related-check:checked')).map((cb) => cb.value);
+        document.getElementById('editEntityRelated').value = checked.join(', ');
+    }
+
+    async function loadOpportunities(entityHmac) {
+        const listDiv = document.getElementById('opportunitiesList');
+        listDiv.innerHTML = '<p class="text-muted small">로딩 중...</p>';
+
+        try {
+            const res = await fetch(`/api/entities/${entityHmac}/opportunities`);
+            const data = await res.json();
+            const opps = data.opportunities || [];
+
+            if (!opps.length) {
+                listDiv.innerHTML = '<p class="text-muted small">등록된 Opportunity가 없습니다.</p>';
+                return;
+            }
+
+            listDiv.innerHTML = opps.map((o) => `
+                <div class="border rounded p-2 mb-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="fw-semibold">${o.title}</div>
+                        <div>
+                            <button class="btn btn-link btn-sm p-0 me-2 text-secondary"
+                                onclick="openEditOpp('${entityHmac}', '${o.opp_id}', ${JSON.stringify(o.title).replace(/"/g, '&quot;')}, ${JSON.stringify(o.details || '').replace(/"/g, '&quot;')})">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-link btn-sm p-0 text-danger"
+                                onclick="deleteOpp('${entityHmac}', '${o.opp_id}')">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                    ${o.details ? `<div class="text-muted small mt-1">${o.details}</div>` : ''}
+                    <div class="text-muted" style="font-size:0.75em">${o.created_date || ''}</div>
+                </div>
+            `).join('');
+        } catch (_e) {
+            listDiv.innerHTML = '<p class="text-danger small">로드 실패</p>';
+        }
+    }
+
+    async function loadEntityLogs(entityHmac) {
+        const logsDiv = document.getElementById('entityInteractionLogs');
+        logsDiv.innerHTML = '로딩 중...';
+        try {
+            const res = await fetch(`/api/entities/${entityHmac}/logs`);
+            const data = await res.json();
+            const logs = data.logs || [];
+            if (!logs.length) {
+                logsDiv.innerHTML = '<p class="text-muted">기록 없음</p>';
+            } else {
+                logsDiv.innerHTML = logs.map((l) => `
+                    <div class="border-bottom py-2">
+                        <strong>${l.date}</strong> — ${l.context}
+                        ${l.key_value_extracted ? `<br><small class="text-primary">Key: ${l.key_value_extracted}</small>` : ''}
+                    </div>
+                `).join('');
+            }
+        } catch (_e) {
+            logsDiv.innerHTML = '<p class="text-danger">로그 로딩 실패</p>';
+        }
+    }
+
+    async function openEntityEdit(entityHmac, historyMode) {
+        const entity = await ensureEntity(entityHmac);
+        if (!entity) return false;
+
+        currentEntityHmac = entityHmac;
+
+        document.getElementById('viewEntityTitle').textContent = entity.name || '엔티티';
+        document.getElementById('editEntityHmac').value = entityHmac;
+        document.getElementById('editEntityBP').value = entity.business_priority || '';
+        document.getElementById('editEntityFU').value = entity.follow_up_priority || 'FU9';
+        document.getElementById('editEntityFUDate').value = normalizeDateForInput(entity.follow_up_date || '');
+        document.getElementById('editEntityLastContact').value = normalizeDateForInput(entity.last_contact || '');
+        document.getElementById('editEntityFUNote').value = entity.follow_up_note || '';
+        document.getElementById('editEntityKVI').value = entity.key_value_interest || '';
+        document.getElementById('editEntityReferredBy').value = entity.referred_by || '';
+        document.getElementById('editEntityAssignee').value = entity.assignee || '';
+        document.getElementById('editEntityTag').value = entity.tag || '';
+        document.getElementById('editEntityRelated').value = entity.related_individuals || '';
+
+        await Promise.all([
+            loadSuggestedContacts(entityHmac, entity.related_individuals || ''),
+            loadOpportunities(entityHmac),
+            loadEntityLogs(entityHmac),
+        ]);
+
+        editContactModal.hide();
+        viewEntityModal.show();
+        if (historyMode) updateUrlState('entity', entityHmac, historyMode);
+        return true;
+    }
+
+    async function syncModalWithUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const modalType = params.get('modal');
+        const id = params.get('id');
+
+        if (modalType === 'contact' && id) {
+            if (!await openContactEdit(id, null)) {
+                editContactModal.hide();
+                viewEntityModal.hide();
+                updateUrlState(null, null, 'replace');
+            }
+            return;
+        }
+        if (modalType === 'entity' && id) {
+            if (!await openEntityEdit(id, null)) {
+                editContactModal.hide();
+                viewEntityModal.hide();
+                updateUrlState(null, null, 'replace');
+            }
+            return;
+        }
+
+        editContactModal.hide();
+        viewEntityModal.hide();
+    }
+
+    function bindQuickRows(rows, key, opener) {
+        rows.forEach((row) => {
+            const itemId = row.dataset[key];
+            if (!itemId) return;
+
+            row.addEventListener('click', async (event) => {
+                if (event.target.closest('a, button, input, select, textarea')) return;
+                await opener(itemId, 'push');
+            });
+            row.addEventListener('keydown', async (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                await opener(itemId, 'push');
+            });
+        });
+    }
+
+    document.getElementById('updateContactBtn').addEventListener('click', async () => {
+        const nameHmac = document.getElementById('editNameHmac').value;
+        const fields = ['contact_priority', 'employer', 'title', 'follow_up_priority', 'follow_up_date', 'follow_up_note', 'last_contact', 'email', 'phone', 'tag', 'referred_by', 'key_value_interest'];
+        const form = document.getElementById('editContactForm');
+        const formData = new FormData(form);
+        const data = {};
+        fields.forEach((f) => {
+            const val = formData.get(f);
+            if (val !== null) data[f] = val;
+        });
+
+        try {
+            const res = await fetch(`/api/contacts/${nameHmac}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data),
+            });
+            const result = await res.json();
+            if (result.error) {
+                alert(result.errors ? result.errors.join('\n') : result.error);
+                return;
+            }
+            editContactModal.hide();
+            await refreshContacts();
+        } catch (e) {
+            alert('오류: ' + e.message);
+        }
+    });
+
+    document.getElementById('deleteContactBtn').addEventListener('click', async () => {
+        if (!confirm('휴지통으로 이동하시겠습니까?')) return;
+        const nameHmac = document.getElementById('editNameHmac').value;
+        try {
+            const res = await fetch(`/api/contacts/${nameHmac}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.error) {
+                alert(result.error);
+                return;
+            }
+            editContactModal.hide();
+            window.location.reload();
+        } catch (e) {
+            alert('오류: ' + e.message);
+        }
+    });
+
+    document.getElementById('updateEntityBtn').addEventListener('click', async () => {
+        const entityHmac = document.getElementById('editEntityHmac').value;
+        const fields = ['business_priority', 'follow_up_priority', 'follow_up_date', 'follow_up_note', 'last_contact', 'tag', 'referred_by', 'assignee', 'key_value_interest', 'related_individuals'];
+        const form = document.getElementById('editEntityForm');
+        const formData = new FormData(form);
+        const data = {};
+        fields.forEach((f) => {
+            const val = formData.get(f);
+            if (val !== null) data[f] = val;
+        });
+
+        try {
+            const res = await fetch(`/api/entities/${entityHmac}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data),
+            });
+            const result = await res.json();
+            if (result.error) {
+                alert(result.error);
+                return;
+            }
+            viewEntityModal.hide();
+            await refreshEntities();
+        } catch (e) {
+            alert('오류: ' + e.message);
+        }
+    });
+
+    document.getElementById('deleteEntityBtn').addEventListener('click', async () => {
+        if (!confirm('휴지통으로 이동하시겠습니까?')) return;
+        const entityHmac = document.getElementById('editEntityHmac').value;
+        try {
+            const res = await fetch(`/api/entities/${entityHmac}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.error) {
+                alert(result.error);
+                return;
+            }
+            viewEntityModal.hide();
+            window.location.reload();
+        } catch (e) {
+            alert('오류: ' + e.message);
+        }
+    });
+
+    document.getElementById('addOppBtn').addEventListener('click', () => {
+        document.getElementById('oppModalTitle').textContent = 'Opportunity 추가';
+        document.getElementById('oppEntityHmac').value = currentEntityHmac || '';
+        document.getElementById('oppId').value = '';
+        document.getElementById('oppTitle').value = '';
+        document.getElementById('oppDetails').value = '';
+        oppModal.show();
+    });
+
+    window.openEditOpp = function openEditOpp(entityHmac, oppId, title, details) {
+        document.getElementById('oppModalTitle').textContent = 'Opportunity 수정';
+        document.getElementById('oppEntityHmac').value = entityHmac;
+        document.getElementById('oppId').value = oppId;
+        document.getElementById('oppTitle').value = title || '';
+        document.getElementById('oppDetails').value = details || '';
+        oppModal.show();
+    };
+
+    window.deleteOpp = async function deleteOpp(entityHmac, oppId) {
+        if (!confirm('삭제하시겠습니까?')) return;
+        try {
+            const res = await fetch(`/api/entities/${entityHmac}/opportunities/${oppId}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.error) {
+                alert(result.error);
+                return;
+            }
+            await loadOpportunities(entityHmac);
+        } catch (e) {
+            alert('오류: ' + e.message);
+        }
+    };
+
+    document.getElementById('saveOppBtn').addEventListener('click', async (event) => {
+        const btn = event.currentTarget;
+        if (btn.disabled) return;
+
+        const entityHmac = document.getElementById('oppEntityHmac').value;
+        const oppId = document.getElementById('oppId').value;
+        const title = document.getElementById('oppTitle').value.trim();
+        const details = document.getElementById('oppDetails').value.trim();
+
+        if (!title) {
+            alert('Title은 필수입니다.');
+            return;
+        }
+
+        btn.disabled = true;
+        try {
+            let res;
+            if (oppId) {
+                res = await fetch(`/api/entities/${entityHmac}/opportunities/${oppId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({title, details}),
+                });
+            } else {
+                res = await fetch(`/api/entities/${entityHmac}/opportunities`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({title, details}),
+                });
+            }
+            const result = await res.json();
+            if (result.error) {
+                alert(result.error);
+                return;
+            }
+            oppModal.hide();
+            await loadOpportunities(entityHmac);
+        } catch (e) {
+            alert('오류: ' + e.message);
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    bindQuickRows(contactQuickRows, 'contactId', openContactEdit);
+    bindQuickRows(entityQuickRows, 'entityId', openEntityEdit);
+
+    editContactModalEl.addEventListener('hidden.bs.modal', () => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('modal') === 'contact') updateUrlState(null, null, 'replace');
+    });
+    viewEntityModalEl.addEventListener('hidden.bs.modal', () => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('modal') === 'entity') updateUrlState(null, null, 'replace');
+    });
+
+    window.addEventListener('popstate', () => {
+        syncModalWithUrl();
+    });
+
+    indexContacts(contactSeed);
+    indexEntities(entitySeed);
+    await Promise.all([refreshContacts(), refreshEntities(), loadTags()]);
+    await syncModalWithUrl();
+})();
+
+async function familyToggle(habitName, idx, event) {
+    const dateVal = document.getElementById(`family-date-${idx}`).value;
+    const btn = event.target;
+    btn.disabled = true;
+    try {
+        const res = await fetch('/api/habits/toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({habit_name: habitName, date: dateVal || undefined})
+        });
+        const data = await res.json();
+        const msg = document.getElementById(`family-msg-${idx}`);
+        if (data.action === 'done') {
+            msg.textContent = `✓ ${dateVal} 기록 완료`;
+            msg.className = 'text-success text-center small mt-2';
+        } else {
+            msg.textContent = `${dateVal} 기록 취소`;
+            msg.className = 'text-muted text-center small mt-2';
+        }
+        if (data.last_date) {
+            document.getElementById(`family-last-${idx}`).innerHTML =
+                `<strong>${data.last_date}</strong>`;
+        }
+    } catch(e) {
+        document.getElementById(`family-msg-${idx}`).textContent = '오류가 발생했습니다.';
+    } finally {
+        btn.disabled = false;
+    }
 }
 </script>
 {% endblock %}
