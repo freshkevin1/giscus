@@ -32,9 +32,14 @@
                 {% endif %}
                 <div class="d-flex justify-content-between align-items-center mt-2">
                     <small class="text-muted">{{ s.saved_at.strftime('%Y-%m-%d') }}</small>
-                    <button class="btn btn-outline-danger btn-sm" onclick="removeSaved({{ s.id }})">
-                        <i class="bi bi-trash"></i> 제거
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="addToWatching({{ s.id }}, this)">
+                            🎬 지금 시청 중 등록
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="removeSaved({{ s.id }})">
+                            <i class="bi bi-trash"></i> 제거
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -62,6 +67,19 @@ async function removeSaved(id) {
             if (el) { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }
         }
     } catch (err) { console.error('Remove failed:', err); }
+}
+
+async function addToWatching(id, btn) {
+    btn.disabled = true;
+    btn.textContent = '등록 중...';
+    const res = await fetch(`/api/screens/saved/${id}/to-watching`, { method: 'POST' });
+    if (res.ok) {
+        btn.textContent = '✓ 등록됨';
+        btn.classList.add('registered');
+    } else {
+        btn.textContent = '오류';
+        btn.disabled = false;
+    }
 }
 </script>
 {% endblock %}

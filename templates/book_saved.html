@@ -28,9 +28,14 @@
                     <small class="text-muted">
                         {{ book.saved_at.strftime('%Y-%m-%d') }}
                     </small>
-                    <button class="btn btn-outline-danger btn-sm" onclick="removeSaved({{ book.id }})">
-                        <i class="bi bi-trash"></i> 제거
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="addToReading({{ book.id }}, this)">
+                            📖 지금 읽는 중 등록
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="removeSaved({{ book.id }})">
+                            <i class="bi bi-trash"></i> 제거
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -63,6 +68,19 @@ async function removeSaved(id) {
         }
     } catch (err) {
         console.error('Remove failed:', err);
+    }
+}
+
+async function addToReading(id, btn) {
+    btn.disabled = true;
+    btn.textContent = '등록 중...';
+    const res = await fetch(`/api/books/saved/${id}/to-reading`, { method: 'POST' });
+    if (res.ok) {
+        btn.textContent = '✓ 등록됨';
+        btn.classList.add('registered');
+    } else {
+        btn.textContent = '오류';
+        btn.disabled = false;
     }
 }
 </script>
