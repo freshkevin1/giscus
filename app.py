@@ -721,6 +721,16 @@ def index():
     habits_data = [_habit_stats(h) for h in HABITS]
     family_stats = [_habit_stats(h) for h in FAMILY_HABITS]
 
+    # Anki due widget
+    anki_due_count = AnkiCard.query.filter(
+        AnkiCard.status == 'active',
+        AnkiCard.next_review <= date.today()
+    ).count()
+    anki_first_card = AnkiCard.query.filter(
+        AnkiCard.status == 'active',
+        AnkiCard.next_review <= date.today()
+    ).order_by(AnkiCard.next_review.asc()).first()
+
     return render_template(
         "landing.html",
         top5=top5,
@@ -752,6 +762,8 @@ def index():
         total_compliments=total_compliments,
         compliment_monthly_avg=compliment_monthly_avg,
         compliment_yearly_avg=compliment_yearly_avg,
+        anki_due_count=anki_due_count,
+        anki_first_card=anki_first_card,
     )
 
 

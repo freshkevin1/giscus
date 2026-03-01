@@ -4,6 +4,130 @@
 {% block mobile_title %}Dashboard{% endblock %}
 
 {% block content %}
+<!-- ===== ANKI DUE WIDGET ===== -->
+<style>
+@keyframes ankiSlideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.anki-strip {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.85rem 1.25rem;
+    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    border-left: 3px solid var(--color-accent);
+    background: rgba(232, 168, 56, 0.07);
+    box-shadow: var(--shadow-sm);
+    animation: ankiSlideIn 0.3s ease-out both;
+    text-decoration: none;
+}
+.anki-strip--done {
+    border-left-color: #22c55e;
+    background: rgba(34, 197, 94, 0.06);
+}
+[data-bs-theme="dark"] .anki-strip {
+    background: rgba(232, 168, 56, 0.08);
+}
+[data-bs-theme="dark"] .anki-strip--done {
+    background: rgba(34, 197, 94, 0.07);
+}
+.anki-count {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    line-height: 1;
+    flex-shrink: 0;
+}
+.anki-count-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+}
+.anki-divider {
+    width: 1px;
+    align-self: stretch;
+    background: var(--color-accent);
+    opacity: 0.25;
+    flex-shrink: 0;
+}
+.anki-preview {
+    flex: 1;
+    min-width: 0;
+}
+.anki-preview-source {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.anki-preview-text {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 0.95rem;
+    font-style: italic;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.85;
+}
+.anki-cta {
+    flex-shrink: 0;
+    padding: 7px 16px;
+    border-radius: 7px;
+    background: var(--color-accent);
+    color: #1a1d23;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+}
+.anki-cta:hover { opacity: 0.85; color: #1a1d23; }
+.anki-done-text {
+    font-size: 0.9rem;
+    color: #22c55e;
+    font-weight: 600;
+}
+.anki-done-sub {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+</style>
+
+{% if anki_due_count > 0 %}
+<div class="anki-strip">
+    <div class="text-center">
+        <div class="anki-count">{{ anki_due_count }}</div>
+        <div class="anki-count-label">cards due</div>
+    </div>
+    <div class="anki-divider"></div>
+    {% if anki_first_card %}
+    <div class="anki-preview">
+        <div class="anki-preview-source">{{ anki_first_card.front.split('|')[0] | trim }}</div>
+        <div class="anki-preview-text">
+            {{ anki_first_card.back[:90] }}{% if anki_first_card.back|length > 90 %}…{% endif %}
+        </div>
+    </div>
+    {% endif %}
+    <a href="{{ url_for('anki_review') }}" class="anki-cta">⚡ Review Now</a>
+</div>
+{% else %}
+<div class="anki-strip anki-strip--done">
+    <div>
+        <div class="anki-done-text"><i class="bi bi-check-circle-fill"></i> All caught up for today</div>
+        <div class="anki-done-sub">다음 복습은 내일 — <a href="{{ url_for('anki_hub') }}" class="text-muted">덱 보기</a></div>
+    </div>
+</div>
+{% endif %}
+
 <!-- ===== HABIT LOG ===== -->
 <div class="row mb-4">
   <div class="col-12">
