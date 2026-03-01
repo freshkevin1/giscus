@@ -390,7 +390,6 @@
             기록하기
           </button>
         </div>
-        <div id="family-msg-{{ loop.index }}" class="text-center small mt-2" style="min-height:1.2em"></div>
 
       </div>
     </div>
@@ -696,6 +695,29 @@ function toggleHabit(btn) {
         btn.disabled = false;
     })
     .catch(() => { btn.disabled = false; });
+}
+
+function setBtnFeedback(btn, state, msg) {
+    if (!btn._orig) btn._orig = {html: btn.innerHTML, cls: btn.className};
+    clearTimeout(btn._timer);
+    if (state === 'loading') {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>저장 중...';
+    } else if (state === 'success') {
+        btn.disabled = false;
+        btn.className = btn._orig.cls.replace(/\bbtn-(primary|secondary|outline-\w+)\b/, 'btn-success');
+        btn.innerHTML = '✓ ' + (msg || '저장됨');
+        btn._timer = setTimeout(() => {
+            btn.className = btn._orig.cls; btn.innerHTML = btn._orig.html; btn._orig = null;
+        }, 1800);
+    } else if (state === 'error') {
+        btn.disabled = false;
+        btn.className = btn._orig.cls.replace(/\bbtn-(primary|secondary|outline-\w+)\b/, 'btn-danger');
+        btn.innerHTML = msg || '오류';
+        btn._timer = setTimeout(() => {
+            btn.className = btn._orig.cls; btn.innerHTML = btn._orig.html; btn._orig = null;
+        }, 2500);
+    }
 }
 
 (async function initDashboardEditableModal() {
@@ -1039,6 +1061,7 @@ function toggleHabit(btn) {
     }
 
     document.getElementById('updateContactBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('updateContactBtn');
         const nameHmac = document.getElementById('editNameHmac').value;
         const fields = ['contact_priority', 'employer', 'title', 'follow_up_priority', 'follow_up_date', 'follow_up_note', 'last_contact', 'email', 'phone', 'tag', 'referred_by', 'key_value_interest'];
         const form = document.getElementById('editContactForm');
@@ -1049,6 +1072,7 @@ function toggleHabit(btn) {
             if (val !== null) data[f] = val;
         });
 
+        setBtnFeedback(btn, 'loading');
         try {
             const res = await fetch(`/api/contacts/${nameHmac}`, {
                 method: 'PUT',
@@ -1057,13 +1081,13 @@ function toggleHabit(btn) {
             });
             const result = await res.json();
             if (result.error) {
-                alert(result.errors ? result.errors.join('\n') : result.error);
+                setBtnFeedback(btn, 'error', result.errors ? result.errors[0] : result.error);
                 return;
             }
-            editContactModal.hide();
-            await refreshContacts();
+            setBtnFeedback(btn, 'success', '저장됨');
+            setTimeout(() => { editContactModal.hide(); refreshContacts(); }, 600);
         } catch (e) {
-            alert('오류: ' + e.message);
+            setBtnFeedback(btn, 'error', '오류');
         }
     });
 
@@ -1085,6 +1109,7 @@ function toggleHabit(btn) {
     });
 
     document.getElementById('updateEntityBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('updateEntityBtn');
         const entityHmac = document.getElementById('editEntityHmac').value;
         const fields = ['business_priority', 'follow_up_priority', 'follow_up_date', 'follow_up_note', 'last_contact', 'tag', 'referred_by', 'assignee', 'key_value_interest', 'related_individuals'];
         const form = document.getElementById('editEntityForm');
@@ -1095,6 +1120,7 @@ function toggleHabit(btn) {
             if (val !== null) data[f] = val;
         });
 
+        setBtnFeedback(btn, 'loading');
         try {
             const res = await fetch(`/api/entities/${entityHmac}`, {
                 method: 'PUT',
@@ -1103,13 +1129,13 @@ function toggleHabit(btn) {
             });
             const result = await res.json();
             if (result.error) {
-                alert(result.error);
+                setBtnFeedback(btn, 'error', result.error);
                 return;
             }
-            viewEntityModal.hide();
-            await refreshEntities();
+            setBtnFeedback(btn, 'success', '저장됨');
+            setTimeout(() => { viewEntityModal.hide(); refreshEntities(); }, 600);
         } catch (e) {
-            alert('오류: ' + e.message);
+            setBtnFeedback(btn, 'error', '오류');
         }
     });
 
@@ -1173,11 +1199,11 @@ function toggleHabit(btn) {
         const details = document.getElementById('oppDetails').value.trim();
 
         if (!title) {
-            alert('Title은 필수입니다.');
+            setBtnFeedback(btn, 'error', 'Title 필수');
             return;
         }
 
-        btn.disabled = true;
+        setBtnFeedback(btn, 'loading');
         try {
             let res;
             if (oppId) {
@@ -1195,15 +1221,13 @@ function toggleHabit(btn) {
             }
             const result = await res.json();
             if (result.error) {
-                alert(result.error);
+                setBtnFeedback(btn, 'error', result.error);
                 return;
             }
-            oppModal.hide();
-            await loadOpportunities(entityHmac);
+            setBtnFeedback(btn, 'success', '저장됨');
+            setTimeout(() => { oppModal.hide(); loadOpportunities(entityHmac); }, 600);
         } catch (e) {
-            alert('오류: ' + e.message);
-        } finally {
-            btn.disabled = false;
+            setBtnFeedback(btn, 'error', '오류');
         }
     });
 
@@ -1232,7 +1256,7 @@ function toggleHabit(btn) {
 async function familyToggle(habitName, idx, event) {
     const dateVal = document.getElementById(`family-date-${idx}`).value;
     const btn = event.target;
-    btn.disabled = true;
+    setBtnFeedback(btn, 'loading');
     try {
         const res = await fetch('/api/habits/toggle', {
             method: 'POST',
@@ -1240,22 +1264,13 @@ async function familyToggle(habitName, idx, event) {
             body: JSON.stringify({habit_name: habitName, date: dateVal || undefined})
         });
         const data = await res.json();
-        const msg = document.getElementById(`family-msg-${idx}`);
-        if (data.action === 'done') {
-            msg.textContent = `✓ ${dateVal} 기록 완료`;
-            msg.className = 'text-success text-center small mt-2';
-        } else {
-            msg.textContent = `${dateVal} 기록 취소`;
-            msg.className = 'text-muted text-center small mt-2';
-        }
+        setBtnFeedback(btn, 'success', data.action === 'done' ? '완료' : '취소됨');
         if (data.last_date) {
             document.getElementById(`family-last-${idx}`).innerHTML =
                 `<strong>${data.last_date}</strong>`;
         }
     } catch(e) {
-        document.getElementById(`family-msg-${idx}`).textContent = '오류가 발생했습니다.';
-    } finally {
-        btn.disabled = false;
+        setBtnFeedback(btn, 'error', '오류');
     }
 }
 </script>
