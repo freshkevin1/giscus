@@ -27,7 +27,7 @@ from models import Article, ChatMessage, ContactChatMessage, LoginLog, MyBook, N
 from pywebpush import webpush, WebPushException
 from recommender import chat_recommendation, generate_recommendations
 import requests as http_requests
-from scraper import scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_geek_news_weekly, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_wsj_ai, scrape_yes24_bestseller
+from scraper import scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_fieldai_news, scrape_geek_news_weekly, scrape_ifr_press_releases, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_vention_press, scrape_wsj_ai, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,6 +38,9 @@ NEWS_SOURCE_MAP = {
     'geek_weekly': 'GeekNews Weekly', 'dl_batch': 'The Batch', 'the_decoder': 'The Decoder',
     'acdeeptech': 'Deep Tech',
     'aitimes': 'AI타임스',
+    'fieldai': 'Field AI',
+    'vention': 'Vention',
+    'ifr_press': 'IFR Press',
 }
 NEWS_SOURCES = list(NEWS_SOURCE_MAP.keys())
 
@@ -234,6 +237,9 @@ def scheduled_scrape():
         run_scrape("nyt_tech")
         run_scrape("acdeeptech")
         run_scrape("aitimes")
+        run_scrape("fieldai")
+        run_scrape("vention")
+        run_scrape("ifr_press")
         run_scrape("bestseller")
         run_scrape("bestseller_kr")
 
@@ -258,6 +264,12 @@ def run_scrape(source="mk"):
         articles = scrape_acdeeptech()
     elif source == "aitimes":
         articles = scrape_aitimes()
+    elif source == "fieldai":
+        articles = scrape_fieldai_news()
+    elif source == "vention":
+        articles = scrape_vention_press()
+    elif source == "ifr_press":
+        articles = scrape_ifr_press_releases()
     elif source == "wsj_ai":
         articles = scrape_wsj_ai()
     elif source == "nyt_tech":
@@ -951,7 +963,7 @@ def book_saved():
 @app.route("/api/scrape/<source>", methods=["POST"])
 @login_required
 def api_scrape(source):
-    if source not in ("mk", "irobot", "robotreport", "ai_robotics", "geek_weekly", "dl_batch", "the_decoder", "acdeeptech", "aitimes", "wsj_ai", "nyt_tech", "bestseller", "bestseller_kr"):
+    if source not in ("mk", "irobot", "robotreport", "ai_robotics", "geek_weekly", "dl_batch", "the_decoder", "acdeeptech", "aitimes", "wsj_ai", "nyt_tech", "bestseller", "bestseller_kr", "fieldai", "vention", "ifr_press"):
         return jsonify({"status": "error", "message": "Unknown source"}), 400
     count = run_scrape(source)
     return jsonify({"status": "ok", "new_articles": count})
