@@ -1,6 +1,7 @@
 import os
 import re as _re
 import base64 as _base64
+from datetime import timedelta
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -54,6 +55,12 @@ class Config:
         f"sqlite:///{os.path.join(_db_dir, 'dashboard.db')}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # Auth/session policy
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=8)  # 일반 세션: 짧게 유지
+    REMEMBER_COOKIE_DURATION = timedelta(days=14)  # 인증된 기기: 2주 유지
+    SESSION_REFRESH_EACH_REQUEST = True
+    REMEMBER_COOKIE_REFRESH_EACH_REQUEST = False
 
     # Scraping schedule (KST = UTC+9): 06:00, 12:00, 18:00, 24:00 KST = 21:00, 03:00, 09:00, 15:00 UTC
     SCRAPE_HOUR_UTC = "21,3,9,15"

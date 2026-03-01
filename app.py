@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parent / ".env"
 if _env_path.exists():
     load_dotenv(_env_path)
-from flask import Flask, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
@@ -151,6 +151,7 @@ def _habit_stats(habit_name):
 def enforce_password_change():
     if not current_user.is_authenticated:
         return
+    session.permanent = True
     if request.endpoint in ("change_password", "logout", "static"):
         return
 
@@ -467,7 +468,8 @@ def login():
         if user and user.check_password(password):
             db.session.add(LoginLog(username=username, ip_address=ip, user_agent=ua, success=True))
             db.session.commit()
-            login_user(user)
+            login_user(user, remember=True)
+            session.permanent = True
             next_page = request.args.get("next", "")
             if not _is_safe_next_url(next_page):
                 next_page = url_for("index", fresh=1)
