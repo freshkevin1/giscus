@@ -283,6 +283,27 @@ let currentFilter = 'all';
 let sortKey = 'score';
 let sortAsc = false;
 let searchQuery = '';
+const addContactModalEl = document.getElementById('addContactModal');
+const editContactModalEl = document.getElementById('editContactModal');
+const addContactModal = bootstrap.Modal.getOrCreateInstance(addContactModalEl);
+const editContactModal = bootstrap.Modal.getOrCreateInstance(editContactModalEl);
+
+function cleanupStaleModalBackdrop() {
+    if (document.querySelector('.modal.show')) return;
+    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('padding-right');
+}
+
+function hideModalSafely(modalInstance) {
+    modalInstance.hide();
+    window.setTimeout(cleanupStaleModalBackdrop, 400);
+}
+
+[addContactModalEl, editContactModalEl].forEach(el => {
+    el.addEventListener('hidden.bs.modal', cleanupStaleModalBackdrop);
+});
 
 function sortContacts(contacts) {
     const th = document.querySelector(`#contactTable thead .sortable[data-key="${sortKey}"]`);
@@ -437,7 +458,7 @@ function renderContacts() {
 
     tbody.innerHTML = filtered.map(c => {
         const displayName = c.employer ? `${c.name}(${c.employer})` : c.name;
-        const overdueClass = isOverdue(c) ? 'table-warning overdue-row' : '';
+        const overdueClass = isOverdue(c) ? 'overdue-row' : '';
         return `<tr class="${overdueClass}" style="cursor:pointer" onclick="openEdit('${c.name_hmac}')">
             <td><span class="badge ${getScoreBadgeClass(c.score)} score-badge">${c.score}</span></td>
             <td class="fw-semibold">${displayName}</td>
@@ -585,7 +606,7 @@ document.getElementById('saveContactBtn').addEventListener('click', async () => 
             alert(result.errors ? result.errors.join('\n') : result.error);
             return;
         }
-        bootstrap.Modal.getInstance(document.getElementById('addContactModal')).hide();
+        hideModalSafely(addContactModal);
         form.reset();
         loadContacts();
     } catch (e) {
@@ -642,7 +663,7 @@ async function openEdit(nameHmac) {
         logsDiv.innerHTML = '<p class="text-danger">로그 로딩 실패</p>';
     }
 
-    new bootstrap.Modal(document.getElementById('editContactModal')).show();
+    editContactModal.show();
 }
 
 // Update contact
@@ -671,7 +692,7 @@ document.getElementById('updateContactBtn').addEventListener('click', async () =
             alert(result.errors ? result.errors.join('\n') : result.error);
             return;
         }
-        bootstrap.Modal.getInstance(document.getElementById('editContactModal')).hide();
+        hideModalSafely(editContactModal);
         loadContacts();
     } catch (e) {
         alert('오류: ' + e.message);
@@ -689,7 +710,7 @@ document.getElementById('deleteContactBtn').addEventListener('click', async () =
             alert(result.error);
             return;
         }
-        bootstrap.Modal.getInstance(document.getElementById('editContactModal')).hide();
+        hideModalSafely(editContactModal);
         loadContacts();
         loadDeletedContacts();
     } catch (e) {

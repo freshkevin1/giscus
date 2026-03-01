@@ -6,10 +6,31 @@
     --color-primary: #1B2A4A;
     --color-accent: #E8A838;
     --color-surface: #F7F4EF;
+    --overdue-bg: #fff4db;
+    --overdue-fg: #5c3300;
+    --overdue-accent: #dc3545;
 }
 
 body {
     font-family: 'IBM Plex Sans', system-ui, -apple-system, Arial, sans-serif;
+}
+
+/* App root layout */
+.app-root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+@supports (min-height: 100dvh) {
+    .app-root {
+        min-height: 100dvh;
+    }
+}
+
+.app-shell {
+    flex: 1;
+    min-height: 0;
 }
 
 /* Sidebar */
@@ -76,7 +97,7 @@ body {
 
 /* Main content */
 .main-content {
-    min-height: 100vh;
+    min-height: 0;
     background-color: var(--color-surface);
     overflow-y: auto;
 }
@@ -245,7 +266,22 @@ body {
 
 /* Overdue row (Contact List) */
 .overdue-row {
-    border-left: 3px solid #dc3545 !important;
+    background-color: var(--overdue-bg) !important;
+    border-left: 3px solid var(--overdue-accent) !important;
+}
+
+.overdue-row td,
+.overdue-row .text-muted,
+.overdue-row a {
+    color: var(--overdue-fg) !important;
+}
+
+.overdue-row .text-danger {
+    color: var(--overdue-accent) !important;
+}
+
+.overdue-row:hover {
+    background-color: var(--overdue-bg) !important;
 }
 
 /* Contact table */
@@ -604,7 +640,10 @@ body {
         padding: 12px 14px; margin-bottom: 8px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
-    .contact-card.overdue-card { border-left: 3px solid #dc3545; }
+    .contact-card.overdue-card {
+        background: var(--overdue-bg);
+        border-left: 3px solid var(--overdue-accent);
+    }
     .contact-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     .contact-card-name { font-weight: 600; font-size: 0.95rem; }
     .contact-card-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 0.8rem; color: #6c757d; }
@@ -653,6 +692,9 @@ body {
     --color-surface: #1e2530;
     --color-primary: #7bb3e8;
     --color-accent: #E8A838;
+    --overdue-bg: #3a2a14;
+    --overdue-fg: #ffdca8;
+    --overdue-accent: #ff7b7b;
 }
 
 [data-bs-theme="dark"] .main-content {
@@ -671,6 +713,11 @@ body {
 
 [data-bs-theme="dark"] .contact-card {
     background: #2d3748;
+}
+
+[data-bs-theme="dark"] .contact-card.overdue-card {
+    background: var(--overdue-bg);
+    border-left-color: var(--overdue-accent);
 }
 
 [data-bs-theme="dark"] .article-link {
