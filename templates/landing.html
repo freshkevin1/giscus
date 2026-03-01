@@ -109,6 +109,7 @@
     border: 2px solid rgba(0,0,0,0.08);
     cursor: pointer;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     transition: background 0.15s;
@@ -143,6 +144,31 @@
 .anki-rate-hard  { background: #f97316; }
 .anki-rate-good  { background: #22c55e; }
 .anki-rate-easy  { background: #3b82f6; }
+.anki-highlight-header {
+    width: 100%;
+    margin-bottom: 0.75rem;
+    text-align: center;
+}
+.anki-highlight-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-accent, #e8a838);
+    margin-bottom: 4px;
+}
+.anki-highlight-source {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+.anki-rate-delete {
+    background: #6b7280;
+    max-width: 44px;
+    padding: 8px 6px;
+}
+.anki-rate-delete:hover { background: #ef4444; opacity: 1; }
 </style>
 
 {% if anki_due_count > 0 %}
@@ -921,6 +947,10 @@
         <!-- Review area -->
         <div id="ankiModalReview">
           <div id="ankiModalCard" class="anki-modal-card" onclick="ankiModalFlip()">
+            <div id="ankiModalHighlightHeader" class="anki-highlight-header" style="display:none">
+              <span class="anki-highlight-badge">📖 Book Highlight</span>
+              <div id="ankiModalHighlightSource" class="anki-highlight-source"></div>
+            </div>
             <div id="ankiModalFront" class="anki-modal-face"></div>
             <div id="ankiModalBack" class="anki-modal-face" style="display:none"></div>
           </div>
@@ -932,6 +962,9 @@
             <button class="anki-rate-btn anki-rate-hard"  onclick="ankiModalRate(2)">Hard<br><small>어려웠어요</small></button>
             <button class="anki-rate-btn anki-rate-good"  onclick="ankiModalRate(3)">Good<br><small>잘 기억함</small></button>
             <button class="anki-rate-btn anki-rate-easy"  onclick="ankiModalRate(4)">Easy<br><small>완벽 기억</small></button>
+            <button class="anki-rate-btn anki-rate-delete" onclick="ankiModalDelete()" title="카드 삭제">
+              <i class="bi bi-trash3"></i>
+            </button>
           </div>
         </div>
 
@@ -1630,6 +1663,16 @@ async function familyToggle(habitName, idx, event) {
         _ankiShow();
     };
 
+    window.ankiModalDelete = async function() {
+        if (!confirm('이 카드를 완전히 삭제하시겠습니까?')) return;
+        const card = _cards[_idx];
+        try {
+            await fetch(`/api/anki/cards/${card.id}`, { method: 'DELETE' });
+        } catch(e) {}
+        _cards.splice(_idx, 1);
+        _ankiShow();
+    };
+
     function _ankiShow() {
         if (_idx >= _cards.length) { _ankiDone(); return; }
         _flipped = false;
@@ -1637,12 +1680,33 @@ async function familyToggle(habitName, idx, event) {
         const total = _cards.length;
         const pct = Math.round((_idx / total) * 100);
 
+        const isHighlight = card.card_type === 'highlight';
+        const header = document.getElementById('ankiModalHighlightHeader');
+        const srcEl  = document.getElementById('ankiModalHighlightSource');
+
         document.getElementById('ankiModalFront').textContent = card.front;
         document.getElementById('ankiModalBack').textContent  = card.back;
-        document.getElementById('ankiModalFront').style.display = '';
-        document.getElementById('ankiModalBack').style.display  = 'none';
-        document.getElementById('ankiModalHint').style.display  = '';
-        document.getElementById('ankiModalRating').style.display = 'none';
+
+        if (isHighlight) {
+            srcEl.textContent = card.front + (card.source_ref ? '  ·  ' + card.source_ref : '');
+            header.style.display = '';
+            document.getElementById('ankiModalFront').style.display = 'none';
+            document.getElementById('ankiModalBack').style.display  = '';
+            document.getElementById('ankiModalHint').style.display  = 'none';
+            document.getElementById('ankiModalCard').style.cursor   = 'default';
+            document.getElementById('ankiModalCard').onclick        = null;
+            document.getElementById('ankiModalRating').style.removeProperty('display');
+            _flipped = true;
+        } else {
+            header.style.display = 'none';
+            document.getElementById('ankiModalFront').style.display = '';
+            document.getElementById('ankiModalBack').style.display  = 'none';
+            document.getElementById('ankiModalHint').style.display  = '';
+            document.getElementById('ankiModalCard').style.cursor   = 'pointer';
+            document.getElementById('ankiModalCard').onclick        = ankiModalFlip;
+            document.getElementById('ankiModalRating').style.display = 'none';
+        }
+
         document.getElementById('ankiModalProgress').style.width = pct + '%';
         document.getElementById('ankiModalRemaining').textContent =
             (total - _idx) + ' / ' + total;

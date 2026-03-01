@@ -11,6 +11,7 @@ Each parser returns: list[dict] with keys:
   deck_name, author, front, back, source_ref
 """
 
+import os
 import re
 
 
@@ -18,10 +19,10 @@ import re
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def parse_auto(content: str, filename: str) -> list:
+def parse_auto(content, filename: str) -> list:
     """Detect format and dispatch to the correct parser."""
     if filename.lower().endswith('.pdf'):
-        return parse_pdf_bytes(content)
+        return parse_pdf_bytes(content, filename=filename)
     if '==========' in content:
         return parse_kindle_clippings(content)
     if re.search(r'^> .+', content, re.MULTILINE):
@@ -196,32 +197,139 @@ def parse_millie_text(content: str) -> list:
 # PDF (requires PyPDF2)
 # ---------------------------------------------------------------------------
 
-def parse_pdf_bytes(content) -> list:
-    """Extract text from PDF bytes and split into paragraph cards."""
+def _normalize_whitespace(text: str) -> str:
+    return re.sub(r'\s+', ' ', (text or '')).strip()
+
+
+def _clean_pdf_title(title: str) -> str:
+    title = _normalize_whitespace(title or '')
+    title = title.strip('"\'')
+    if title.lower().endswith('.pdf'):
+        title = title[:-4].strip()
+    if len(title) < 2:
+        return ''
+
+    generic_titles = {
+        'untitled',
+        'document',
+        'pdf document',
+        'microsoft word',
+        'microsoft powerpoint',
+        'powerpoint presentation',
+        'untitled document',
+    }
+    if title.lower() in generic_titles:
+        return ''
+    return title
+
+
+def _title_from_filename(filename: str) -> str:
+    stem = os.path.splitext(os.path.basename(filename or ''))[0]
+    stem = _normalize_whitespace(re.sub(r'[_\-]+', ' ', stem))
+    return _clean_pdf_title(stem)
+
+
+def _title_from_first_page(first_page_text: str) -> str:
+    lines = [_normalize_whitespace(line) for line in (first_page_text or '').splitlines()]
+    lines = [line for line in lines if line]
+    for line in lines[:12]:
+        low = line.lower()
+        if len(line) < 4 or len(line) > 120:
+            continue
+        if re.fullmatch(r'\d+', line):
+            continue
+        if low.startswith(('http://', 'https://', 'www.', 'isbn', 'copyright')):
+            continue
+        if sum(ch.isalpha() for ch in line) < 3:
+            continue
+        if line.endswith(('.', '?', '!')):
+            continue
+        return line
+    return ''
+
+
+def _extract_pdf_title(reader, first_page_text: str, filename: str) -> str:
+    metadata = getattr(reader, 'metadata', None) or {}
+    metadata_title = (
+        metadata.get('/Title')
+        or metadata.get('Title')
+        or metadata.get('/title')
+        or metadata.get('title')
+    )
+    title = _clean_pdf_title(str(metadata_title)) if metadata_title else ''
+    if title:
+        return title
+
+    title = _clean_pdf_title(_title_from_first_page(first_page_text))
+    if title:
+        return title
+
+    return _title_from_filename(filename) or 'PDF Document'
+
+
+def _extract_pdf_author(reader) -> str:
+    metadata = getattr(reader, 'metadata', None) or {}
+    author = (
+        metadata.get('/Author')
+        or metadata.get('Author')
+        or metadata.get('/author')
+        or metadata.get('author')
+        or ''
+    )
+    return _normalize_whitespace(str(author))
+
+
+def parse_pdf_bytes(content, filename: str = '') -> list:
+    """Extract text from all PDF pages and split into paragraph cards."""
     try:
         import io
         import PyPDF2  # noqa: F401 — optional dependency
         reader = PyPDF2.PdfReader(io.BytesIO(content))
-        full_text = ''
-        for page in reader.pages:
-            full_text += (page.extract_text() or '') + '\n\n'
+        page_texts = []
+        for page_num, page in enumerate(reader.pages, start=1):
+            try:
+                text = (page.extract_text() or '').strip()
+            except Exception:
+                text = ''
+            page_texts.append((page_num, text))
     except Exception:
         return []
 
-    deck_name = 'PDF Document'
+    first_page_text = next((text for _, text in page_texts if text), '')
+    deck_name = _extract_pdf_title(reader, first_page_text, filename)
+    author = _extract_pdf_author(reader)
     cards = []
-    paragraphs = re.split(r'\n{2,}', full_text.strip())
 
-    for para in paragraphs:
-        para = para.strip()
-        if len(para) < 30:
+    for page_num, page_text in page_texts:
+        if not page_text:
             continue
-        cards.append({
-            'deck_name': deck_name,
-            'author': '',
-            'front': f'"{deck_name}" | {para[:60]}…',
-            'back': para,
-            'source_ref': '',
-        })
+        paragraphs = [p.strip() for p in re.split(r'\n{2,}', page_text) if p.strip()]
+        for para in paragraphs:
+            back_text = _normalize_whitespace(para)
+            if len(back_text) < 30:
+                continue
+            source_ref = f'p.{page_num}'
+            cards.append({
+                'deck_name': deck_name,
+                'author': author,
+                'front': f'"{deck_name}" | {source_ref} | {back_text[:60]}…',
+                'back': back_text,
+                'source_ref': source_ref,
+            })
+
+    # Fallback for PDFs where paragraph boundaries are noisy but page text exists.
+    if not cards:
+        for page_num, page_text in page_texts:
+            back_text = _normalize_whitespace(page_text)
+            if len(back_text) < 30:
+                continue
+            source_ref = f'p.{page_num}'
+            cards.append({
+                'deck_name': deck_name,
+                'author': author,
+                'front': f'"{deck_name}" | {source_ref} | {back_text[:60]}…',
+                'back': back_text,
+                'source_ref': source_ref,
+            })
 
     return cards

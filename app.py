@@ -2494,6 +2494,17 @@ def api_anki_archive_card(card_id):
     return jsonify({"status": card.status})
 
 
+@app.route("/api/anki/cards/<int:card_id>", methods=["DELETE"])
+@login_required
+def api_anki_delete_card(card_id):
+    card = db.session.get(AnkiCard, card_id)
+    if not card:
+        return jsonify({"error": "카드를 찾을 수 없습니다."}), 404
+    db.session.delete(card)
+    db.session.commit()
+    return jsonify({"deleted": True})
+
+
 @app.route("/api/anki/decks/<int:deck_id>", methods=["DELETE"])
 @login_required
 def api_anki_delete_deck(deck_id):
