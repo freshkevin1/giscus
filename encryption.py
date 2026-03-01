@@ -15,14 +15,11 @@ def _get_fernet():
 
 
 def _get_hmac_key():
-    """Get HMAC key. Falls back to first 32 bytes of FERNET_KEY."""
+    """Get HMAC key from environment variable."""
     hmac_key = os.environ.get("HMAC_KEY", "")
-    if hmac_key:
-        return hmac_key.encode() if isinstance(hmac_key, str) else hmac_key
-    fernet_key = os.environ.get("FERNET_KEY", "")
-    if not fernet_key:
-        raise ValueError("Neither HMAC_KEY nor FERNET_KEY is set")
-    return fernet_key[:32].encode() if isinstance(fernet_key, str) else fernet_key[:32]
+    if not hmac_key:
+        raise ValueError("HMAC_KEY environment variable is not set")
+    return hmac_key.encode() if isinstance(hmac_key, str) else hmac_key
 
 
 def encrypt(plaintext):
