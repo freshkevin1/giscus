@@ -18,7 +18,7 @@
     </div>
 
     <!-- Chat Messages Area -->
-    <div id="chat-messages" class="flex-grow-1 overflow-auto mb-3 p-3 bg-white rounded shadow-sm">
+    <div id="chat-messages" class="flex-grow-1 overflow-auto mb-3 p-3 rounded shadow-sm" style="background-color: var(--chat-bg);">
         <div id="welcome-msg" class="text-center text-muted py-5">
             <i class="bi bi-robot" style="font-size: 3rem;"></i>
             <p class="mt-2 mb-1">안녕하세요! AI 북 어드바이저입니다.</p>
@@ -30,7 +30,7 @@
     </div>
 
     <!-- Input Area -->
-    <div class="bg-white rounded shadow-sm p-3">
+    <div class="rounded shadow-sm p-3" style="background-color: var(--chat-footer-bg);">
         <form id="chat-form" class="d-flex gap-2">
             <input type="text" id="chat-input" class="form-control"
                    placeholder="책 추천을 요청하세요..." autocomplete="off">
@@ -61,14 +61,14 @@
         border-bottom-right-radius: 4px;
     }
     .chat-bubble-ai {
-        background-color: #f0f2f5;
-        color: #212529;
+        background-color: var(--bubble-assistant-bg);
+        color: var(--bubble-assistant-color);
         margin-right: auto;
         border-bottom-left-radius: 4px;
     }
     .rec-card {
-        background: #fff;
-        border: 1px solid #e0e0e0;
+        background: var(--surface-raised);
+        border: 1px solid var(--bubble-assistant-border);
         border-radius: 10px;
         padding: 0.75rem 1rem;
         margin-top: 0.5rem;
@@ -90,7 +90,7 @@
         display: flex;
         gap: 4px;
         padding: 0.75rem 1rem;
-        background-color: #f0f2f5;
+        background-color: var(--bubble-assistant-bg);
         border-radius: 12px;
         border-bottom-left-radius: 4px;
         width: fit-content;
@@ -99,7 +99,7 @@
     .typing-indicator span {
         width: 8px;
         height: 8px;
-        background-color: #8b929a;
+        background-color: var(--typing-dot-color);
         border-radius: 50%;
         animation: typing 1.2s infinite;
     }
