@@ -54,7 +54,7 @@ db.init_app(app)
 def _client_ip_for_rate_limit():
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        return forwarded.split(",")[-1].strip()
     return get_remote_address()
 
 
@@ -171,6 +171,14 @@ def enforce_password_change():
     if changed_at is None or (datetime.utcnow() - changed_at).days >= PASSWORD_EXPIRY_DAYS:
         flash("보안을 위해 비밀번호를 변경해 주세요 (30일 경과).", "warning")
         return redirect(url_for("change_password"))
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
 
 
 @app.errorhandler(429)
@@ -2346,12 +2354,17 @@ def api_anki_due():
 def api_anki_upload_preview():
     if 'file' not in request.files:
         return jsonify({"error": "파일이 없습니다."}), 400
+    MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5MB
+
     f = request.files['file']
     filename = f.filename or ''
+    content_bytes = f.read(MAX_UPLOAD_BYTES + 1)
+    if len(content_bytes) > MAX_UPLOAD_BYTES:
+        return jsonify({"error": "파일 크기는 5MB 이하여야 합니다."}), 400
     if filename.lower().endswith('.pdf'):
-        content = f.read()
+        content = content_bytes
     else:
-        content = f.read().decode('utf-8', errors='replace')
+        content = content_bytes.decode('utf-8', errors='replace')
 
     from anki_parser import parse_auto
     cards = parse_auto(content, filename)
