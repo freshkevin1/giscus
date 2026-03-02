@@ -32,9 +32,9 @@
 
     <!-- Input Area -->
     <div class="book-chat-footer rounded shadow-sm p-3">
-        <form id="chat-form" class="d-flex gap-2">
-            <input type="text" id="chat-input" class="form-control"
-                   placeholder="책 추천을 요청하세요..." autocomplete="off">
+        <form id="chat-form" class="d-flex gap-2 align-items-end">
+            <textarea rows="1" id="chat-input" class="form-control chat-textarea"
+                      placeholder="책 추천을 요청하세요..." autocomplete="off"></textarea>
             <button type="submit" id="btn-send" class="btn btn-book-send px-4" style="white-space: nowrap;">
                 <i class="bi bi-send"></i> 전송
             </button>
@@ -44,8 +44,18 @@
 {% endblock %}
 
 {% block scripts %}
-<script>document.querySelector('.main-content').classList.add('chat-page-layout');</script>
+<script>
+document.querySelector('.main-content').classList.add('chat-page-layout');
+document.querySelector('.app-root').classList.add('chat-mode');
+</script>
 <style>
+    .chat-textarea {
+        resize: none;
+        overflow-y: hidden;
+        min-height: 38px;
+        max-height: 200px;
+        line-height: 1.5;
+    }
     /* Book advisor header */
     .book-advisor-title { font-size: 1.2rem; font-weight: 700; }
     .book-advisor-sub { font-size: 0.82rem; }
@@ -311,6 +321,7 @@ chatForm.addEventListener('submit', async function(e) {
     if (!message) return;
 
     chatInput.value = '';
+    chatInput.style.height = 'auto';
     btnSend.disabled = true;
 
     addUserBubble(message);
@@ -343,5 +354,20 @@ chatForm.addEventListener('submit', async function(e) {
 
 // Load persisted chat history on page load
 loadChatHistory();
+
+// Multiline textarea
+function autoResizeChatInput(el) {
+    el.style.height = 'auto';
+    const newH = Math.min(el.scrollHeight, 200);
+    el.style.height = newH + 'px';
+    el.style.overflowY = el.scrollHeight > 200 ? 'auto' : 'hidden';
+}
+chatInput.addEventListener('input', function() { autoResizeChatInput(this); });
+chatInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        chatForm.dispatchEvent(new Event('submit', {cancelable: true}));
+    }
+});
 </script>
 {% endblock %}

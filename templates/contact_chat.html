@@ -29,9 +29,9 @@
         </div>
     </div>
     <div class="card-footer p-3">
-        <form id="chatForm" class="d-flex gap-2">
-            <input type="text" class="form-control" id="chatInput"
-                   placeholder="메시지를 입력하세요..." autocomplete="off">
+        <form id="chatForm" class="d-flex gap-2 align-items-end">
+            <textarea rows="1" class="form-control chat-textarea" id="chatInput"
+                      placeholder="메시지를 입력하세요..." autocomplete="off"></textarea>
             <button type="submit" class="btn btn-primary" id="sendBtn">
                 <i class="bi bi-send"></i>
             </button>
@@ -61,7 +61,19 @@
 {% endblock %}
 
 {% block scripts %}
-<script>document.querySelector('.main-content').classList.add('chat-page-layout');</script>
+<script>
+document.querySelector('.main-content').classList.add('chat-page-layout');
+document.querySelector('.app-root').classList.add('chat-mode');
+</script>
+<style>
+.chat-textarea {
+    resize: none;
+    overflow-y: hidden;
+    min-height: 38px;
+    max-height: 200px;
+    line-height: 1.5;
+}
+</style>
 <script>
 const pendingActionsMap = new Map();
 
@@ -277,6 +289,7 @@ document.getElementById('chatForm').addEventListener('submit', async (e) => {
 
     appendMessage('user', message);
     input.value = '';
+    input.style.height = 'auto';
     scrollToBottom();
 
     appendTypingIndicator();
@@ -442,5 +455,21 @@ document.getElementById('clearChatBtn').addEventListener('click', async () => {
 
 // Init
 loadHistory();
+
+// Multiline textarea
+function autoResizeChatInput(el) {
+    el.style.height = 'auto';
+    const newH = Math.min(el.scrollHeight, 200);
+    el.style.height = newH + 'px';
+    el.style.overflowY = el.scrollHeight > 200 ? 'auto' : 'hidden';
+}
+const chatInputEl = document.getElementById('chatInput');
+chatInputEl.addEventListener('input', function() { autoResizeChatInput(this); });
+chatInputEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('chatForm').dispatchEvent(new Event('submit', {cancelable: true}));
+    }
+});
 </script>
 {% endblock %}
