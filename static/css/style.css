@@ -186,6 +186,18 @@ body {
     animation: none;
 }
 
+/* Chat mode: constrain app-root to exact viewport height */
+.app-root.chat-mode {
+    height: 100vh;
+    overflow: hidden;
+}
+@supports (height: 100dvh) {
+    .app-root.chat-mode { height: 100dvh; }
+}
+.app-root.chat-mode .app-shell {
+    overflow: hidden;
+}
+
 /* === Page Fade-In Animation === */
 @keyframes fadeInUp {
     from { opacity: 0; transform: translateY(10px); }
@@ -385,6 +397,8 @@ body {
 
 /* === Overdue Row === */
 .overdue-row {
+    --bs-table-bg: var(--overdue-bg) !important;
+    --bs-table-color: var(--overdue-fg) !important;
     background-color: var(--overdue-bg) !important;
     border-left: 3px solid var(--overdue-accent) !important;
 }
