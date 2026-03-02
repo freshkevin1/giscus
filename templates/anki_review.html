@@ -179,11 +179,18 @@ async function submitRating(rating) {
     // Disable buttons to prevent double-tap
     document.querySelectorAll('.rating-btn').forEach(b => b.disabled = true);
 
-    await fetch(`/api/anki/cards/${card.id}/review`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({rating}),
-    });
+    try {
+        const res = await fetch(`/api/anki/cards/${card.id}/review`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({rating}),
+        });
+        if (!res.ok) throw new Error('서버 오류');
+    } catch (e) {
+        document.querySelectorAll('.rating-btn').forEach(b => b.disabled = false);
+        alert('저장 중 오류가 발생했습니다. 다시 시도해 주세요.');
+        return;
+    }
 
     reviewedCount++;
     currentIndex++;

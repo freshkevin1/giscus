@@ -2712,7 +2712,7 @@ def _apply_srs_review(card, rating):
         card.interval = 1
         card.ease_factor = max(1.3, card.ease_factor - 0.2)
     elif rating == 2:
-        card.interval = max(1, round(card.interval * 1.2))
+        card.interval = max(2, round(card.interval * 1.2))
         card.ease_factor = max(1.3, card.ease_factor - 0.15)
         card.repetitions += 1
     elif rating == 3:

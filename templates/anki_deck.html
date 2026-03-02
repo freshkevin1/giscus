@@ -76,10 +76,14 @@
                         {% endif %}
                     </td>
                     <td>{{ card.interval }}d</td>
-                    <td>
+                    <td class="d-flex gap-1">
                         <button class="btn btn-sm btn-outline-secondary"
                                 onclick="toggleArchive({{ card.id }})">
                             {% if card.status == 'archived' %}Unarchive{% else %}Archive{% endif %}
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                onclick="deleteCard({{ card.id }})">
+                            <i class="bi bi-trash"></i>
                         </button>
                     </td>
                 </tr>
@@ -126,8 +130,15 @@ async function toggleArchive(cardId) {
     const res = await fetch(`/api/anki/cards/${cardId}/archive`, { method: 'POST' });
     const data = await res.json();
     if (data.error) { alert(data.error); return; }
-    // Reload to reflect changes
     location.reload();
+}
+
+async function deleteCard(cardId) {
+    if (!confirm('이 카드를 삭제하겠습니까?')) return;
+    const res = await fetch(`/api/anki/cards/${cardId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    document.getElementById(`row-${cardId}`).remove();
 }
 
 async function deleteDeck(deckId) {

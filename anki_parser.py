@@ -168,6 +168,9 @@ def parse_millie_text(content: str) -> list:
         para = para.strip()
         if not para or len(para) < 15:
             continue
+        # Skip the title paragraph (same as deck_name)
+        if para.strip() == deck_name:
+            continue
 
         # Extract page reference
         page_match = re.search(r'p\.?\s*(\d+)', para, re.IGNORECASE)
