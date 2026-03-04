@@ -1,3 +1,4 @@
+import anthropic
 import logging
 import os
 import re
@@ -2028,6 +2029,68 @@ def api_get_deleted_contacts():
         return jsonify({"contacts": contacts})
     except Exception as e:
         logger.error("Failed to get deleted contacts: %s", e)
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
+
+
+@app.route("/api/contacts/scan-card", methods=["POST"])
+@login_required
+@limiter.limit("5 per minute")
+def api_scan_card():
+    import base64, json as _json
+
+    if "image" not in request.files:
+        return jsonify({"error": "이미지 파일이 필요합니다."}), 400
+
+    file = request.files["image"]
+    mime_type = file.mimetype or "image/jpeg"
+    if mime_type not in {"image/jpeg", "image/png", "image/gif", "image/webp"}:
+        return jsonify({"error": "JPG, PNG, WEBP만 지원됩니다."}), 400
+
+    file_bytes = file.read()
+    if len(file_bytes) > 5 * 1024 * 1024:
+        return jsonify({"error": "이미지 크기가 5MB를 초과합니다."}), 400
+
+    try:
+        image_b64 = base64.standard_b64encode(file_bytes).decode("utf-8")
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=512,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": image_b64}},
+                    {"type": "text", "text": (
+                        "이 명함 이미지에서 다음 정보를 추출하세요. 한국어·영어 명함 모두 지원합니다.\n"
+                        "반드시 아래 JSON 형식만 반환하세요. 다른 텍스트는 일절 포함하지 마세요:\n"
+                        '{"name":"이름","employer":"회사명","title":"직책","email":"이메일","phone":"전화번호(숫자·하이픈만)"}\n'
+                        "추출 불가 필드는 빈 문자열로 설정. 전화번호가 여러 개면 휴대폰 우선.\n"
+                        "명함이 아니거나 읽을 수 없으면 모든 필드를 빈 문자열로 반환."
+                    )}
+                ]
+            }]
+        )
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = "\n".join(l for l in raw.split("\n") if not l.startswith("```")).strip()
+
+        extracted = _json.loads(raw)
+        result = {k: str(extracted.get(k, "")).strip()
+                  for k in ("name", "employer", "title", "email", "phone")}
+
+        if not any(result.values()):
+            return jsonify({"success": True, "extracted": result,
+                            "warning": "명함에서 텍스트를 찾을 수 없었습니다. 이미지가 명확한지 확인해 주세요."})
+        return jsonify({"success": True, "extracted": result})
+
+    except _json.JSONDecodeError:
+        logger.error("OCR JSON parse failed: %s", raw)
+        return jsonify({"error": "AI 응답 파싱에 실패했습니다. 다시 시도해 주세요."}), 500
+    except anthropic.APIStatusError as e:
+        logger.error("Anthropic API error: %s", e)
+        return jsonify({"error": "AI 서비스 오류입니다. 잠시 후 다시 시도해 주세요."}), 502
+    except Exception as e:
+        logger.error("Card scan failed: %s", e)
         return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 

@@ -88,9 +88,41 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">연락처 추가</h5>
+                <button type="button" class="btn btn-outline-secondary btn-sm me-auto ms-2"
+                        id="scanCardBtn" title="명함 스캔으로 자동 입력">
+                    <i class="bi bi-camera"></i> 명함 스캔
+                </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <input type="file" id="cardImageInput" accept="image/*" capture="environment" class="d-none">
+
+                <div id="ocrSection" class="mb-3 d-none">
+                    <div class="d-flex align-items-start gap-3">
+                        <img id="cardPreview" src="" alt="명함 미리보기"
+                             class="rounded border" style="max-height:120px;max-width:180px;object-fit:cover;">
+                        <div class="flex-grow-1">
+                            <div id="ocrStatus" class="small text-muted mb-1"></div>
+                            <div id="ocrSpinner" class="d-none small">
+                                <span class="spinner-border spinner-border-sm text-primary me-1" role="status"></span>
+                                Claude AI로 명함 분석 중...
+                            </div>
+                            <div id="ocrResult" class="d-none">
+                                <span class="badge bg-success-subtle text-success-emphasis">
+                                    <i class="bi bi-check-circle"></i> 자동 입력 완료
+                                </span>
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-2" id="ocrRetryBtn">다시 스캔</button>
+                            </div>
+                            <div id="ocrError" class="d-none">
+                                <span class="text-danger small">
+                                    <i class="bi bi-exclamation-triangle"></i> <span id="ocrErrorMsg"></span>
+                                </span>
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-2 text-danger" id="ocrRetryBtn2">다시 시도</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <form id="addContactForm">
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -795,5 +827,78 @@ document.getElementById('mobileSortKey').value = sortKey;
 loadContacts();
 loadTags();
 loadDeletedContacts();
+
+// === Business Card OCR ===
+const cardImageInput = document.getElementById('cardImageInput');
+const scanCardBtn = document.getElementById('scanCardBtn');
+const ocrSection = document.getElementById('ocrSection');
+
+scanCardBtn.addEventListener('click', () => { cardImageInput.value=''; cardImageInput.click(); });
+document.getElementById('ocrRetryBtn').addEventListener('click', () => { cardImageInput.value=''; cardImageInput.click(); });
+document.getElementById('ocrRetryBtn2').addEventListener('click', () => { cardImageInput.value=''; cardImageInput.click(); });
+
+cardImageInput.addEventListener('change', async () => {
+    const file = cardImageInput.files[0];
+    if (!file) return;
+
+    const objectUrl = URL.createObjectURL(file);
+    document.getElementById('cardPreview').src = objectUrl;
+    document.getElementById('cardPreview').onload = () => URL.revokeObjectURL(objectUrl);
+
+    ocrSection.classList.remove('d-none');
+    document.getElementById('ocrSpinner').classList.remove('d-none');
+    document.getElementById('ocrResult').classList.add('d-none');
+    document.getElementById('ocrError').classList.add('d-none');
+    document.getElementById('ocrStatus').textContent = '';
+    scanCardBtn.disabled = true;
+
+    try {
+        const fd = new FormData();
+        fd.append('image', file);
+        const res = await fetch('/api/contacts/scan-card', { method: 'POST', body: fd });
+        const data = await res.json();
+
+        document.getElementById('ocrSpinner').classList.add('d-none');
+
+        if (!res.ok || data.error) { showOcrError(data.error || '오류가 발생했습니다.'); return; }
+        if (data.warning) { showOcrError(data.warning); return; }
+
+        const form = document.getElementById('addContactForm');
+        let count = 0;
+        for (const [key, val] of Object.entries(data.extracted)) {
+            if (!val) continue;
+            const input = form.querySelector(`[name="${key}"]`);
+            if (input) {
+                input.value = val;
+                input.classList.add('ocr-filled');
+                setTimeout(() => input.classList.remove('ocr-filled'), 2500);
+                count++;
+            }
+        }
+        document.getElementById('ocrResult').classList.remove('d-none');
+        document.getElementById('ocrStatus').textContent = `${count}개 필드 자동 입력됨. 내용 확인 후 저장하세요.`;
+    } catch (e) {
+        document.getElementById('ocrSpinner').classList.add('d-none');
+        showOcrError('네트워크 오류가 발생했습니다.');
+    } finally {
+        scanCardBtn.disabled = false;
+    }
+});
+
+function showOcrError(msg) {
+    document.getElementById('ocrErrorMsg').textContent = msg;
+    document.getElementById('ocrError').classList.remove('d-none');
+    document.getElementById('ocrStatus').textContent = '';
+}
+
+// OCR 영역 초기화 (모달 닫을 때)
+addContactModalEl.addEventListener('hidden.bs.modal', () => {
+    ocrSection.classList.add('d-none');
+    document.getElementById('cardPreview').src = '';
+    document.getElementById('ocrSpinner').classList.add('d-none');
+    document.getElementById('ocrResult').classList.add('d-none');
+    document.getElementById('ocrError').classList.add('d-none');
+    cardImageInput.value = '';
+});
 </script>
 {% endblock %}

@@ -857,3 +857,10 @@ body {
 [data-bs-theme="dark"] .contact-card.overdue-card .contact-card-meta {
     color: var(--overdue-fg);
 }
+
+/* OCR 자동입력 하이라이트 */
+@keyframes ocr-fill-flash {
+    0%   { background-color: rgba(25,135,84,0.25); border-color: #198754; }
+    100% { background-color: transparent; border-color: ''; }
+}
+.ocr-filled { animation: ocr-fill-flash 2.5s ease-out forwards; }
