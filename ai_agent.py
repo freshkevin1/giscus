@@ -1,17 +1,195 @@
-"""AI Agent for contact management — Claude API + [ACTION] marker parsing."""
+"""AI Agent for contact management — Claude API + Tool Use."""
 
-import json
 import logging
-import re
 
 import anthropic
 
-from sheets import find_contact_by_name, get_all_contacts, get_valid_tags
+from sheets import get_all_contacts, get_valid_tags
 from sheets_entities import get_all_entities
 
 logger = logging.getLogger(__name__)
 
-_ACTION_MARKER = "[ACTION]"
+_ENTITY_TOOL_NAMES = frozenset({
+    "add_entity", "update_entity", "delete_entity", "search_entity", "add_opp_to_entity"
+})
+
+CONTACT_TOOLS = [
+    {
+        "name": "add_contact",
+        "description": "새 연락처를 추가합니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "연락처 이름"},
+                "confidence": {"type": "string", "enum": ["high", "low"]},
+                "fields": {
+                    "type": "object",
+                    "properties": {
+                        "employer": {"type": "string"},
+                        "title": {"type": "string"},
+                        "contact_priority": {"type": "string"},
+                        "follow_up_priority": {"type": "string"},
+                        "follow_up_date": {"type": "string"},
+                        "follow_up_note": {"type": "string"},
+                        "last_contact": {"type": "string"},
+                        "tag": {"type": "string"},
+                    },
+                },
+                "interaction_log": {"type": "string"},
+                "key_value_extract": {"type": "string"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "update_contact",
+        "description": "기존 연락처를 업데이트합니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "confidence": {"type": "string", "enum": ["high", "low"]},
+                "fields": {
+                    "type": "object",
+                    "properties": {
+                        "last_contact": {"type": "string"},
+                        "follow_up_note": {"type": "string"},
+                        "follow_up_priority": {"type": "string"},
+                        "follow_up_date": {"type": "string"},
+                        "employer": {"type": "string"},
+                        "title": {"type": "string"},
+                        "contact_priority": {"type": "string"},
+                        "tag": {"type": "string"},
+                    },
+                },
+                "interaction_log": {"type": "string"},
+                "key_value_extract": {"type": "string"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "delete_contact",
+        "description": "연락처를 삭제합니다. confidence는 반드시 'low'로 설정하세요.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "confidence": {"type": "string", "enum": ["low"]},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "search",
+        "description": "연락처를 이름으로 검색합니다. 즉시 실행되며 확인 버튼이 표시되지 않습니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "add_entity",
+        "description": "새 비즈니스 엔티티(회사/기관)를 추가합니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "confidence": {"type": "string", "enum": ["high", "low"]},
+                "fields": {
+                    "type": "object",
+                    "properties": {
+                        "business_priority": {"type": "string"},
+                        "follow_up_priority": {"type": "string"},
+                        "follow_up_date": {"type": "string"},
+                        "follow_up_note": {"type": "string"},
+                        "last_contact": {"type": "string"},
+                        "tag": {"type": "string"},
+                        "key_value_interest": {"type": "string"},
+                        "referred_by": {"type": "string"},
+                        "assignee": {"type": "string"},
+                    },
+                },
+                "interaction_log": {"type": "string"},
+                "key_value_extract": {"type": "string"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "update_entity",
+        "description": "기존 비즈니스 엔티티를 업데이트합니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "confidence": {"type": "string", "enum": ["high", "low"]},
+                "fields": {
+                    "type": "object",
+                    "properties": {
+                        "business_priority": {"type": "string"},
+                        "follow_up_priority": {"type": "string"},
+                        "follow_up_date": {"type": "string"},
+                        "follow_up_note": {"type": "string"},
+                        "last_contact": {"type": "string"},
+                        "tag": {"type": "string"},
+                        "key_value_interest": {"type": "string"},
+                        "referred_by": {"type": "string"},
+                        "assignee": {"type": "string"},
+                    },
+                },
+                "interaction_log": {"type": "string"},
+                "key_value_extract": {"type": "string"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "delete_entity",
+        "description": "비즈니스 엔티티를 삭제합니다. confidence는 반드시 'low'로 설정하세요.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "confidence": {"type": "string", "enum": ["low"]},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "search_entity",
+        "description": "비즈니스 엔티티를 이름으로 검색합니다. 즉시 실행됩니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "add_opp_to_entity",
+        "description": "비즈니스 엔티티에 새 기회(Opportunity)를 추가합니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "엔티티 이름"},
+                "opp_title": {"type": "string", "description": "기회 제목"},
+                "confidence": {"type": "string", "enum": ["high", "low"]},
+                "fields": {
+                    "type": "object",
+                    "properties": {
+                        "details": {"type": "string"},
+                    },
+                },
+            },
+            "required": ["name", "opp_title"],
+        },
+    },
+]
 
 
 def _build_contacts_summary():
@@ -97,8 +275,8 @@ def _build_system_prompt():
 {tags_str}
 
 ## 엔티티 판별 규칙
-- 사람 이름, 만남/통화/연락 → entity_type="contact" 액션
-- 회사명, "기회/딜/프로젝트/계약/파트너십" 키워드 → entity_type="business_entity" 액션
+- 사람 이름, 만남/통화/연락 → contact 툴 사용
+- 회사명, "기회/딜/프로젝트/계약/파트너십" 키워드 → business_entity 툴 사용
 - 모호하면 반드시 확인: "연락처 [A] 업데이트할까요, 아니면 비즈니스 엔티티 [B]를 업데이트할까요?"
 
 ## Contact 모드
@@ -123,61 +301,11 @@ def _build_system_prompt():
 4. **태그**: 기존 태그 목록에서만 선택.
 5. **삭제 안전장치**: delete_contact는 반드시 confidence="low".
 6. **모든 쓰기 액션**: update, add, delete는 confidence 값과 관계없이 항상 사용자 확인 후에만 실행됩니다. 자동 실행은 없습니다.
-7. **응답 언어 — 절대 규칙**: [ACTION] 블록이 포함된 응답에서 액션은 아직 실행되지 않았습니다. 사용자가 확인 버튼을 눌러야만 실행됩니다.
+7. **응답 언어 — 절대 규칙**: 툴을 호출한 응답에서 액션은 아직 실행되지 않았습니다. 사용자가 확인 버튼을 눌러야만 실행됩니다.
    - ❌ 절대 금지: "추가했습니다", "업데이트했습니다", "변경했습니다", "삭제했습니다", "기록했습니다"
    - ✅ 반드시 사용: "추가할 준비가 됐습니다", "업데이트할 준비가 됐습니다"
-   - 쓰기 액션 (add_contact, update_contact, delete_contact 등) 포함 시: 반드시 "아래 버튼을 눌러 확인해 주세요."로 끝내세요.
-   - 검색 액션 (search, search_entity) 만 있는 경우: 결과가 즉시 표시됩니다. "아래 버튼을 눌러 확인해 주세요." 문장 사용 금지.
-
-## 응답 형식
-
-일반 대화는 자유롭게 응답합니다.
-
-변경이 필요한 경우, 응답 끝에 아래 형식으로 액션을 포함하세요:
-**⚠️ 필수**: 쓰기 액션 포함 시 응답 텍스트는 반드시 "아래 버튼을 눌러 확인해 주세요."로 끝내세요. 완료형("했습니다") 절대 금지. 검색 전용 액션은 이 문구 사용 금지.
-
-### Contact 액션:
-{_ACTION_MARKER}
-{{
-  "action": "update_contact" | "add_contact" | "search" | "delete_contact",
-  "entity_type": "contact",
-  "name": "대상 이름",
-  "confidence": "high" | "low",
-  "fields": {{
-    "last_contact": "YYYY-MM-DD",
-    "follow_up_note": "...",
-    "follow_up_priority": "FU0|FU1|FU3|FU5|FU9 중 하나",
-    "follow_up_date": "YYYY-MM-DD",
-    "employer": "...",
-    "title": "...",
-    "contact_priority": "아래 유효값 목록 중 하나",
-    "tag": "Tags 시트에 있는 값만 사용"
-  }},
-  "interaction_log": "[날짜] 만남유형 @장소 | 핵심내용 | → 다음 액션",
-  "key_value_extract": "추출된 관심사/레버리지"
-}}
-
-### Business Entity 액션:
-{_ACTION_MARKER}
-{{
-  "action": "add_entity" | "update_entity" | "search_entity" | "delete_entity" | "add_opp_to_entity",
-  "entity_type": "business_entity",
-  "name": "대상 엔티티 이름",
-  "confidence": "high" | "low",
-  "fields": {{
-    "business_priority": "0-Critical|1-High|2-Medium|3-Low 중 하나",
-    "follow_up_priority": "FU0|FU1|FU3|FU5|FU9 중 하나",
-    "follow_up_date": "YYYY-MM-DD",
-    "follow_up_note": "...",
-    "last_contact": "YYYY-MM-DD",
-    "tag": "태그 목록에 있는 값만",
-    "key_value_interest": "...",
-    "referred_by": "...",
-    "assignee": "담당자 이름"
-  }},
-  "interaction_log": "[날짜] 미팅유형 | 핵심내용 | → 다음 액션",
-  "key_value_extract": "추출된 비즈니스 인사이트"
-}}
+   - 쓰기 툴 (add_contact, update_contact, delete_contact 등) 호출 시: 반드시 "아래 버튼을 눌러 확인해 주세요."로 끝내세요.
+   - 검색 툴 (search, search_entity) 만 호출하는 경우: 결과가 즉시 표시됩니다. "아래 버튼을 눌러 확인해 주세요." 문장 사용 금지.
 
 ## 필드 유효값 제약
 
@@ -197,42 +325,22 @@ def _build_system_prompt():
 - 직전 메시지에서 언급된 이름/회사를 문맥 대상으로 추론하세요.
 - 불확실한 경우 반드시 확인: "이전에 언급하신 [이름]을 말씀하시는 건가요?"
 
-중요: 불필요한 필드는 포함하지 마세요. entity_type 필드는 반드시 포함하세요.
+중요: 불필요한 필드는 포함하지 마세요.
 항상 한국어로 응답하세요."""
 
 
-def _parse_actions(text):
-    """Parse [ACTION] markers from response text.
-
-    Returns:
-        (message_text, list_of_actions)
-    """
-    if _ACTION_MARKER not in text:
-        return text.strip(), []
-
-    parts = text.split(_ACTION_MARKER)
-    message_text = parts[0].strip()
+def _parse_tool_calls(response):
+    """Extract text and action list from tool use response."""
+    message_text = ""
     actions = []
-
-    for part in parts[1:]:
-        part = part.strip()
-        # Remove markdown fences
-        part = re.sub(r"^```(?:json)?\s*", "", part)
-        part = re.sub(r"\s*```$", "", part)
-        try:
-            action = json.loads(part)
+    for block in response.content:
+        if block.type == "text":
+            message_text += block.text
+        elif block.type == "tool_use":
+            entity_type = "business_entity" if block.name in _ENTITY_TOOL_NAMES else "contact"
+            action = {"action": block.name, "entity_type": entity_type, **block.input}
             actions.append(action)
-        except json.JSONDecodeError:
-            # Try to find JSON within the text
-            match = re.search(r"\{[\s\S]*\}", part)
-            if match:
-                try:
-                    action = json.loads(match.group())
-                    actions.append(action)
-                except json.JSONDecodeError:
-                    logger.warning("Failed to parse action JSON: %s", part[:200])
-
-    return message_text, actions
+    return message_text.strip(), actions
 
 
 def chat_contact(user_message, conversation_history):
@@ -245,8 +353,8 @@ def chat_contact(user_message, conversation_history):
     Returns:
         dict with keys:
             message (str) — display text
-            actions (list) — parsed [ACTION] items
-            raw (str) — full raw response
+            actions (list) — parsed tool call items
+            raw (str) — full raw response content
     """
     system_prompt = _build_system_prompt()
 
@@ -257,17 +365,17 @@ def chat_contact(user_message, conversation_history):
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_tokens=4096,
         system=system_prompt,
+        tools=CONTACT_TOOLS,
         messages=messages,
     )
 
-    raw = response.content[0].text or ""
-    message_text, actions = _parse_actions(raw)
+    message_text, actions = _parse_tool_calls(response)
 
     return {
         "message": message_text,
         "actions": actions,
-        "raw": raw,
+        "raw": str(response.content),
     }
