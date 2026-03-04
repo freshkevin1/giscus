@@ -836,3 +836,24 @@ body {
 [data-bs-theme="dark"] .wizard-step {
     color: #7b8a9a;
 }
+
+/* === Dark mode: tag badge (bg-light renders dark, making text-dark invisible) === */
+[data-bs-theme="dark"] .badge.bg-light {
+    background-color: rgba(255, 255, 255, 0.12) !important;
+    color: var(--text-primary) !important;
+}
+
+/* === Dark mode: contact card meta + actions === */
+[data-bs-theme="dark"] .contact-card-meta {
+    color: var(--text-secondary);
+}
+
+[data-bs-theme="dark"] .contact-card-actions {
+    border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+/* === Dark mode: overdue card — apply overdue-fg to text === */
+[data-bs-theme="dark"] .contact-card.overdue-card .contact-card-name,
+[data-bs-theme="dark"] .contact-card.overdue-card .contact-card-meta {
+    color: var(--overdue-fg);
+}
