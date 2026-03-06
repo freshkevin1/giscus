@@ -403,7 +403,10 @@ body {
     border-left: 3px solid var(--overdue-accent) !important;
 }
 
-.overdue-row td,
+.overdue-row td {
+    background-color: var(--overdue-bg) !important;
+    color: var(--overdue-fg) !important;
+}
 .overdue-row .text-muted,
 .overdue-row a {
     color: var(--overdue-fg) !important;
@@ -856,6 +859,38 @@ body {
 [data-bs-theme="dark"] .contact-card.overdue-card .contact-card-name,
 [data-bs-theme="dark"] .contact-card.overdue-card .contact-card-meta {
     color: var(--overdue-fg);
+}
+
+/* === Light mode: overdue card — meta text contrast fix === */
+.contact-card.overdue-card .contact-card-name,
+.contact-card.overdue-card .contact-card-meta {
+    color: var(--overdue-fg);
+}
+
+/* === Dark mode: table-light thead 가독성 fix === */
+[data-bs-theme="dark"] thead.table-light th {
+    --bs-table-bg: var(--surface-overlay);
+    --bs-table-color: var(--text-primary);
+    background-color: var(--surface-overlay) !important;
+    color: var(--text-primary) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* === Dark mode: table-danger 행 가독성 fix (overdue-row 변수 재사용) === */
+[data-bs-theme="dark"] tr.table-danger,
+[data-bs-theme="dark"] tr.table-danger > td,
+[data-bs-theme="dark"] tr.table-danger > th {
+    --bs-table-bg: var(--overdue-bg);
+    --bs-table-color: var(--overdue-fg);
+    background-color: var(--overdue-bg) !important;
+    color: var(--overdue-fg) !important;
+    border-color: var(--overdue-accent) !important;
+}
+
+/* === Dark mode: text-muted inside table-danger rows === */
+[data-bs-theme="dark"] tr.table-danger .text-muted {
+    color: var(--overdue-fg) !important;
+    opacity: 0.75;
 }
 
 /* OCR 자동입력 하이라이트 */
