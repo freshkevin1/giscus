@@ -893,6 +893,88 @@ body {
     opacity: 0.75;
 }
 
+/* === Dark mode: Entity detail modal (viewEntityModal) === */
+[data-bs-theme="dark"] #relatedIndividualsArea {
+    background-color: var(--surface-overlay) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: var(--text-primary);
+}
+
+[data-bs-theme="dark"] #relatedIndividualsArea .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+[data-bs-theme="dark"] #relatedIndividualsArea .form-check-label {
+    color: var(--text-primary);
+}
+
+[data-bs-theme="dark"] #relatedIndividualsArea .badge.bg-info {
+    background-color: rgba(13, 202, 240, 0.2) !important;
+    color: #67d6ed !important;
+}
+
+[data-bs-theme="dark"] #relatedIndividualsArea details summary {
+    color: var(--text-secondary) !important;
+}
+
+/* Dark mode: Opportunity cards */
+[data-bs-theme="dark"] #opportunitiesList .border {
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    background-color: var(--surface-overlay);
+}
+
+[data-bs-theme="dark"] #opportunitiesList .fw-semibold {
+    color: var(--text-primary);
+}
+
+[data-bs-theme="dark"] #opportunitiesList .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+[data-bs-theme="dark"] #opportunitiesList .text-secondary {
+    color: var(--text-secondary) !important;
+}
+
+[data-bs-theme="dark"] #opportunitiesList .text-danger {
+    color: #ff7b7b !important;
+}
+
+/* Dark mode: Entity interaction logs */
+[data-bs-theme="dark"] #entityInteractionLogs .border-bottom {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-bs-theme="dark"] #entityInteractionLogs {
+    color: var(--text-secondary);
+}
+
+[data-bs-theme="dark"] #entityInteractionLogs strong {
+    color: var(--text-primary);
+}
+
+/* Dark mode: Contact interaction logs */
+[data-bs-theme="dark"] #interactionLogs .border-bottom {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-bs-theme="dark"] #interactionLogs {
+    color: var(--text-secondary);
+}
+
+[data-bs-theme="dark"] #interactionLogs strong {
+    color: var(--text-primary);
+}
+
+/* Dark mode: modal form labels */
+[data-bs-theme="dark"] .modal .form-label {
+    color: var(--text-primary);
+}
+
+/* Dark mode: modal drag indicator */
+[data-bs-theme="dark"] .modal-header::before {
+    background: rgba(255, 255, 255, 0.2);
+}
+
 /* OCR 자동입력 하이라이트 */
 @keyframes ocr-fill-flash {
     0%   { background-color: rgba(25,135,84,0.25); border-color: #198754; }

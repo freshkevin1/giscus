@@ -1,6 +1,7 @@
 """AI Agent for contact management — Claude API + Tool Use."""
 
 import logging
+from datetime import date
 
 import anthropic
 
@@ -259,7 +260,13 @@ def _build_system_prompt():
     except Exception:
         tags_str = "(태그 로드 실패)"
 
+    today_str = date.today().isoformat()
+
     return f"""당신은 개인 연락처 및 비즈니스 기회 관리 AI 비서입니다.
+
+## 오늘 날짜
+{today_str}
+"오늘", "내일", "어제", "이번 주" 등 상대적 날짜 표현은 반드시 이 날짜를 기준으로 계산하세요.
 
 ## [ENTITY: CONTACTS]
 사용자의 개인 연락처를 관리하고, 만남/통화 기록을 정리하며, 정보를 검색하고 업데이트합니다.
@@ -373,6 +380,32 @@ def chat_contact(user_message, conversation_history):
     )
 
     message_text, actions = _parse_tool_calls(response)
+
+    # If the AI mentions confirmation buttons but didn't actually use a tool,
+    # retry once with forced tool_choice to ensure a tool_use block is emitted.
+    if (
+        not actions
+        and response.stop_reason == "end_turn"
+        and "버튼" in message_text
+    ):
+        logger.warning("AI mentioned buttons but produced no tool call — retrying with tool_choice=any")
+        retry_response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            system=system_prompt,
+            tools=CONTACT_TOOLS,
+            tool_choice={"type": "any"},
+            messages=messages,
+        )
+        retry_text, retry_actions = _parse_tool_calls(retry_response)
+        if retry_actions:
+            message_text = retry_text
+            actions = retry_actions
+            response = retry_response
+
+    # Fallback: strip misleading button reference if still no actions
+    if not actions and "아래 버튼을 눌러 확인해 주세요" in message_text:
+        message_text = message_text.replace("아래 버튼을 눌러 확인해 주세요.", "").replace("아래 버튼을 눌러 확인해 주세요", "").strip()
 
     return {
         "message": message_text,
