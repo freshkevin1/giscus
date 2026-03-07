@@ -33,6 +33,13 @@ When the user asks to deploy (배포), follow this sequence without asking for c
 
 All commands (`git add`, `git commit`, `git push`, `railway up`) are pre-authorized in `.claude/settings.local.json`.
 
+### Syncing Shared Files from contact-list-project
+
+Before deploying, if shared files were modified in `contact-list-project/`, merge them manually:
+- Shared files: `sheets.py`, `ai_agent.py`, `validation.py`, `scoring.py`, `encryption.py`
+- Do NOT blindly copy — both projects adapt these files differently
+- Review diffs and apply only the intended changes
+
 ### Deployment Validation
 
 After every `railway up`, verify the deployment succeeded:

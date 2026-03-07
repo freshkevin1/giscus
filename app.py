@@ -28,7 +28,7 @@ from models import AnkiCard, AnkiDeck, Article, ChatMessage, Compliment, Contact
 from pywebpush import webpush, WebPushException
 from recommender import chat_recommendation, chat_screen_recommendation, generate_recommendations
 import requests as http_requests
-from scraper import fetch_naver_news, scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_fieldai_news, scrape_geek_news_weekly, scrape_ifr_press_releases, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_vention_press, scrape_wsj_ai, scrape_yes24_bestseller
+from scraper import scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_fieldai_news, scrape_geek_news_weekly, scrape_ifr_press_releases, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_vention_press, scrape_wsj_ai, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -370,31 +370,53 @@ def run_scrape(source="mk"):
     return count
 
 
-def _generate_insight(keyword, articles):
-    """Generate a 1-2 line insight summary for a keyword using Claude API."""
-    if not articles:
-        return None
-    headlines = "\n".join(f"- {a['title']} ({a['published']})" for a in articles)
+def _generate_insight(keyword):
+    """Generate a structured insight for a keyword using Claude API with web search."""
     try:
         client = anthropic.Anthropic()
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=300,
+            max_tokens=1500,
+            tools=[{"type": "web_search_20250305"}],
             system=(
-                "You are a business intelligence analyst. Given recent news headlines "
-                "about a keyword/topic, write a concise 1-2 line insight summary in Korean. "
-                "Focus on the key trend, development, or implication. Be specific and actionable."
+                "You are a business intelligence analyst for a CEO. "
+                "Use web search to find recent news about the given keyword. "
+                "Search in both Korean and English for comprehensive coverage. "
+                "Write your analysis in Korean."
             ),
             messages=[{"role": "user", "content": (
                 f"키워드: {keyword}\n\n"
-                f"최근 1주일 뉴스 헤드라인:\n{headlines}\n\n"
-                "위 뉴스를 종합하여 1-2줄의 핵심 인사이트를 한국어로 작성해주세요."
+                "이 키워드에 대한 최근 1주일간의 주요 뉴스를 웹에서 검색하고 분석해주세요.\n\n"
+                "다음 형식으로 작성:\n"
+                "## 핵심 동향\n(가장 중요한 트렌드 1-2문장)\n\n"
+                "## 주요 이슈별 정리\n(2-3개 소주제, 각 1-2문장 + 구체적 수치/팩트 인용)\n\n"
+                "## 시사점\n(CEO 관점에서 액션 가능한 시사점 1-2문장)"
             )}],
         )
-        return response.content[0].text.strip()
+
+        insight_text = ""
+        source_articles = []
+        seen_urls = set()
+
+        for block in response.content:
+            if block.type == "text":
+                insight_text += block.text
+                if hasattr(block, 'citations') and block.citations:
+                    for cite in block.citations:
+                        if hasattr(cite, 'url') and cite.url not in seen_urls:
+                            seen_urls.add(cite.url)
+                            source_articles.append({
+                                "title": getattr(cite, 'title', cite.url),
+                                "url": cite.url,
+                            })
+
+        insight_text = insight_text.strip()
+        if not insight_text:
+            return None, []
+        return insight_text, source_articles
     except Exception as e:
         logger.error("Failed to generate insight for '%s': %s", keyword, e)
-        return None
+        return None, []
 
 
 def generate_all_insights():
@@ -404,22 +426,19 @@ def generate_all_insights():
         return
     import time
     for kw in keywords:
-        articles = fetch_naver_news(kw.keyword)
-        if not articles:
-            logger.info("No recent news for keyword '%s'", kw.keyword)
-            continue
-        insight_text = _generate_insight(kw.keyword, articles)
+        insight_text, source_articles = _generate_insight(kw.keyword)
         if not insight_text:
+            logger.info("No insight generated for keyword '%s'", kw.keyword)
             continue
         insight = NewsInsight(
             keyword_id=kw.id,
             insight_text=insight_text,
-            source_articles_json=json.dumps(articles, ensure_ascii=False),
+            source_articles_json=json.dumps(source_articles, ensure_ascii=False),
         )
         db.session.add(insight)
         db.session.commit()
         logger.info("Generated insight for '%s'", kw.keyword)
-        time.sleep(1)  # Rate limit between keywords
+        time.sleep(2)  # Rate limit between keywords (web search takes longer)
 
     # Cleanup: keep only last 30 days of insights
     cutoff = datetime.now(timezone.utc) - timedelta(days=30)

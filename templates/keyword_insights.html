@@ -55,9 +55,9 @@
             </div>
             <div class="card-body">
                 {% if item.insight %}
-                <p class="card-text mb-2" style="font-size: 1.05rem; line-height: 1.6;">
+                <div class="card-text mb-2 insight-content" style="font-size: 1.05rem; line-height: 1.6; white-space: pre-line;">
                     {{ item.insight.insight_text }}
-                </p>
+                </div>
                 <p class="text-muted small mb-2">
                     <i class="bi bi-clock"></i>
                     {{ item.insight.generated_at.strftime('%Y-%m-%d %H:%M') }}
@@ -102,8 +102,26 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+.insight-content .insight-heading {
+    display: block;
+    font-weight: 700;
+    margin-top: 0.75rem;
+    margin-bottom: 0.25rem;
+    font-size: 1.05rem;
+}
+.insight-content .insight-heading:first-child {
+    margin-top: 0;
+}
+</style>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
+function formatInsight(text) {
+    return text.replace(/^## (.+)$/gm, '<span class="insight-heading">$1</span>');
+}
+document.querySelectorAll('.insight-content').forEach(el => {
+    el.innerHTML = formatInsight(el.textContent);
+});
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 const headers = {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken};
 
@@ -177,7 +195,7 @@ document.getElementById('btn-generate').addEventListener('click', async () => {
     try {
         await fetch('/api/insights/generate', {method: 'POST', headers});
         // Wait a bit for background generation, then reload
-        setTimeout(() => location.reload(), 15000);
+        setTimeout(() => location.reload(), 30000);
     } catch (err) {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-stars"></i><span class="d-none d-sm-inline"> 인사이트 생성</span>';
@@ -203,8 +221,17 @@ document.querySelectorAll('.btn-history').forEach(btn => {
             if (data.insights && data.insights.length > 0) {
                 container.innerHTML = data.insights.map(ins => `
                     <div class="mb-3 pb-2 border-bottom">
-                        <p class="mb-1">${ins.insight_text}</p>
+                        <div class="mb-1 insight-content" style="white-space: pre-line;">${formatInsight(ins.insight_text)}</div>
                         <small class="text-muted">${ins.generated_at}</small>
+                        ${ins.source_articles && ins.source_articles.length > 0 ? `
+                        <details class="mt-1">
+                            <summary class="text-muted small" style="cursor:pointer;">참고 기사 (${ins.source_articles.length}건)</summary>
+                            <ul class="list-unstyled mt-1 ms-2">
+                                ${ins.source_articles.slice(0, 10).map(a => `
+                                    <li class="mb-1"><a href="${a.url}" target="_blank" rel="noopener" class="text-decoration-none small">${a.title}</a></li>
+                                `).join('')}
+                            </ul>
+                        </details>` : ''}
                     </div>
                 `).join('');
             } else {
