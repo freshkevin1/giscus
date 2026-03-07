@@ -1434,3 +1434,65 @@ def scrape_the_decoder():
 
     logger.info("Scraped %d articles from The Decoder RSS", len(articles))
     return articles
+
+
+def fetch_google_news_rss(keyword, num_results=15):
+    """Fetch recent news articles for a keyword via Google News RSS.
+
+    Returns list of dicts with keys: title, url, published (ISO date string).
+    Filters to articles from the last 7 days.
+    """
+    import xml.etree.ElementTree as ET
+    from email.utils import parsedate_to_datetime
+
+    articles = []
+    try:
+        resp = requests.get(
+            "https://news.google.com/rss/search",
+            params={"q": keyword, "hl": "ko", "gl": "KR", "ceid": "KR:ko"},
+            headers=HEADERS,
+            timeout=30,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch Google News RSS for '%s': %s", keyword, e)
+        return articles
+
+    try:
+        root = ET.fromstring(resp.content)
+    except ET.ParseError as e:
+        logger.error("Failed to parse Google News RSS for '%s': %s", keyword, e)
+        return articles
+
+    channel = root.find("channel")
+    if channel is None:
+        return articles
+
+    cutoff = datetime.now() - timedelta(days=7)
+    for item in channel.findall("item"):
+        title_raw = (item.findtext("title") or "").strip()
+        link = (item.findtext("link") or "").strip()
+        pub_date_str = (item.findtext("pubDate") or "").strip()
+        if not title_raw or not link:
+            continue
+
+        # Parse publication date
+        published = ""
+        if pub_date_str:
+            try:
+                pub_dt = parsedate_to_datetime(pub_date_str)
+                if pub_dt.replace(tzinfo=None) < cutoff:
+                    continue
+                published = pub_dt.strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                published = ""
+
+        # Strip source suffix (e.g., " - 매일경제")
+        title = title_raw.rsplit(" - ", 1)[0].strip() if " - " in title_raw else title_raw
+
+        articles.append({"title": title, "url": link, "published": published})
+        if len(articles) >= num_results:
+            break
+
+    logger.info("Fetched %d news articles for keyword '%s'", len(articles), keyword)
+    return articles

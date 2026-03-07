@@ -40,6 +40,12 @@
         </a>
     </li>
     <li class="nav-item">
+        <a class="nav-link {% if request.endpoint == 'keyword_insights' %}active{% endif %}"
+           href="{{ url_for('keyword_insights') }}">
+            <i class="bi bi-lightbulb"></i> 키워드 인사이트
+        </a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link {% if request.endpoint in ('bestsellers', 'bestsellers_global', 'bestsellers_kr') %}active{% endif %}"
            href="{{ url_for('bestsellers') }}">
             <i class="bi bi-book"></i> Bestsellers
