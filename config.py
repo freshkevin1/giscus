@@ -87,3 +87,7 @@ class Config:
     VAPID_PRIVATE_KEY = _pem_to_vapid_b64url(os.environ.get("VAPID_PRIVATE_KEY", ""))
     VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
     VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "")
+
+    # Naver News Search API
+    NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "")
+    NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "")

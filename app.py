@@ -28,7 +28,7 @@ from models import AnkiCard, AnkiDeck, Article, ChatMessage, Compliment, Contact
 from pywebpush import webpush, WebPushException
 from recommender import chat_recommendation, chat_screen_recommendation, generate_recommendations
 import requests as http_requests
-from scraper import fetch_google_news_rss, scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_fieldai_news, scrape_geek_news_weekly, scrape_ifr_press_releases, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_vention_press, scrape_wsj_ai, scrape_yes24_bestseller
+from scraper import fetch_naver_news, scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_fieldai_news, scrape_geek_news_weekly, scrape_ifr_press_releases, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_vention_press, scrape_wsj_ai, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -404,7 +404,7 @@ def generate_all_insights():
         return
     import time
     for kw in keywords:
-        articles = fetch_google_news_rss(kw.keyword)
+        articles = fetch_naver_news(kw.keyword)
         if not articles:
             logger.info("No recent news for keyword '%s'", kw.keyword)
             continue

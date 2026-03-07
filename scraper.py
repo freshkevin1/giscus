@@ -1496,3 +1496,60 @@ def fetch_google_news_rss(keyword, num_results=15):
 
     logger.info("Fetched %d news articles for keyword '%s'", len(articles), keyword)
     return articles
+
+
+def fetch_naver_news(keyword, num_results=15):
+    """Fetch recent news articles for a keyword via Naver News Search API.
+
+    Returns list of dicts with keys: title, url, published (ISO date string).
+    Filters to articles from the last 7 days.
+    """
+    import os
+    from email.utils import parsedate_to_datetime
+
+    client_id = os.environ.get("NAVER_CLIENT_ID", "")
+    client_secret = os.environ.get("NAVER_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        logger.error("Naver API credentials not configured")
+        return []
+
+    articles = []
+    try:
+        resp = requests.get(
+            "https://openapi.naver.com/v1/search/news.json",
+            params={"query": keyword, "display": num_results, "sort": "date"},
+            headers={
+                "X-Naver-Client-Id": client_id,
+                "X-Naver-Client-Secret": client_secret,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error("Failed to fetch Naver News for '%s': %s", keyword, e)
+        return articles
+
+    data = resp.json()
+    cutoff = datetime.now() - timedelta(days=7)
+
+    for item in data.get("items", []):
+        title = re.sub(r"</?b>", "", item.get("title", "")).strip()
+        link = item.get("originallink") or item.get("link", "")
+        pub_date_str = item.get("pubDate", "")
+        if not title or not link:
+            continue
+
+        published = ""
+        if pub_date_str:
+            try:
+                pub_dt = parsedate_to_datetime(pub_date_str)
+                if pub_dt.replace(tzinfo=None) < cutoff:
+                    continue
+                published = pub_dt.strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                published = ""
+
+        articles.append({"title": title, "url": link, "published": published})
+
+    logger.info("Fetched %d news articles for keyword '%s'", len(articles), keyword)
+    return articles
