@@ -548,7 +548,7 @@ scheduler.add_job(
 scheduler.add_job(
     scheduled_generate_insights,
     "cron",
-    hour=22,
+    hour="21,5,13",
     minute=0,
     id="daily_insights",
 )
