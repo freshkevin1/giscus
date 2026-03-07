@@ -374,6 +374,32 @@ def chat_contact(user_message, conversation_history):
 
     message_text, actions = _parse_tool_calls(response)
 
+    # If the AI mentions confirmation buttons but didn't actually use a tool,
+    # retry once with forced tool_choice to ensure a tool_use block is emitted.
+    if (
+        not actions
+        and response.stop_reason == "end_turn"
+        and "버튼" in message_text
+    ):
+        logger.warning("AI mentioned buttons but produced no tool call — retrying with tool_choice=any")
+        retry_response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            system=system_prompt,
+            tools=CONTACT_TOOLS,
+            tool_choice={"type": "any"},
+            messages=messages,
+        )
+        retry_text, retry_actions = _parse_tool_calls(retry_response)
+        if retry_actions:
+            message_text = retry_text
+            actions = retry_actions
+            response = retry_response
+
+    # Fallback: strip misleading button reference if still no actions
+    if not actions and "아래 버튼을 눌러 확인해 주세요" in message_text:
+        message_text = message_text.replace("아래 버튼을 눌러 확인해 주세요.", "").replace("아래 버튼을 눌러 확인해 주세요", "").strip()
+
     return {
         "message": message_text,
         "actions": actions,
