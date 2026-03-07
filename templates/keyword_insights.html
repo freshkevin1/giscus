@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}키워드 인사이트 - Dashboard{% endblock %}
+{% block mobile_title %}키워드 인사이트{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-lightbulb"></i> 키워드 인사이트</h2>
+    <div class="d-flex gap-2 flex-shrink-0">
+        <button id="btn-generate" class="btn btn-primary btn-sm">
+            <i class="bi bi-stars"></i><span class="d-none d-sm-inline"> 인사이트 생성</span>
+        </button>
+    </div>
+</div>
+
+<!-- Add keyword form -->
+<div class="mb-4">
+    <form id="add-keyword-form" class="d-flex gap-2" style="max-width: 400px;">
+        <input type="text" id="keyword-input" class="form-control form-control-sm"
+               placeholder="키워드 입력 (예: 두산로보틱스)" required>
+        <button type="submit" class="btn btn-outline-primary btn-sm flex-shrink-0">
+            <i class="bi bi-plus-lg"></i> 추가
+        </button>
+    </form>
+</div>
+
+{% if not keyword_data %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-lightbulb" style="font-size: 3rem;"></i>
+    <p class="mt-3">키워드를 추가하여 뉴스 인사이트를 받아보세요.</p>
+    <p class="small">매일 자동으로 최근 1주일 뉴스를 분석하여 핵심 인사이트를 생성합니다.</p>
+</div>
+{% else %}
+<div class="row g-3">
+    {% for item in keyword_data %}
+    <div class="col-12" id="keyword-card-{{ item.keyword.id }}">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-hash"></i> {{ item.keyword.keyword }}
+                </h5>
+                <div class="d-flex gap-2 align-items-center">
+                    <button class="btn btn-outline-secondary btn-sm btn-history"
+                            data-keyword-id="{{ item.keyword.id }}"
+                            title="지난 인사이트 보기">
+                        <i class="bi bi-clock-history"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm btn-delete-keyword"
+                            data-keyword-id="{{ item.keyword.id }}"
+                            data-keyword="{{ item.keyword.keyword }}"
+                            title="키워드 삭제">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if item.insight %}
+                <p class="card-text mb-2" style="font-size: 1.05rem; line-height: 1.6;">
+                    {{ item.insight.insight_text }}
+                </p>
+                <p class="text-muted small mb-2">
+                    <i class="bi bi-clock"></i>
+                    {{ item.insight.generated_at.strftime('%Y-%m-%d %H:%M') }}
+                </p>
+                {% if item.source_articles %}
+                <details class="mt-2">
+                    <summary class="text-muted small" style="cursor: pointer;">
+                        <i class="bi bi-newspaper"></i> 참고 기사 ({{ item.source_articles|length }}건)
+                    </summary>
+                    <ul class="list-unstyled mt-2 ms-2">
+                        {% for article in item.source_articles[:10] %}
+                        <li class="mb-1">
+                            <a href="{{ article.url }}" target="_blank" rel="noopener"
+                               class="text-decoration-none small">
+                                {{ article.title }}
+                            </a>
+                            {% if article.published %}
+                            <span class="text-muted" style="font-size: 0.75rem;">{{ article.published }}</span>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </details>
+                {% endif %}
+                {% else %}
+                <p class="text-muted mb-0">
+                    <i class="bi bi-info-circle"></i> 아직 인사이트가 없습니다. 위의 "인사이트 생성" 버튼을 눌러주세요.
+                </p>
+                {% endif %}
+            </div>
+            <!-- History collapse -->
+            <div class="collapse" id="history-{{ item.keyword.id }}">
+                <div class="card-body border-top pt-3">
+                    <div class="history-content text-muted small">불러오는 중...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const headers = {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken};
+
+// Add keyword
+document.getElementById('add-keyword-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('keyword-input');
+    const keyword = input.value.trim();
+    if (!keyword) return;
+
+    try {
+        const resp = await fetch('/api/insights/keywords', {
+            method: 'POST', headers, body: JSON.stringify({keyword})
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            location.reload();
+        } else {
+            alert(data.message || '오류가 발생했습니다.');
+        }
+    } catch (err) {
+        alert('네트워크 오류가 발생했습니다.');
+    }
+});
+
+// Delete keyword
+document.querySelectorAll('.btn-delete-keyword').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const id = btn.dataset.keywordId;
+        const keyword = btn.dataset.keyword;
+        if (!confirm(`"${keyword}" 키워드를 삭제하시겠습니까?`)) return;
+
+        try {
+            const resp = await fetch(`/api/insights/keywords/${id}`, {
+                method: 'DELETE', headers
+            });
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                document.getElementById(`keyword-card-${id}`)?.remove();
+            }
+        } catch (err) {
+            alert('삭제 중 오류가 발생했습니다.');
+        }
+    });
+});
+
+// Generate insights
+document.getElementById('btn-generate').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-generate');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 생성 중...';
+
+    try {
+        await fetch('/api/insights/generate', {method: 'POST', headers});
+        // Wait a bit for background generation, then reload
+        setTimeout(() => location.reload(), 15000);
+    } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars"></i><span class="d-none d-sm-inline"> 인사이트 생성</span>';
+        alert('인사이트 생성 요청에 실패했습니다.');
+    }
+});
+
+// View history
+document.querySelectorAll('.btn-history').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const id = btn.dataset.keywordId;
+        const collapse = document.getElementById(`history-${id}`);
+        const bsCollapse = new bootstrap.Collapse(collapse, {toggle: true});
+
+        if (collapse.classList.contains('show')) return;
+
+        const container = collapse.querySelector('.history-content');
+        container.innerHTML = '불러오는 중...';
+
+        try {
+            const resp = await fetch(`/api/insights/keywords/${id}/history`);
+            const data = await resp.json();
+            if (data.insights && data.insights.length > 0) {
+                container.innerHTML = data.insights.map(ins => `
+                    <div class="mb-3 pb-2 border-bottom">
+                        <p class="mb-1">${ins.insight_text}</p>
+                        <small class="text-muted">${ins.generated_at}</small>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<p>과거 인사이트가 없습니다.</p>';
+            }
+        } catch (err) {
+            container.innerHTML = '<p class="text-danger">불러오기에 실패했습니다.</p>';
+        }
+    });
+});
+</script>
+{% endblock %}

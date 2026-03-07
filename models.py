@@ -216,6 +216,23 @@ class ScreenChatMessage(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class InsightKeyword(db.Model):
+    """User-defined keywords for news insight tracking."""
+    id = db.Column(db.Integer, primary_key=True)
+    keyword = db.Column(db.String(200), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class NewsInsight(db.Model):
+    """Daily AI-generated insight summary per keyword."""
+    id = db.Column(db.Integer, primary_key=True)
+    keyword_id = db.Column(db.Integer, db.ForeignKey('insight_keyword.id'), nullable=False)
+    insight_text = db.Column(db.Text, nullable=False)
+    source_articles_json = db.Column(db.Text, default="")
+    generated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    keyword = db.relationship('InsightKeyword', backref=db.backref('insights', lazy=True, cascade='all, delete-orphan'))
+
+
 def init_default_user():
     """Create default user if not exists. Reads credentials from environment variables."""
     username = os.environ.get("DASHBOARD_USER")

@@ -24,11 +24,11 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 from config import Config
 import json
 
-from models import AnkiCard, AnkiDeck, Article, ChatMessage, Compliment, ContactChatMessage, LoginLog, MyBook, MyScreen, NotificationPreference, PushSubscription, ReadArticle, Recommendation, SavedBook, SavedScreen, ScreenChatMessage, User, db, init_default_user
+from models import AnkiCard, AnkiDeck, Article, ChatMessage, Compliment, ContactChatMessage, InsightKeyword, LoginLog, MyBook, MyScreen, NewsInsight, NotificationPreference, PushSubscription, ReadArticle, Recommendation, SavedBook, SavedScreen, ScreenChatMessage, User, db, init_default_user
 from pywebpush import webpush, WebPushException
 from recommender import chat_recommendation, chat_screen_recommendation, generate_recommendations
 import requests as http_requests
-from scraper import scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_fieldai_news, scrape_geek_news_weekly, scrape_ifr_press_releases, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_vention_press, scrape_wsj_ai, scrape_yes24_bestseller
+from scraper import fetch_google_news_rss, scrape_acdeeptech, scrape_ai_robotics_companies, scrape_aitimes, scrape_amazon_charts, scrape_deeplearning_batch, scrape_fieldai_news, scrape_geek_news_weekly, scrape_ifr_press_releases, scrape_irobotnews, scrape_mk_today, scrape_nyt_tech, scrape_robotreport, scrape_the_decoder, scrape_vention_press, scrape_wsj_ai, scrape_yes24_bestseller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -370,6 +370,69 @@ def run_scrape(source="mk"):
     return count
 
 
+def _generate_insight(keyword, articles):
+    """Generate a 1-2 line insight summary for a keyword using Claude API."""
+    if not articles:
+        return None
+    headlines = "\n".join(f"- {a['title']} ({a['published']})" for a in articles)
+    try:
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=300,
+            system=(
+                "You are a business intelligence analyst. Given recent news headlines "
+                "about a keyword/topic, write a concise 1-2 line insight summary in Korean. "
+                "Focus on the key trend, development, or implication. Be specific and actionable."
+            ),
+            messages=[{"role": "user", "content": (
+                f"키워드: {keyword}\n\n"
+                f"최근 1주일 뉴스 헤드라인:\n{headlines}\n\n"
+                "위 뉴스를 종합하여 1-2줄의 핵심 인사이트를 한국어로 작성해주세요."
+            )}],
+        )
+        return response.content[0].text.strip()
+    except Exception as e:
+        logger.error("Failed to generate insight for '%s': %s", keyword, e)
+        return None
+
+
+def generate_all_insights():
+    """Generate insights for all tracked keywords."""
+    keywords = InsightKeyword.query.all()
+    if not keywords:
+        return
+    import time
+    for kw in keywords:
+        articles = fetch_google_news_rss(kw.keyword)
+        if not articles:
+            logger.info("No recent news for keyword '%s'", kw.keyword)
+            continue
+        insight_text = _generate_insight(kw.keyword, articles)
+        if not insight_text:
+            continue
+        insight = NewsInsight(
+            keyword_id=kw.id,
+            insight_text=insight_text,
+            source_articles_json=json.dumps(articles, ensure_ascii=False),
+        )
+        db.session.add(insight)
+        db.session.commit()
+        logger.info("Generated insight for '%s'", kw.keyword)
+        time.sleep(1)  # Rate limit between keywords
+
+    # Cleanup: keep only last 30 days of insights
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    NewsInsight.query.filter(NewsInsight.generated_at < cutoff).delete()
+    db.session.commit()
+
+
+def scheduled_generate_insights():
+    """Run insight generation within app context."""
+    with app.app_context():
+        generate_all_insights()
+
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(
     scheduled_scrape,
@@ -480,6 +543,14 @@ scheduler.add_job(
     hour=21,
     minute=0,
     id="daily_push_notify",
+)
+
+scheduler.add_job(
+    scheduled_generate_insights,
+    "cron",
+    hour=22,
+    minute=0,
+    id="daily_insights",
 )
 
 
@@ -1025,6 +1096,95 @@ def book_recommendations():
 def book_saved():
     books = SavedBook.query.order_by(SavedBook.saved_at.desc()).all()
     return render_template("book_saved.html", books=books)
+
+
+# --- Keyword Insights ---
+
+@app.route("/insights")
+@login_required
+def keyword_insights():
+    keywords = InsightKeyword.query.order_by(InsightKeyword.created_at.asc()).all()
+    # For each keyword, get the most recent insight
+    keyword_data = []
+    for kw in keywords:
+        latest = (NewsInsight.query
+                  .filter_by(keyword_id=kw.id)
+                  .order_by(NewsInsight.generated_at.desc())
+                  .first())
+        source_articles = []
+        if latest and latest.source_articles_json:
+            try:
+                source_articles = json.loads(latest.source_articles_json)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        keyword_data.append({
+            "keyword": kw,
+            "insight": latest,
+            "source_articles": source_articles,
+        })
+    return render_template("keyword_insights.html", keyword_data=keyword_data)
+
+
+@app.route("/api/insights/keywords", methods=["POST"])
+@login_required
+def api_add_keyword():
+    data = request.get_json(silent=True) or {}
+    keyword = (data.get("keyword") or "").strip()
+    if not keyword:
+        return jsonify({"status": "error", "message": "키워드를 입력해주세요."}), 400
+    if InsightKeyword.query.filter_by(keyword=keyword).first():
+        return jsonify({"status": "error", "message": "이미 등록된 키워드입니다."}), 400
+    kw = InsightKeyword(keyword=keyword)
+    db.session.add(kw)
+    db.session.commit()
+    return jsonify({"status": "ok", "id": kw.id, "keyword": kw.keyword})
+
+
+@app.route("/api/insights/keywords/<int:keyword_id>", methods=["DELETE"])
+@login_required
+def api_delete_keyword(keyword_id):
+    kw = db.session.get(InsightKeyword, keyword_id)
+    if not kw:
+        return jsonify({"status": "error", "message": "Not found"}), 404
+    db.session.delete(kw)
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/insights/generate", methods=["POST"])
+@login_required
+def api_generate_insights():
+    def _bg():
+        with app.app_context():
+            generate_all_insights()
+    thread = threading.Thread(target=_bg, daemon=True)
+    thread.start()
+    return jsonify({"status": "ok", "message": "인사이트 생성을 시작했습니다."})
+
+
+@app.route("/api/insights/keywords/<int:keyword_id>/history")
+@login_required
+def api_keyword_history(keyword_id):
+    insights = (NewsInsight.query
+                .filter_by(keyword_id=keyword_id)
+                .order_by(NewsInsight.generated_at.desc())
+                .limit(14)
+                .all())
+    result = []
+    for ins in insights:
+        articles = []
+        if ins.source_articles_json:
+            try:
+                articles = json.loads(ins.source_articles_json)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        result.append({
+            "id": ins.id,
+            "insight_text": ins.insight_text,
+            "source_articles": articles,
+            "generated_at": ins.generated_at.strftime("%Y-%m-%d %H:%M"),
+        })
+    return jsonify({"status": "ok", "insights": result})
 
 
 # --- API Routes ---
