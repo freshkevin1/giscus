@@ -377,7 +377,7 @@ def _generate_insight(keyword):
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1500,
-            tools=[{"type": "web_search_20250305"}],
+            tools=[{"type": "web_search_20250305", "name": "web_search"}],
             system=(
                 "You are a business intelligence analyst for a CEO. "
                 "Use web search to find recent news about the given keyword. "
