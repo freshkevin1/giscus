@@ -1,6 +1,7 @@
 """AI Agent for contact management — Claude API + Tool Use."""
 
 import logging
+from datetime import date
 
 import anthropic
 
@@ -259,7 +260,13 @@ def _build_system_prompt():
     except Exception:
         tags_str = "(태그 로드 실패)"
 
+    today_str = date.today().isoformat()
+
     return f"""당신은 개인 연락처 및 비즈니스 기회 관리 AI 비서입니다.
+
+## 오늘 날짜
+{today_str}
+"오늘", "내일", "어제", "이번 주" 등 상대적 날짜 표현은 반드시 이 날짜를 기준으로 계산하세요.
 
 ## [ENTITY: CONTACTS]
 사용자의 개인 연락처를 관리하고, 만남/통화 기록을 정리하며, 정보를 검색하고 업데이트합니다.
