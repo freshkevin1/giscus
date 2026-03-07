@@ -309,6 +309,29 @@
 
 {% block scripts %}
 <script>
+function setBtnFeedback(btn, state, msg) {
+    if (!btn._orig) btn._orig = {html: btn.innerHTML, cls: btn.className};
+    clearTimeout(btn._timer);
+    if (state === 'loading') {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>저장 중...';
+    } else if (state === 'success') {
+        btn.disabled = false;
+        btn.className = btn._orig.cls.replace(/\bbtn-(primary|secondary|outline-\w+)\b/, 'btn-success');
+        btn.innerHTML = '✓ ' + (msg || '저장됨');
+        btn._timer = setTimeout(() => {
+            btn.className = btn._orig.cls; btn.innerHTML = btn._orig.html; btn._orig = null;
+        }, 1800);
+    } else if (state === 'error') {
+        btn.disabled = false;
+        btn.className = btn._orig.cls.replace(/\bbtn-(primary|secondary|outline-\w+)\b/, 'btn-danger');
+        btn.innerHTML = msg || '오류';
+        btn._timer = setTimeout(() => {
+            btn.className = btn._orig.cls; btn.innerHTML = btn._orig.html; btn._orig = null;
+        }, 2500);
+    }
+}
+
 let allContacts = [];
 let deletedContacts = [];
 let currentFilter = 'all';
@@ -618,6 +641,7 @@ async function loadTags() {
 
 // Add contact
 document.getElementById('saveContactBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('saveContactBtn');
     const form = document.getElementById('addContactForm');
     const data = {};
     new FormData(form).forEach((v, k) => { if (v) data[k] = v; });
@@ -627,6 +651,7 @@ document.getElementById('saveContactBtn').addEventListener('click', async () => 
         return;
     }
 
+    setBtnFeedback(btn, 'loading');
     try {
         const res = await fetch('/api/contacts', {
             method: 'POST',
@@ -635,14 +660,15 @@ document.getElementById('saveContactBtn').addEventListener('click', async () => 
         });
         const result = await res.json();
         if (result.error) {
-            alert(result.errors ? result.errors.join('\n') : result.error);
+            setBtnFeedback(btn, 'error', result.errors ? result.errors.join(', ') : result.error);
             return;
         }
+        setBtnFeedback(btn, 'success');
         hideModalSafely(addContactModal);
         form.reset();
         loadContacts();
     } catch (e) {
-        alert('오류: ' + e.message);
+        setBtnFeedback(btn, 'error', '저장 실패');
     }
 });
 
@@ -700,6 +726,7 @@ async function openEdit(nameHmac) {
 
 // Update contact
 document.getElementById('updateContactBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('updateContactBtn');
     const nameHmac = document.getElementById('editNameHmac').value;
     const data = {};
     const fields = ['contact_priority', 'employer', 'title', 'follow_up_priority',
@@ -713,6 +740,7 @@ document.getElementById('updateContactBtn').addEventListener('click', async () =
         if (val !== null) data[f] = val;
     });
 
+    setBtnFeedback(btn, 'loading');
     try {
         const res = await fetch(`/api/contacts/${nameHmac}`, {
             method: 'PUT',
@@ -721,13 +749,14 @@ document.getElementById('updateContactBtn').addEventListener('click', async () =
         });
         const result = await res.json();
         if (result.error) {
-            alert(result.errors ? result.errors.join('\n') : result.error);
+            setBtnFeedback(btn, 'error', result.errors ? result.errors.join(', ') : result.error);
             return;
         }
+        setBtnFeedback(btn, 'success');
         hideModalSafely(editContactModal);
         loadContacts();
     } catch (e) {
-        alert('오류: ' + e.message);
+        setBtnFeedback(btn, 'error', '저장 실패');
     }
 });
 
