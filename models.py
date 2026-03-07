@@ -220,6 +220,7 @@ class InsightKeyword(db.Model):
     """User-defined keywords for news insight tracking."""
     id = db.Column(db.Integer, primary_key=True)
     keyword = db.Column(db.String(200), unique=True, nullable=False)
+    position = db.Column(db.Integer, default=0, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 

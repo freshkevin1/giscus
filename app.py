@@ -1103,7 +1103,7 @@ def book_saved():
 @app.route("/insights")
 @login_required
 def keyword_insights():
-    keywords = InsightKeyword.query.order_by(InsightKeyword.created_at.asc()).all()
+    keywords = InsightKeyword.query.order_by(InsightKeyword.position.asc(), InsightKeyword.created_at.asc()).all()
     # For each keyword, get the most recent insight
     keyword_data = []
     for kw in keywords:
@@ -1134,10 +1134,26 @@ def api_add_keyword():
         return jsonify({"status": "error", "message": "키워드를 입력해주세요."}), 400
     if InsightKeyword.query.filter_by(keyword=keyword).first():
         return jsonify({"status": "error", "message": "이미 등록된 키워드입니다."}), 400
-    kw = InsightKeyword(keyword=keyword)
+    max_pos = db.session.query(db.func.max(InsightKeyword.position)).scalar() or 0
+    kw = InsightKeyword(keyword=keyword, position=max_pos + 1)
     db.session.add(kw)
     db.session.commit()
     return jsonify({"status": "ok", "id": kw.id, "keyword": kw.keyword})
+
+
+@app.route("/api/insights/keywords/reorder", methods=["PATCH"])
+@login_required
+def api_reorder_keywords():
+    data = request.get_json(silent=True) or {}
+    order = data.get("order", [])
+    if not isinstance(order, list):
+        return jsonify({"status": "error", "message": "Invalid order"}), 400
+    for i, keyword_id in enumerate(order):
+        kw = db.session.get(InsightKeyword, keyword_id)
+        if kw:
+            kw.position = i
+    db.session.commit()
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/insights/keywords/<int:keyword_id>", methods=["DELETE"])
@@ -3230,6 +3246,11 @@ with app.app_context():
             if col not in ss_columns:
                 conn.execute(sqlalchemy.text(f"ALTER TABLE saved_screen ADD COLUMN {col} {col_type}"))
                 conn.commit()
+        # Migrate: add position column to insight_keyword if missing
+        ik_columns = [r[1] for r in conn.execute(sqlalchemy.text("PRAGMA table_info(insight_keyword)"))]
+        if "position" not in ik_columns:
+            conn.execute(sqlalchemy.text("ALTER TABLE insight_keyword ADD COLUMN position INTEGER DEFAULT 0"))
+            conn.commit()
     # Migrate: create login_log table if missing
     from sqlalchemy import inspect as sa_inspect
     inspector = sa_inspect(db.engine)
@@ -3241,6 +3262,13 @@ with app.app_context():
     if "anki_card" not in inspector.get_table_names():
         AnkiCard.__table__.create(db.engine)
     init_default_user()
+
+    # Migrate: initialize position for existing InsightKeywords (position=0 means unset)
+    unset_kws = InsightKeyword.query.filter_by(position=0).order_by(InsightKeyword.created_at.asc()).all()
+    if len(unset_kws) > 1:
+        for i, kw in enumerate(unset_kws):
+            kw.position = i
+        db.session.commit()
 
     # One-time: migrate aicompanies/robotics_companies → ai_robotics
     migrated = Article.query.filter(Article.source.in_(["aicompanies", "robotics_companies"])).count()

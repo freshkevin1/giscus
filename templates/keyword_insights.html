@@ -35,7 +35,8 @@
     <div class="col-12" id="keyword-card-{{ item.keyword.id }}">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
+                <h5 class="mb-0 d-flex align-items-center gap-2">
+                    <i class="bi bi-grip-vertical drag-handle text-muted" style="cursor: grab; font-size: 1.1rem;"></i>
                     <i class="bi bi-hash"></i> {{ item.keyword.keyword }}
                 </h5>
                 <div class="d-flex gap-2 align-items-center">
@@ -101,9 +102,28 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 const headers = {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken};
+
+// Drag-and-drop reorder
+const cardContainer = document.querySelector('.row.g-3');
+if (cardContainer) {
+    Sortable.create(cardContainer, {
+        handle: '.drag-handle',
+        animation: 150,
+        onEnd: function() {
+            const order = [...document.querySelectorAll('[id^="keyword-card-"]')]
+                .map(el => parseInt(el.id.replace('keyword-card-', '')));
+            fetch('/api/insights/keywords/reorder', {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({ order })
+            });
+        }
+    });
+}
 
 // Add keyword
 document.getElementById('add-keyword-form').addEventListener('submit', async (e) => {
