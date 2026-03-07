@@ -55,7 +55,7 @@ db.init_app(app)
 def _client_ip_for_rate_limit():
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        return forwarded.split(",")[-1].strip()
+        return forwarded.split(",")[0].strip()
     return get_remote_address()
 
 
@@ -66,7 +66,7 @@ def _login_rate_limit_key():
 
 limiter = Limiter(
     key_func=_client_ip_for_rate_limit,
-    default_limits=[],
+    default_limits=["120 per minute"],
     storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
 )
 limiter.init_app(app)
@@ -93,7 +93,7 @@ def inject_push_config():
 
 
 PASSWORD_EXPIRY_DAYS = 30
-ADMIN_USERNAME = "tornadogrowth"
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "tornadogrowth")
 
 HABITS = ["아침 조깅/테니스/골프 + 스트레칭/명상"]
 FAMILY_HABITS = ["아이와 놀기", "와이프 데이트"]
@@ -169,7 +169,7 @@ def enforce_password_change():
         return
 
     changed_at = current_user.password_changed_at
-    if changed_at is None or (datetime.utcnow() - changed_at).days >= PASSWORD_EXPIRY_DAYS:
+    if changed_at is None or (datetime.now(timezone.utc) - changed_at).days >= PASSWORD_EXPIRY_DAYS:
         flash("보안을 위해 비밀번호를 변경해 주세요 (30일 경과).", "warning")
         return redirect(url_for("change_password"))
 
@@ -179,6 +179,8 @@ def set_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     return response
 
 
@@ -604,8 +606,7 @@ def login():
                 next_page = url_for("index", fresh=1)
             return redirect(next_page)
 
-        failure_reason = "unknown_user" if not user else "invalid_password"
-        db.session.add(LoginLog(username=username, ip_address=ip, user_agent=ua, success=False, failure_reason=failure_reason))
+        db.session.add(LoginLog(username=username, ip_address=ip, user_agent=ua, success=False, failure_reason="invalid_credentials"))
         db.session.commit()
         flash("아이디 또는 비밀번호가 올바르지 않습니다.", "danger")
 
@@ -629,20 +630,20 @@ def change_password():
 
         if not current_user.check_password(current_pw):
             flash("현재 비밀번호가 올바르지 않습니다.", "danger")
-        elif len(new_pw) < 8:
-            flash("새 비밀번호는 8자 이상이어야 합니다.", "danger")
+        elif len(new_pw) < 8 or not re.search(r'[A-Za-z]', new_pw) or not re.search(r'\d', new_pw):
+            flash("새 비밀번호는 8자 이상, 영문과 숫자를 모두 포함해야 합니다.", "danger")
         elif new_pw != confirm_pw:
             flash("새 비밀번호가 일치하지 않습니다.", "danger")
         else:
             current_user.set_password(new_pw)
-            current_user.password_changed_at = datetime.utcnow()
+            current_user.password_changed_at = datetime.now(timezone.utc)
             db.session.commit()
             flash("비밀번호가 변경되었습니다.", "success")
             return redirect(url_for("index"))
 
     days_since = None
     if current_user.password_changed_at:
-        days_since = (datetime.utcnow() - current_user.password_changed_at).days
+        days_since = (datetime.now(timezone.utc) - current_user.password_changed_at).days
 
     return render_template("change_password.html", days_since=days_since)
 
@@ -662,6 +663,7 @@ def index():
         from scoring import sort_contacts_by_score
         contacts = sort_contacts_by_score(get_all_contacts())
     except Exception:
+        logger.exception("Failed to load contacts")
         contacts = []
 
     try:
@@ -669,6 +671,7 @@ def index():
         from scoring import sort_entities_by_score
         entities = sort_entities_by_score(get_all_entities())
     except Exception:
+        logger.exception("Failed to load entities")
         entities = []
 
     today_str = date.today().isoformat()
@@ -3242,9 +3245,15 @@ with app.app_context():
             conn.commit()
         # Migrate: add TMDB columns to saved_screen if missing
         ss_columns = [r[1] for r in conn.execute(sqlalchemy.text("PRAGMA table_info(saved_screen)"))]
-        for col, col_type in [("tmdb_id", "INTEGER"), ("tmdb_title", "VARCHAR(500)"), ("year", "INTEGER"), ("poster_url", "VARCHAR(500)")]:
+        _ss_migrations = {
+            "tmdb_id": "ALTER TABLE saved_screen ADD COLUMN tmdb_id INTEGER",
+            "tmdb_title": "ALTER TABLE saved_screen ADD COLUMN tmdb_title VARCHAR(500)",
+            "year": "ALTER TABLE saved_screen ADD COLUMN year INTEGER",
+            "poster_url": "ALTER TABLE saved_screen ADD COLUMN poster_url VARCHAR(500)",
+        }
+        for col, stmt in _ss_migrations.items():
             if col not in ss_columns:
-                conn.execute(sqlalchemy.text(f"ALTER TABLE saved_screen ADD COLUMN {col} {col_type}"))
+                conn.execute(sqlalchemy.text(stmt))
                 conn.commit()
         # Migrate: add position column to insight_keyword if missing
         ik_columns = [r[1] for r in conn.execute(sqlalchemy.text("PRAGMA table_info(insight_keyword)"))]

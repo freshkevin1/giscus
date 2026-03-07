@@ -62,6 +62,16 @@ class Config:
     SESSION_REFRESH_EACH_REQUEST = True
     REMEMBER_COOKIE_REFRESH_EACH_REQUEST = False
 
+    # Session cookie security
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+
+    # Remember-me cookie security
+    REMEMBER_COOKIE_SECURE = True
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = "Lax"
+
     # Scraping schedule (KST = UTC+9): 06:00, 12:00, 18:00, 24:00 KST = 21:00, 03:00, 09:00, 15:00 UTC
     SCRAPE_HOUR_UTC = "21,3,9,15"
     SCRAPE_MINUTE = 0
