@@ -16,6 +16,8 @@ self.addEventListener('push', e => {
 
 self.addEventListener('notificationclick', e => {
     e.notification.close();
-    const url = (e.notification.data && e.notification.data.url) || '/contacts';
-    e.waitUntil(clients.openWindow(url));
+    const rawUrl = (e.notification.data && e.notification.data.url) || '/contacts';
+    const url = new URL(rawUrl, self.location.origin);
+    if (url.origin !== self.location.origin) return;
+    e.waitUntil(clients.openWindow(url.href));
 });
