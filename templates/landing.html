@@ -1130,21 +1130,16 @@ function setBtnFeedback(btn, state, msg) {
         }
     }
 
-    async function loadTags() {
-        try {
-            const res = await fetch('/api/tags');
-            const data = await res.json();
-            const tags = data.tags || [];
-            ['editTag', 'editEntityTag'].forEach((id) => {
-                const sel = document.getElementById(id);
-                if (!sel) return;
-                const current = sel.value;
-                sel.innerHTML = '<option value="">선택</option>' + tags.map((t) => `<option value="${t}">${t}</option>`).join('');
-                sel.value = current;
-            });
-        } catch (_e) {
-            // no-op
-        }
+    const _embeddedTags = {{ valid_tags|tojson }};
+    function loadTags() {
+        const tags = _embeddedTags;
+        ['editTag', 'editEntityTag'].forEach((id) => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            const current = sel.value;
+            sel.innerHTML = '<option value="">선택</option>' + tags.map((t) => `<option value="${t}">${t}</option>`).join('');
+            sel.value = current;
+        });
     }
 
     function updateUrlState(modalType, id, mode) {
@@ -1592,7 +1587,9 @@ function setBtnFeedback(btn, state, msg) {
 
     indexContacts(contactSeed);
     indexEntities(entitySeed);
-    await Promise.all([refreshContacts(), refreshEntities(), loadTags()]);
+    /* Tags only — contacts/entities already seeded from server render.
+       ensureContact()/ensureEntity() will lazy-fetch on cache miss. */
+    loadTags();
     await syncModalWithUrl();
 })();
 
