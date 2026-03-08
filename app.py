@@ -414,9 +414,13 @@ def _generate_insight(keyword):
                 f"키워드: {keyword}\n\n"
                 "이 키워드에 대한 최근 1주일간의 주요 뉴스를 웹에서 검색하고 분석해주세요.\n\n"
                 "다음 형식으로 작성:\n"
-                "## 핵심 동향\n(가장 중요한 트렌드 1-2문장)\n\n"
-                "## 주요 이슈별 정리\n(2-3개 소주제, 각 1-2문장 + 구체적 수치/팩트 인용)\n\n"
-                "## 시사점\n(CEO 관점에서 액션 가능한 시사점 1-2문장)"
+                "## 한줄 요약\n(이 키워드의 현재 상황을 한 문장으로)\n\n"
+                "## 주요 동향\n"
+                "- **[이슈명]**: 핵심 팩트 + 수치 (1-2문장)\n"
+                "- **[이슈명]**: 핵심 팩트 + 수치 (1-2문장)\n"
+                "- **[이슈명]**: 핵심 팩트 + 수치 (1-2문장)\n\n"
+                "## 액션 포인트\n"
+                "- 구체적 대응 방안 또는 모니터링 포인트 (1-2개)"
             )}],
         )
 
@@ -455,16 +459,22 @@ def _generate_insight(keyword):
         return None, []
 
 
+_insight_status = {"running": False, "completed": [], "total": 0}
+
+
 def generate_all_insights():
     """Generate insights for all tracked keywords."""
+    global _insight_status
     keywords = InsightKeyword.query.all()
     if not keywords:
         return
     import time
+    _insight_status = {"running": True, "completed": [], "total": len(keywords)}
     for kw in keywords:
         insight_text, source_articles = _generate_insight(kw.keyword)
         if not insight_text:
             logger.info("No insight generated for keyword '%s'", kw.keyword)
+            _insight_status["completed"].append(kw.id)
             continue
         insight = NewsInsight(
             keyword_id=kw.id,
@@ -474,7 +484,10 @@ def generate_all_insights():
         db.session.add(insight)
         db.session.commit()
         logger.info("Generated insight for '%s'", kw.keyword)
+        _insight_status["completed"].append(kw.id)
         time.sleep(2)  # Rate limit between keywords (web search takes longer)
+
+    _insight_status["running"] = False
 
     # Cleanup: keep only last 30 days of insights
     cutoff = datetime.now(timezone.utc) - timedelta(days=30)
@@ -1303,6 +1316,12 @@ def api_generate_insights():
     thread = threading.Thread(target=_bg, daemon=True)
     thread.start()
     return jsonify({"status": "ok", "message": "인사이트 생성을 시작했습니다."})
+
+
+@app.route("/api/insights/status")
+@login_required
+def api_insight_status():
+    return jsonify(_insight_status)
 
 
 @app.route("/api/insights/keywords/<int:keyword_id>/history")

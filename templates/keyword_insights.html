@@ -6,6 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2><i class="bi bi-lightbulb"></i> 키워드 인사이트</h2>
     <div class="d-flex gap-2 flex-shrink-0">
+        <span id="generate-progress" class="text-muted me-2"></span>
         <button id="btn-generate" class="btn btn-primary btn-sm">
             <i class="bi bi-stars"></i><span class="d-none d-sm-inline"> 인사이트 생성</span>
         </button>
@@ -113,11 +114,37 @@
 .insight-content .insight-heading:first-child {
     margin-top: 0;
 }
+.insight-content .insight-summary {
+    display: block;
+    background: linear-gradient(135deg, #e8f4fd 0%, #f0e6ff 100%);
+    border-left: 4px solid #4a6cf7;
+    padding: 0.6rem 0.8rem;
+    margin-bottom: 0.75rem;
+    border-radius: 0 6px 6px 0;
+    font-weight: 600;
+    font-size: 1.05rem;
+    line-height: 1.5;
+}
+.insight-content .insight-bold {
+    font-weight: 700;
+}
+#generate-progress {
+    display: none;
+    font-size: 0.85rem;
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
 function formatInsight(text) {
-    return text.replace(/^## (.+)$/gm, '<span class="insight-heading">$1</span>');
+    // Extract summary line after "## 한줄 요약" heading
+    let result = text;
+    // Replace ## 한줄 요약 heading + next line with highlighted summary
+    result = result.replace(/^## 한줄 요약\n(.+)$/gm, '<span class="insight-summary">$1</span>');
+    // Replace other ## headings
+    result = result.replace(/^## (.+)$/gm, '<span class="insight-heading">$1</span>');
+    // Bold text: **text**
+    result = result.replace(/\*\*(.+?)\*\*/g, '<span class="insight-bold">$1</span>');
+    return result;
 }
 document.querySelectorAll('.insight-content').forEach(el => {
     el.innerHTML = formatInsight(el.textContent);
@@ -186,7 +213,77 @@ document.querySelectorAll('.btn-delete-keyword').forEach(btn => {
     });
 });
 
-// Generate insights
+// Generate insights with polling
+let pollInterval = null;
+
+async function updateCompletedCard(keywordId) {
+    try {
+        const resp = await fetch(`/api/insights/keywords/${keywordId}/history`);
+        const data = await resp.json();
+        if (data.insights && data.insights.length > 0) {
+            const latest = data.insights[0];
+            const card = document.querySelector(`#keyword-card-${keywordId} .card-body`);
+            if (card) {
+                let html = `<div class="card-text mb-2 insight-content" style="font-size: 1.05rem; line-height: 1.6; white-space: pre-line;">${formatInsight(latest.insight_text)}</div>`;
+                html += `<p class="text-muted small mb-2"><i class="bi bi-clock"></i> ${latest.generated_at}</p>`;
+                if (latest.source_articles && latest.source_articles.length > 0) {
+                    html += `<details class="mt-2"><summary class="text-muted small" style="cursor:pointer;"><i class="bi bi-newspaper"></i> 참고 기사 (${latest.source_articles.length}건)</summary><ul class="list-unstyled mt-2 ms-2">`;
+                    latest.source_articles.slice(0, 10).forEach(a => {
+                        html += `<li class="mb-1"><a href="${a.url}" target="_blank" rel="noopener" class="text-decoration-none small">${a.title}</a></li>`;
+                    });
+                    html += `</ul></details>`;
+                }
+                card.innerHTML = html;
+            }
+        }
+    } catch (err) {
+        // silently ignore individual card update errors
+    }
+}
+
+function stopPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+    const btn = document.getElementById('btn-generate');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-stars"></i><span class="d-none d-sm-inline"> 인사이트 생성</span>';
+    document.getElementById('generate-progress').style.display = 'none';
+}
+
+let lastCompleted = [];
+
+async function pollStatus() {
+    try {
+        const resp = await fetch('/api/insights/status');
+        const status = await resp.json();
+        const progress = document.getElementById('generate-progress');
+        const btn = document.getElementById('btn-generate');
+
+        if (status.total > 0) {
+            progress.style.display = 'block';
+            progress.textContent = `${status.completed.length}/${status.total} 완료`;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${status.completed.length}/${status.total}`;
+        }
+
+        // Update cards for newly completed keywords
+        for (const kwId of status.completed) {
+            if (!lastCompleted.includes(kwId)) {
+                await updateCompletedCard(kwId);
+            }
+        }
+        lastCompleted = [...status.completed];
+
+        // Done
+        if (!status.running && status.completed.length > 0) {
+            stopPolling();
+        }
+    } catch (err) {
+        // ignore polling errors
+    }
+}
+
 document.getElementById('btn-generate').addEventListener('click', async () => {
     const btn = document.getElementById('btn-generate');
     btn.disabled = true;
@@ -194,8 +291,8 @@ document.getElementById('btn-generate').addEventListener('click', async () => {
 
     try {
         await fetch('/api/insights/generate', {method: 'POST', headers});
-        // Wait a bit for background generation, then reload
-        setTimeout(() => location.reload(), 30000);
+        lastCompleted = [];
+        pollInterval = setInterval(pollStatus, 3000);
     } catch (err) {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-stars"></i><span class="d-none d-sm-inline"> 인사이트 생성</span>';
