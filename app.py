@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -468,29 +469,38 @@ _insight_status = {"running": False, "completed": [], "total": 0}
 
 
 def generate_all_insights():
-    """Generate insights for all tracked keywords."""
+    """Generate insights for all tracked keywords (parallel)."""
     global _insight_status
     keywords = InsightKeyword.query.all()
     if not keywords:
         return
-    import time
     _insight_status = {"running": True, "completed": [], "total": len(keywords)}
-    for kw in keywords:
-        insight_text, source_articles = _generate_insight(kw.keyword)
-        if not insight_text:
-            logger.info("No insight generated for keyword '%s'", kw.keyword)
-            _insight_status["completed"].append(kw.id)
-            continue
-        insight = NewsInsight(
-            keyword_id=kw.id,
-            insight_text=insight_text,
-            source_articles_json=json.dumps(source_articles, ensure_ascii=False),
-        )
-        db.session.add(insight)
-        db.session.commit()
-        logger.info("Generated insight for '%s'", kw.keyword)
-        _insight_status["completed"].append(kw.id)
-        time.sleep(2)  # Rate limit between keywords (web search takes longer)
+
+    def _process_keyword(kw_id, keyword_text):
+        """Worker: API call only, no DB access."""
+        insight_text, source_articles = _generate_insight(keyword_text)
+        return kw_id, keyword_text, insight_text, source_articles
+
+    max_workers = min(3, len(keywords))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_process_keyword, kw.id, kw.keyword): kw
+            for kw in keywords
+        }
+        for future in as_completed(futures):
+            kw_id, keyword_text, insight_text, source_articles = future.result()
+            if insight_text:
+                insight = NewsInsight(
+                    keyword_id=kw_id,
+                    insight_text=insight_text,
+                    source_articles_json=json.dumps(source_articles, ensure_ascii=False),
+                )
+                db.session.add(insight)
+                db.session.commit()
+                logger.info("Generated insight for '%s'", keyword_text)
+            else:
+                logger.info("No insight generated for keyword '%s'", keyword_text)
+            _insight_status["completed"].append(kw_id)
 
     _insight_status["running"] = False
 
