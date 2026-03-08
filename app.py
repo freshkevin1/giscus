@@ -67,7 +67,7 @@ def _login_rate_limit_key():
 
 limiter = Limiter(
     key_func=_client_ip_for_rate_limit,
-    default_limits=["200 per minute"],
+    default_limits=[],
     storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
 )
 limiter.init_app(app)
@@ -94,7 +94,7 @@ def inject_push_config():
 
 
 PASSWORD_EXPIRY_DAYS = 30
-ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "tornadogrowth")
+ADMIN_USERNAME = "tornadogrowth"
 
 HABITS = ["아침 조깅/테니스/골프 + 스트레칭/명상"]
 FAMILY_HABITS = ["아이와 놀기", "와이프 데이트"]
@@ -203,18 +203,6 @@ def set_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    response.headers['Content-Security-Policy'] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
-        "img-src 'self' data: https:; "
-        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
-        "connect-src 'self'; "
-        "frame-ancestors 'none'; "
-        "base-uri 'self'; "
-        "form-action 'self'"
-    )
     return response
 
 
@@ -651,10 +639,10 @@ def service_worker():
 
 
 def _get_client_ip():
-    """Get client IP, using last X-Forwarded-For entry (most trusted proxy)."""
+    """Get client IP, preferring X-Forwarded-For for reverse proxies."""
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        return forwarded.split(",")[-1].strip()
+        return forwarded.split(",")[0].strip()
     return request.remote_addr or "unknown"
 
 
@@ -718,8 +706,8 @@ def change_password():
 
         if not current_user.check_password(current_pw):
             flash("현재 비밀번호가 올바르지 않습니다.", "danger")
-        elif len(new_pw) < 8 or not re.search(r'[A-Z]', new_pw) or not re.search(r'[0-9]', new_pw):
-            flash("새 비밀번호는 8자 이상, 대문자 1개 이상, 숫자 1개 이상 포함해야 합니다.", "danger")
+        elif len(new_pw) < 8:
+            flash("새 비밀번호는 8자 이상이어야 합니다.", "danger")
         elif new_pw != confirm_pw:
             flash("새 비밀번호가 일치하지 않습니다.", "danger")
         else:
@@ -3479,6 +3467,6 @@ with app.app_context():
 
 if __name__ == "__main__":
     try:
-        app.run(debug=os.environ.get('FLASK_DEBUG', 'true').lower() == 'true', use_reloader=False, port=5000)
+        app.run(debug=True, use_reloader=False, port=5000)
     finally:
         scheduler.shutdown()

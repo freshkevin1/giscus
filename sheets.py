@@ -308,7 +308,7 @@ def add_contact(contact):
     row = _contact_to_row(contact)
     ws.append_row(row, value_input_option="USER_ENTERED")
     _invalidate_cache("contacts")
-    logger.info("Added contact: hmac=%s", row[1])
+    logger.info("Added contact: %s", contact.get("name", ""))
     return row[1]  # Return name_hmac
 
 
@@ -539,7 +539,7 @@ def add_interaction_log(name_hmac, display_name, context, key_value_extracted=""
     today = datetime.now().strftime("%Y-%m-%d")
     row = [today, name_hmac, display_name, context, key_value_extracted, updated_fields]
     ws.append_row(row, value_input_option="USER_ENTERED")
-    logger.info("Added interaction log for: hmac=%s", name_hmac)
+    logger.info("Added interaction log for: %s", display_name)
 
 
 def get_interaction_logs(name_hmac):
