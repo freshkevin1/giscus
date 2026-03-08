@@ -22,9 +22,12 @@ class User(UserMixin, db.Model):
 
 
 class Article(db.Model):
+    __table_args__ = (
+        db.Index('ix_article_source_scraped', 'source', 'scraped_at'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(500), nullable=False)
-    url = db.Column(db.String(1000), nullable=False)
+    url = db.Column(db.String(1000), nullable=False, index=True)
     source = db.Column(db.String(50), default="mk", index=True)
     section = db.Column(db.String(100), default="")
     image_url = db.Column(db.String(1000), default="")
@@ -153,7 +156,7 @@ class AnkiDeck(db.Model):
 class AnkiCard(db.Model):
     """A single flashcard with SM-2 SRS scheduling fields."""
     id         = db.Column(db.Integer, primary_key=True)
-    deck_id    = db.Column(db.Integer, db.ForeignKey('anki_deck.id'), nullable=False)
+    deck_id    = db.Column(db.Integer, db.ForeignKey('anki_deck.id'), nullable=False, index=True)
     card_type  = db.Column(db.String(20), default='highlight')  # 'highlight' | 'qa'
     front      = db.Column(db.Text, nullable=False)
     back       = db.Column(db.Text, nullable=False)
@@ -227,7 +230,7 @@ class InsightKeyword(db.Model):
 class NewsInsight(db.Model):
     """Daily AI-generated insight summary per keyword."""
     id = db.Column(db.Integer, primary_key=True)
-    keyword_id = db.Column(db.Integer, db.ForeignKey('insight_keyword.id'), nullable=False)
+    keyword_id = db.Column(db.Integer, db.ForeignKey('insight_keyword.id'), nullable=False, index=True)
     insight_text = db.Column(db.Text, nullable=False)
     source_articles_json = db.Column(db.Text, default="")
     generated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)

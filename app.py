@@ -258,8 +258,17 @@ def _scrape_background(source):
             logger.error("Background scrape failed for %s: %s", source, e)
 
 
+_auto_scrape_ts = {}
+_AUTO_SCRAPE_INTERVAL = 1800  # 30 minutes
+
+
 def auto_scrape(source):
-    """Trigger scraping in a background thread (non-blocking)."""
+    """Trigger scraping in a background thread, throttled to once per 30 min per source."""
+    import time as _time
+    now = _time.time()
+    if now - _auto_scrape_ts.get(source, 0) < _AUTO_SCRAPE_INTERVAL:
+        return
+    _auto_scrape_ts[source] = now
     thread = threading.Thread(target=_scrape_background, args=(source,), daemon=True)
     thread.start()
 
@@ -1034,21 +1043,21 @@ def daily_news():
 
     selected = request.args.get('source', '')
 
-    # Source counts (always computed from all sources for pill badges)
-    all_articles = Article.query.filter(
-        Article.source.in_(NEWS_SOURCES)
-    ).order_by(Article.scraped_at.desc()).all()
-    source_counts = {}
-    for src in NEWS_SOURCES:
-        cnt = sum(1 for a in all_articles if a.source == src)
-        if cnt > 0:
-            source_counts[src] = cnt
+    # Source counts via SQL GROUP BY
+    from sqlalchemy import func as sa_func
+    count_rows = (db.session.query(Article.source, sa_func.count(Article.id))
+                  .filter(Article.source.in_(NEWS_SOURCES))
+                  .group_by(Article.source)
+                  .all())
+    source_counts = {src: cnt for src, cnt in count_rows if cnt > 0}
 
-    # Filter articles if a specific source is selected
+    # Load only the articles needed for display
     if selected and selected in NEWS_SOURCES:
-        articles = [a for a in all_articles if a.source == selected]
+        articles = (Article.query.filter_by(source=selected)
+                    .order_by(Article.scraped_at.desc()).all())
     else:
-        articles = all_articles
+        articles = (Article.query.filter(Article.source.in_(NEWS_SOURCES))
+                    .order_by(Article.scraped_at.desc()).all())
         selected = ''
 
     return render_template("news.html", articles=articles,
@@ -1265,13 +1274,21 @@ def book_saved():
 @login_required
 def keyword_insights():
     keywords = InsightKeyword.query.order_by(InsightKeyword.position.asc(), InsightKeyword.created_at.asc()).all()
-    # For each keyword, get the most recent insight
+
+    # Batch: latest insight per keyword via subquery (avoids N+1)
+    from sqlalchemy import func as sa_func
+    latest_subq = (db.session.query(
+        NewsInsight.keyword_id,
+        sa_func.max(NewsInsight.id).label('max_id')
+    ).group_by(NewsInsight.keyword_id).subquery())
+    latest_insights = (db.session.query(NewsInsight)
+        .join(latest_subq, NewsInsight.id == latest_subq.c.max_id)
+        .all())
+    insight_map = {ni.keyword_id: ni for ni in latest_insights}
+
     keyword_data = []
     for kw in keywords:
-        latest = (NewsInsight.query
-                  .filter_by(keyword_id=kw.id)
-                  .order_by(NewsInsight.generated_at.desc())
-                  .first())
+        latest = insight_map.get(kw.id)
         source_articles = []
         if latest and latest.source_articles_json:
             try:
@@ -1402,9 +1419,16 @@ def mark_read(article_id):
 @login_required
 def mark_all_read(source):
     articles = Article.query.filter_by(source=source).all()
+    # Batch-load existing read URLs to avoid N+1
+    article_urls = [a.url for a in articles]
+    existing_read = set()
+    if article_urls:
+        existing_read = {r.url for r in ReadArticle.query.filter(
+            ReadArticle.url.in_(article_urls)
+        ).with_entities(ReadArticle.url).all()}
     count = 0
     for article in articles:
-        if not ReadArticle.query.filter_by(url=article.url).first():
+        if article.url not in existing_read:
             db.session.add(ReadArticle(url=article.url))
         db.session.delete(article)
         count += 1
@@ -3159,15 +3183,24 @@ def anki_hub():
     total_archived = AnkiCard.query.filter_by(status='archived').count()
     decks = AnkiDeck.query.order_by(AnkiDeck.created_at.desc()).all()
 
-    deck_stats = []
-    for deck in decks:
-        active = AnkiCard.query.filter_by(deck_id=deck.id, status='active').count()
-        due = AnkiCard.query.filter(
-            AnkiCard.deck_id == deck.id,
-            AnkiCard.status == 'active',
-            AnkiCard.next_review <= today
-        ).count()
-        deck_stats.append({'deck': deck, 'active_count': active, 'due_count': due})
+    from sqlalchemy import func as sa_func
+    active_counts = dict(
+        db.session.query(AnkiCard.deck_id, sa_func.count(AnkiCard.id))
+        .filter_by(status='active')
+        .group_by(AnkiCard.deck_id)
+        .all()
+    )
+    due_counts = dict(
+        db.session.query(AnkiCard.deck_id, sa_func.count(AnkiCard.id))
+        .filter(AnkiCard.status == 'active', AnkiCard.next_review <= today)
+        .group_by(AnkiCard.deck_id)
+        .all()
+    )
+    deck_stats = [
+        {'deck': deck, 'active_count': active_counts.get(deck.id, 0),
+         'due_count': due_counts.get(deck.id, 0)}
+        for deck in decks
+    ]
 
     return render_template(
         "anki.html",
@@ -3436,6 +3469,14 @@ with app.app_context():
     if "anki_card" not in inspector.get_table_names():
         AnkiCard.__table__.create(db.engine)
     init_default_user()
+
+    # Ensure indexes exist on pre-existing tables
+    with db.engine.connect() as conn:
+        conn.execute(sqlalchemy.text("CREATE INDEX IF NOT EXISTS ix_article_url ON article(url)"))
+        conn.execute(sqlalchemy.text("CREATE INDEX IF NOT EXISTS ix_article_source_scraped ON article(source, scraped_at)"))
+        conn.execute(sqlalchemy.text("CREATE INDEX IF NOT EXISTS ix_anki_card_deck_id ON anki_card(deck_id)"))
+        conn.execute(sqlalchemy.text("CREATE INDEX IF NOT EXISTS ix_news_insight_keyword_id ON news_insight(keyword_id)"))
+        conn.commit()
 
     # Migrate: initialize position for existing InsightKeywords (position=0 means unset)
     unset_kws = InsightKeyword.query.filter_by(position=0).order_by(InsightKeyword.created_at.asc()).all()
