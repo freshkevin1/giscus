@@ -202,7 +202,7 @@ def add_entity(entity):
     row = _entity_to_row(entity)
     ws.append_row(row, value_input_option="USER_ENTERED")
     _invalidate_entity_cache("entities")
-    logger.info("Added entity: %s", entity.get("name", ""))
+    logger.info("Added entity: hmac=%s", row[1])
     return row[1]  # entity_hmac
 
 
