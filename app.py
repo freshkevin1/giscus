@@ -374,6 +374,8 @@ def _generate_insight(keyword):
     """Generate a structured insight for a keyword using Claude API with web search."""
     try:
         client = anthropic.Anthropic()
+        is_korean = bool(re.search(r'[가-힣]', keyword))
+        search_lang = "Search in Korean." if is_korean else "Search in English."
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4096,
@@ -381,7 +383,7 @@ def _generate_insight(keyword):
             system=(
                 "You are a business intelligence analyst for a CEO. "
                 "Use web search to find recent news about the given keyword. "
-                "Search in both Korean and English for comprehensive coverage. "
+                f"{search_lang} "
                 "Write your analysis in Korean."
             ),
             messages=[{"role": "user", "content": (
