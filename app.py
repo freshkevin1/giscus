@@ -402,7 +402,7 @@ def _generate_insight(keyword):
         search_lang = "Search in Korean." if is_korean else "Search in English."
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=4096,
+            max_tokens=1500,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
             system=(
                 "You are a business intelligence analyst for a CEO. "
@@ -447,6 +447,11 @@ def _generate_insight(keyword):
                             })
 
         insight_text = insight_text.strip()
+        logger.info(
+            "Insight tokens for '%s': input=%d, output=%d",
+            keyword, response.usage.input_tokens, response.usage.output_tokens,
+        )
+
         if not insight_text:
             logger.warning(
                 "Empty insight for '%s' (stop_reason=%s, blocks=%d)",
@@ -616,7 +621,7 @@ scheduler.add_job(
 scheduler.add_job(
     scheduled_generate_insights,
     "cron",
-    hour="21,5,13",
+    hour="21,4",
     minute=0,
     id="daily_insights",
 )
@@ -1272,6 +1277,8 @@ def api_add_keyword():
     keyword = (data.get("keyword") or "").strip()
     if not keyword:
         return jsonify({"status": "error", "message": "키워드를 입력해주세요."}), 400
+    if InsightKeyword.query.count() >= 10:
+        return jsonify({"status": "error", "message": "키워드는 최대 10개까지 추가할 수 있습니다."}), 400
     if InsightKeyword.query.filter_by(keyword=keyword).first():
         return jsonify({"status": "error", "message": "이미 등록된 키워드입니다."}), 400
     max_pos = db.session.query(db.func.max(InsightKeyword.position)).scalar() or 0
