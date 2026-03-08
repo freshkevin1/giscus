@@ -482,27 +482,33 @@ def generate_all_insights():
         return kw_id, keyword_text, insight_text, source_articles
 
     max_workers = min(3, len(keywords))
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(_process_keyword, kw.id, kw.keyword): kw
-            for kw in keywords
-        }
-        for future in as_completed(futures):
-            kw_id, keyword_text, insight_text, source_articles = future.result()
-            if insight_text:
-                insight = NewsInsight(
-                    keyword_id=kw_id,
-                    insight_text=insight_text,
-                    source_articles_json=json.dumps(source_articles, ensure_ascii=False),
-                )
-                db.session.add(insight)
-                db.session.commit()
-                logger.info("Generated insight for '%s'", keyword_text)
-            else:
-                logger.info("No insight generated for keyword '%s'", keyword_text)
-            _insight_status["completed"].append(kw_id)
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(_process_keyword, kw.id, kw.keyword)
+                for kw in keywords
+            ]
+            for future in as_completed(futures):
+                try:
+                    kw_id, keyword_text, insight_text, source_articles = future.result()
+                except Exception as e:
+                    logger.error("Insight worker failed: %s", e)
+                    continue
+                if insight_text:
+                    insight = NewsInsight(
+                        keyword_id=kw_id,
+                        insight_text=insight_text,
+                        source_articles_json=json.dumps(source_articles, ensure_ascii=False),
+                    )
+                    db.session.add(insight)
+                    logger.info("Generated insight for '%s'", keyword_text)
+                else:
+                    logger.info("No insight generated for keyword '%s'", keyword_text)
+                _insight_status["completed"].append(kw_id)
 
-    _insight_status["running"] = False
+        db.session.commit()
+    finally:
+        _insight_status["running"] = False
 
     # Cleanup: keep only last 30 days of insights
     cutoff = datetime.now(timezone.utc) - timedelta(days=30)
