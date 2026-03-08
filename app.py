@@ -720,9 +720,14 @@ def index():
     contact_monthly_avg = round(contact_monthly_count / 4, 1)
     contact_yearly_avg  = round(contact_yearly_count / 52, 1)
 
-    # 최근 7일 일별 Article 읽음(read_at) 집계
+    # 최근 7일 일별 Article 읽음(read_at) 집계 (최대 1년치만 로드)
     article_daily_counts = {}
-    read_articles = ReadArticle.query.all()
+    one_year_ago_dt = datetime.combine(
+        date.today() - timedelta(days=365), datetime.min.time()
+    )
+    read_articles = ReadArticle.query.filter(
+        ReadArticle.read_at >= one_year_ago_dt
+    ).all()
     for row in read_articles:
         if not row.read_at:
             continue
@@ -750,9 +755,10 @@ def index():
     article_yearly_avg  = round(article_yearly_count / 52, 1)
     article_today_count = article_weekly_stats[-1]["count"] if article_weekly_stats else 0
 
-    # 최근 7일 칭찬 집계
+    # 최근 7일 칭찬 집계 (최대 1년치만 로드)
     compliment_daily_counts = {}
-    for row in Compliment.query.all():
+    one_year_ago_date = date.today() - timedelta(days=365)
+    for row in Compliment.query.filter(Compliment.given_at >= one_year_ago_date).all():
         d_str = row.given_at.isoformat()
         compliment_daily_counts[d_str] = compliment_daily_counts.get(d_str, 0) + 1
 
@@ -830,6 +836,12 @@ def index():
         AnkiCard.next_review <= date.today()
     ).order_by(AnkiCard.next_review.asc()).first()
 
+    try:
+        from sheets import get_valid_tags
+        valid_tags = get_valid_tags()
+    except Exception:
+        valid_tags = []
+
     return render_template(
         "landing.html",
         top5=top5,
@@ -863,6 +875,7 @@ def index():
         compliment_yearly_avg=compliment_yearly_avg,
         anki_due_count=anki_due_count,
         anki_first_card=anki_first_card,
+        valid_tags=valid_tags,
     )
 
 
