@@ -376,8 +376,8 @@ def _generate_insight(keyword):
         client = anthropic.Anthropic()
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=1500,
-            tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            max_tokens=4096,
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
             system=(
                 "You are a business intelligence analyst for a CEO. "
                 "Use web search to find recent news about the given keyword. "
@@ -393,6 +393,12 @@ def _generate_insight(keyword):
                 "## 시사점\n(CEO 관점에서 액션 가능한 시사점 1-2문장)"
             )}],
         )
+
+        if response.stop_reason != "end_turn":
+            logger.warning(
+                "Insight for '%s' stopped with reason: %s",
+                keyword, response.stop_reason,
+            )
 
         insight_text = ""
         source_articles = []
@@ -412,6 +418,10 @@ def _generate_insight(keyword):
 
         insight_text = insight_text.strip()
         if not insight_text:
+            logger.warning(
+                "Empty insight for '%s' (stop_reason=%s, blocks=%d)",
+                keyword, response.stop_reason, len(response.content),
+            )
             return None, []
         return insight_text, source_articles
     except Exception as e:
