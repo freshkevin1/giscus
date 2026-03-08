@@ -48,7 +48,7 @@ class MyBook(db.Model):
     publisher = db.Column(db.String(200), default="")
     year_published = db.Column(db.Integer, default=0)
     date_read = db.Column(db.String(20), default="")
-    shelf = db.Column(db.String(20), default="read")
+    shelf = db.Column(db.String(20), default="read", index=True)
     hall_of_fame = db.Column(db.Boolean, default=False)
     added_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -100,7 +100,7 @@ class ReadArticle(db.Model):
     """Tracks URLs of articles marked as read, so they are not re-imported."""
     id = db.Column(db.Integer, primary_key=True)
     url = db.Column(db.String(1000), unique=True, nullable=False)
-    read_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    read_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
 class ContactChatMessage(db.Model):
@@ -135,7 +135,7 @@ class Compliment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     recipient = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    given_at = db.Column(db.Date, nullable=False, default=date.today)
+    given_at = db.Column(db.Date, nullable=False, default=date.today, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -163,8 +163,8 @@ class AnkiCard(db.Model):
     interval    = db.Column(db.Integer, default=1)
     ease_factor = db.Column(db.Float, default=2.5)
     repetitions = db.Column(db.Integer, default=0)
-    next_review = db.Column(db.Date, default=date.today)
-    status      = db.Column(db.String(20), default='active')  # 'active' | 'archived'
+    next_review = db.Column(db.Date, default=date.today, index=True)
+    status      = db.Column(db.String(20), default='active', index=True)  # 'active' | 'archived'
 
     created_at    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_reviewed = db.Column(db.DateTime, nullable=True)

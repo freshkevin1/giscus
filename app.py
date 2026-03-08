@@ -49,6 +49,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 csrf = CSRFProtect(app)
 
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400  # 1 day for static files
 db.init_app(app)
 
 
@@ -97,6 +98,15 @@ ADMIN_USERNAME = "tornadogrowth"
 
 HABITS = ["아침 조깅/테니스/골프 + 스트레칭/명상"]
 FAMILY_HABITS = ["아이와 놀기", "와이프 데이트"]
+
+# --- Dashboard Cache (60s TTL, date-keyed) ---
+_dashboard_cache = {"data": None, "ts": 0, "date_key": ""}
+DASHBOARD_CACHE_TTL = 60
+
+def _invalidate_dashboard_cache():
+    _dashboard_cache["data"] = None
+    _dashboard_cache["ts"] = 0
+    _dashboard_cache["date_key"] = ""
 _WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
 
 
@@ -115,15 +125,29 @@ def admin_required(func):
     return wrapped
 
 
-def _habit_stats(habit_name):
-    from sheets import _get_all_habit_rows, is_habit_logged
+def _build_habit_date_sets(all_rows=None):
+    """Build {habit_name: set(date_str)} in one O(n) pass."""
+    if all_rows is None:
+        from sheets import _get_all_habit_rows
+        all_rows = _get_all_habit_rows()
+    result = {}
+    for row in all_rows:
+        hname = row.get("habit_name", "")
+        if hname:
+            result.setdefault(hname, set()).add(row.get("logged_date", ""))
+    return result
+
+
+def _habit_stats(habit_name, logged_dates=None):
     today = date.today()
-    all_rows = _get_all_habit_rows()
-    logged_dates = {
-        row["logged_date"]
-        for row in all_rows
-        if row.get("habit_name") == habit_name
-    }
+    if logged_dates is None:
+        from sheets import _get_all_habit_rows
+        all_rows = _get_all_habit_rows()
+        logged_dates = {
+            row["logged_date"]
+            for row in all_rows
+            if row.get("habit_name") == habit_name
+        }
     days = []
     for i in range(6, -1, -1):
         d = today - timedelta(days=i)
@@ -585,6 +609,28 @@ scheduler.add_job(
 )
 
 
+def _prewarm_sheets_cache():
+    """Pre-warm Google Sheets caches so page loads never block on API calls."""
+    try:
+        from sheets import get_all_contacts
+        get_all_contacts()
+    except Exception as e:
+        logger.warning("Sheets prewarm (contacts) failed: %s", e)
+    try:
+        from sheets_entities import get_all_entities
+        get_all_entities()
+    except Exception as e:
+        logger.warning("Sheets prewarm (entities) failed: %s", e)
+
+
+scheduler.add_job(
+    _prewarm_sheets_cache,
+    "interval",
+    minutes=4,
+    id="sheets_prewarm",
+)
+
+
 # --- Auth Routes ---
 
 @app.route("/sw.js")
@@ -683,10 +729,32 @@ def change_password():
 @app.route("/")
 @login_required
 def index():
+    import time as _time
     fresh = request.args.get("fresh") == "1"
     if fresh:
         from sheets import invalidate_contacts_cache
         invalidate_contacts_cache()
+        _invalidate_dashboard_cache()
+
+    # Dashboard cache check
+    today_key = date.today().isoformat()
+    now = _time.time()
+    if (not fresh
+        and _dashboard_cache["data"] is not None
+        and _dashboard_cache["date_key"] == today_key
+        and (now - _dashboard_cache["ts"]) < DASHBOARD_CACHE_TTL):
+        return render_template("landing.html", **_dashboard_cache["data"])
+
+    ctx = _build_dashboard_context()
+    _dashboard_cache["data"] = ctx
+    _dashboard_cache["ts"] = _time.time()
+    _dashboard_cache["date_key"] = today_key
+    return render_template("landing.html", **ctx)
+
+
+def _build_dashboard_context():
+    """Build all template context for the dashboard landing page."""
+    from sqlalchemy import func as sa_func
 
     try:
         from sheets import get_all_contacts
@@ -732,20 +800,25 @@ def index():
     contact_monthly_avg = round(contact_monthly_count / 4, 1)
     contact_yearly_avg  = round(contact_yearly_count / 52, 1)
 
-    # 최근 7일 일별 Article 읽음(read_at) 집계 (최대 1년치만 로드)
-    article_daily_counts = {}
+    # ReadArticle: SQL GROUP BY instead of .all() + Python loop
     one_year_ago_dt = datetime.combine(
         date.today() - timedelta(days=365), datetime.min.time()
     )
-    read_articles = ReadArticle.query.filter(
-        ReadArticle.read_at >= one_year_ago_dt
-    ).all()
-    for row in read_articles:
-        if not row.read_at:
-            continue
-        local_dt = row.read_at.astimezone() if row.read_at.tzinfo else row.read_at
-        d_str = local_dt.date().isoformat()
-        article_daily_counts[d_str] = article_daily_counts.get(d_str, 0) + 1
+    article_daily_counts = {}
+    try:
+        rows = db.session.query(
+            sa_func.date(ReadArticle.read_at),
+            sa_func.count(ReadArticle.id)
+        ).filter(
+            ReadArticle.read_at >= one_year_ago_dt
+        ).group_by(
+            sa_func.date(ReadArticle.read_at)
+        ).all()
+        for d_str, cnt in rows:
+            if d_str:
+                article_daily_counts[str(d_str)] = cnt
+    except Exception:
+        article_daily_counts = {}
 
     article_weekly_stats = []
     for i in range(6, -1, -1):
@@ -767,12 +840,23 @@ def index():
     article_yearly_avg  = round(article_yearly_count / 52, 1)
     article_today_count = article_weekly_stats[-1]["count"] if article_weekly_stats else 0
 
-    # 최근 7일 칭찬 집계 (최대 1년치만 로드)
+    # Compliment: SQL GROUP BY instead of .all() + Python loop
     compliment_daily_counts = {}
     one_year_ago_date = date.today() - timedelta(days=365)
-    for row in Compliment.query.filter(Compliment.given_at >= one_year_ago_date).all():
-        d_str = row.given_at.isoformat()
-        compliment_daily_counts[d_str] = compliment_daily_counts.get(d_str, 0) + 1
+    try:
+        rows = db.session.query(
+            Compliment.given_at,
+            sa_func.count(Compliment.id)
+        ).filter(
+            Compliment.given_at >= one_year_ago_date
+        ).group_by(
+            Compliment.given_at
+        ).all()
+        for given_at, cnt in rows:
+            if given_at:
+                compliment_daily_counts[given_at.isoformat()] = cnt
+    except Exception:
+        compliment_daily_counts = {}
 
     compliment_weekly_stats = []
     for i in range(6, -1, -1):
@@ -805,14 +889,12 @@ def index():
     ]
     overdue = [c for c in eligible if c.get("follow_up_date", "") < today_str]
     not_overdue = [c for c in eligible if c.get("follow_up_date", "") >= today_str]
-    # overdue는 무조건 포함, 나머지 슬롯은 스코어 순 non-overdue로 채움
     for c in overdue:
         try:
             delta = date.today() - date.fromisoformat(c["follow_up_date"])
             c["days_overdue"] = delta.days
         except Exception:
             c["days_overdue"] = 0
-    # 각 그룹 내: 1차 score 내림차순, 2차 follow_up_date 오름차순
     _sort_key = lambda c: (-c.get("score", 0), c.get("follow_up_date", "9999-99-99"))
     top5 = sorted(overdue, key=_sort_key) + sorted(not_overdue, key=_sort_key)[:max(0, 5 - len(overdue))]
 
@@ -835,18 +917,20 @@ def index():
     ]
 
     reading_books = MyBook.query.filter_by(shelf="reading").order_by(MyBook.added_at.desc()).all()
-    habits_data = [_habit_stats(h) for h in HABITS]
-    family_stats = [_habit_stats(h) for h in FAMILY_HABITS]
 
-    # Anki due widget
-    anki_due_count = AnkiCard.query.filter(
+    # Habit stats: single pass over all habit rows
+    habit_date_sets = _build_habit_date_sets()
+    habits_data = [_habit_stats(h, logged_dates=habit_date_sets.get(h, set())) for h in HABITS]
+    family_stats = [_habit_stats(h, logged_dates=habit_date_sets.get(h, set())) for h in FAMILY_HABITS]
+
+    # Anki due widget: single query for both count and first card
+    anki_due_query = AnkiCard.query.filter(
         AnkiCard.status == 'active',
         AnkiCard.next_review <= date.today()
-    ).count()
-    anki_first_card = AnkiCard.query.filter(
-        AnkiCard.status == 'active',
-        AnkiCard.next_review <= date.today()
-    ).order_by(AnkiCard.next_review.asc()).first()
+    ).order_by(AnkiCard.next_review.asc())
+    anki_due_cards = anki_due_query.all()
+    anki_due_count = len(anki_due_cards)
+    anki_first_card = anki_due_cards[0] if anki_due_cards else None
 
     try:
         from sheets import get_valid_tags
@@ -854,8 +938,7 @@ def index():
     except Exception:
         valid_tags = []
 
-    return render_template(
-        "landing.html",
+    return dict(
         top5=top5,
         entity_top5=entity_top5,
         incoming=incoming,
@@ -1268,6 +1351,7 @@ def mark_read(article_id):
             db.session.add(ReadArticle(url=article.url))
         db.session.delete(article)
         db.session.commit()
+        _invalidate_dashboard_cache()
         return jsonify({"status": "ok"})
     return jsonify({"status": "not_found"}), 404
 
@@ -1283,6 +1367,7 @@ def mark_all_read(source):
         db.session.delete(article)
         count += 1
     db.session.commit()
+    _invalidate_dashboard_cache()
     return jsonify({"status": "ok", "cleared": count})
 
 
@@ -1944,6 +2029,7 @@ def api_add_compliment():
     c = Compliment(recipient=recipient, content=content, given_at=given_at)
     db.session.add(c)
     db.session.commit()
+    _invalidate_dashboard_cache()
     return jsonify({"id": c.id, "recipient": c.recipient, "content": c.content, "given_at": c.given_at.isoformat()}), 201
 
 
@@ -1955,6 +2041,7 @@ def api_delete_compliment(compliment_id):
         return jsonify({"error": "not found"}), 404
     db.session.delete(c)
     db.session.commit()
+    _invalidate_dashboard_cache()
     return jsonify({"ok": True})
 
 
@@ -1981,6 +2068,7 @@ def api_toggle_habit():
     else:
         add_habit_log(habit_name, target_date)
         action = "done"
+    _invalidate_dashboard_cache()
     return jsonify({"action": action, **_habit_stats(habit_name)})
 
 
