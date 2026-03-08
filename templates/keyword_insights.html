@@ -132,6 +132,27 @@
     display: none;
     font-size: 0.85rem;
 }
+
+/* Dark mode overrides */
+[data-bs-theme="dark"] .insight-content .insight-summary {
+    background: linear-gradient(135deg, rgba(123,179,232,0.1) 0%, rgba(232,168,56,0.08) 100%);
+    border-left-color: var(--color-accent);
+    color: var(--text-primary);
+}
+[data-bs-theme="dark"] #keyword-insights-container .card .card-header,
+[data-bs-theme="dark"] .row.g-3 .card .card-header {
+    background-color: var(--surface-overlay);
+    border-bottom-color: rgba(232,168,56,0.15);
+}
+[data-bs-theme="dark"] .insight-content details a {
+    color: var(--color-primary, #7bb3e8);
+}
+[data-bs-theme="dark"] .insight-content details a:hover {
+    color: var(--color-accent);
+}
+[data-bs-theme="dark"] .collapse .card-body.border-top {
+    border-top-color: rgba(255,255,255,0.08) !important;
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
