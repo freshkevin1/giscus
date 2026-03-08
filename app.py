@@ -374,14 +374,16 @@ def _generate_insight(keyword):
     """Generate a structured insight for a keyword using Claude API with web search."""
     try:
         client = anthropic.Anthropic()
+        is_korean = bool(re.search(r'[가-힣]', keyword))
+        search_lang = "Search in Korean." if is_korean else "Search in English."
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=1500,
-            tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            max_tokens=4096,
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
             system=(
                 "You are a business intelligence analyst for a CEO. "
                 "Use web search to find recent news about the given keyword. "
-                "Search in both Korean and English for comprehensive coverage. "
+                f"{search_lang} "
                 "Write your analysis in Korean."
             ),
             messages=[{"role": "user", "content": (
@@ -393,6 +395,12 @@ def _generate_insight(keyword):
                 "## 시사점\n(CEO 관점에서 액션 가능한 시사점 1-2문장)"
             )}],
         )
+
+        if response.stop_reason != "end_turn":
+            logger.warning(
+                "Insight for '%s' stopped with reason: %s",
+                keyword, response.stop_reason,
+            )
 
         insight_text = ""
         source_articles = []
@@ -412,6 +420,10 @@ def _generate_insight(keyword):
 
         insight_text = insight_text.strip()
         if not insight_text:
+            logger.warning(
+                "Empty insight for '%s' (stop_reason=%s, blocks=%d)",
+                keyword, response.stop_reason, len(response.content),
+            )
             return None, []
         return insight_text, source_articles
     except Exception as e:
