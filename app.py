@@ -681,20 +681,6 @@ scheduler.add_job(
 
 # --- Auth Routes ---
 
-@app.route("/debug/time")
-def debug_time():
-    """Temporary: check server clock vs KST."""
-    import time as _t
-    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
-    utc_now = _dt.now(_tz.utc)
-    kst_now = _dt.now(_tz(_td(hours=9)))
-    return {
-        "utc_now": utc_now.isoformat(),
-        "kst_now": kst_now.isoformat(),
-        "kst_date": kst_now.date().isoformat(),
-        "system_time": _t.time(),
-    }
-
 @app.route("/sw.js")
 def service_worker():
     return send_from_directory("static", "sw.js", mimetype="application/javascript")
