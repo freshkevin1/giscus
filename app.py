@@ -109,6 +109,11 @@ def _invalidate_dashboard_cache():
     _dashboard_cache["ts"] = 0
     _dashboard_cache["date_key"] = ""
 _WEEKDAY_KO = ["월", "화", "수", "목", "금", "토", "일"]
+_KST = timezone(timedelta(hours=9))
+
+def _kst_today():
+    """Return today's date in KST (UTC+9)."""
+    return datetime.now(_KST).date()
 
 
 def admin_required(func):
@@ -140,7 +145,7 @@ def _build_habit_date_sets(all_rows=None):
 
 
 def _habit_stats(habit_name, logged_dates=None):
-    today = date.today()
+    today = _kst_today()
     if logged_dates is None:
         from sheets import _get_all_habit_rows
         all_rows = _get_all_habit_rows()
@@ -676,6 +681,20 @@ scheduler.add_job(
 
 # --- Auth Routes ---
 
+@app.route("/debug/time")
+def debug_time():
+    """Temporary: check server clock vs KST."""
+    import time as _t
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    utc_now = _dt.now(_tz.utc)
+    kst_now = _dt.now(_tz(_td(hours=9)))
+    return {
+        "utc_now": utc_now.isoformat(),
+        "kst_now": kst_now.isoformat(),
+        "kst_date": kst_now.date().isoformat(),
+        "system_time": _t.time(),
+    }
+
 @app.route("/sw.js")
 def service_worker():
     return send_from_directory("static", "sw.js", mimetype="application/javascript")
@@ -780,7 +799,7 @@ def index():
         _invalidate_dashboard_cache()
 
     # Dashboard cache check
-    today_key = date.today().isoformat()
+    today_key = _kst_today().isoformat()
     now = _time.time()
     if (not fresh
         and _dashboard_cache["data"] is not None
@@ -813,7 +832,8 @@ def _build_dashboard_context():
     except Exception:
         entities = []
 
-    today_str = date.today().isoformat()
+    today = _kst_today()
+    today_str = today.isoformat()
 
     # 최근 7일 일별 last_contact 집계
     last_contact_counts = {}
@@ -824,20 +844,20 @@ def _build_dashboard_context():
 
     weekly_stats = []
     for i in range(6, -1, -1):
-        d = date.today() - timedelta(days=i)
+        d = today - timedelta(days=i)
         d_str = d.isoformat()
         weekly_stats.append({
             "date": d_str,
             "label": d.strftime("%-m/%-d"),
-            "weekday": ["월", "화", "수", "목", "금", "토", "일"][d.weekday()],
+            "weekday": _WEEKDAY_KO[d.weekday()],
             "count": last_contact_counts.get(d_str, 0),
             "is_today": i == 0,
         })
 
     weekly_total = sum(s["count"] for s in weekly_stats)
     max_daily = max((s["count"] for s in weekly_stats), default=1) or 1
-    one_month_ago_str = (date.today() - timedelta(days=28)).isoformat()
-    one_year_ago_str  = (date.today() - timedelta(days=365)).isoformat()
+    one_month_ago_str = (today - timedelta(days=28)).isoformat()
+    one_year_ago_str  = (today - timedelta(days=365)).isoformat()
     contact_monthly_count = sum(v for k, v in last_contact_counts.items() if k >= one_month_ago_str)
     contact_yearly_count  = sum(v for k, v in last_contact_counts.items() if k >= one_year_ago_str)
     contact_monthly_avg = round(contact_monthly_count / 4, 1)
@@ -845,7 +865,7 @@ def _build_dashboard_context():
 
     # ReadArticle: SQL GROUP BY instead of .all() + Python loop
     one_year_ago_dt = datetime.combine(
-        date.today() - timedelta(days=365), datetime.min.time()
+        today - timedelta(days=365), datetime.min.time()
     )
     article_daily_counts = {}
     try:
@@ -865,12 +885,12 @@ def _build_dashboard_context():
 
     article_weekly_stats = []
     for i in range(6, -1, -1):
-        d = date.today() - timedelta(days=i)
+        d = today - timedelta(days=i)
         d_str = d.isoformat()
         article_weekly_stats.append({
             "date": d_str,
             "label": d.strftime("%-m/%-d"),
-            "weekday": ["월", "화", "수", "목", "금", "토", "일"][d.weekday()],
+            "weekday": _WEEKDAY_KO[d.weekday()],
             "count": article_daily_counts.get(d_str, 0),
             "is_today": i == 0,
         })
@@ -885,7 +905,7 @@ def _build_dashboard_context():
 
     # Compliment: SQL GROUP BY instead of .all() + Python loop
     compliment_daily_counts = {}
-    one_year_ago_date = date.today() - timedelta(days=365)
+    one_year_ago_date = today - timedelta(days=365)
     try:
         rows = db.session.query(
             Compliment.given_at,
@@ -903,12 +923,12 @@ def _build_dashboard_context():
 
     compliment_weekly_stats = []
     for i in range(6, -1, -1):
-        d = date.today() - timedelta(days=i)
+        d = today - timedelta(days=i)
         d_str = d.isoformat()
         compliment_weekly_stats.append({
             "date": d_str,
             "label": d.strftime("%-m/%-d"),
-            "weekday": ["월", "화", "수", "목", "금", "토", "일"][d.weekday()],
+            "weekday": _WEEKDAY_KO[d.weekday()],
             "count": compliment_daily_counts.get(d_str, 0),
             "is_today": i == 0,
         })
@@ -934,7 +954,7 @@ def _build_dashboard_context():
     not_overdue = [c for c in eligible if c.get("follow_up_date", "") >= today_str]
     for c in overdue:
         try:
-            delta = date.today() - date.fromisoformat(c["follow_up_date"])
+            delta = today - date.fromisoformat(c["follow_up_date"])
             c["days_overdue"] = delta.days
         except Exception:
             c["days_overdue"] = 0
@@ -946,7 +966,7 @@ def _build_dashboard_context():
     not_overdue_e = [e for e in eligible_e if not (e.get("follow_up_date") and e["follow_up_date"] < today_str)]
     for e in overdue_e:
         try:
-            delta = date.today() - date.fromisoformat(e["follow_up_date"])
+            delta = today - date.fromisoformat(e["follow_up_date"])
             e["days_overdue"] = delta.days
         except Exception:
             e["days_overdue"] = 0
@@ -969,7 +989,7 @@ def _build_dashboard_context():
     # Anki due widget: single query for both count and first card
     anki_due_query = AnkiCard.query.filter(
         AnkiCard.status == 'active',
-        AnkiCard.next_review <= date.today()
+        AnkiCard.next_review <= today
     ).order_by(AnkiCard.next_review.asc())
     anki_due_cards = anki_due_query.all()
     anki_due_count = len(anki_due_cards)
@@ -998,8 +1018,8 @@ def _build_dashboard_context():
         overdue_count=overdue_count,
         habits_data=habits_data,
         family_stats=family_stats,
-        today_str=date.today().strftime("%Y년 %m월 %d일"),
-        today_str_iso=date.today().isoformat(),
+        today_str=today.strftime("%Y년 %m월 %d일"),
+        today_str_iso=today.isoformat(),
         contact_monthly_avg=contact_monthly_avg,
         contact_yearly_avg=contact_yearly_avg,
         article_monthly_avg=article_monthly_avg,
