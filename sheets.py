@@ -29,6 +29,7 @@ MASTER_HEADERS = [
     "Last Contact", "Key Value & Interest", "Tag", "Referred by",
     "Email", "Email_hmac", "Phone Number", "Phone_hmac",
     "Last Modified", "Created Date",
+    "Name_ko", "Name_en", "Address",
 ]
 
 INTERACTION_LOG_HEADERS = [
@@ -177,6 +178,12 @@ def _row_to_contact(row, headers):
         data[header] = row[i] if i < len(row) else ""
 
     # Decrypt PII fields
+    name_ko = decrypt(data.get("Name_ko", ""))
+    name_en = decrypt(data.get("Name_en", ""))
+    # Backward compat: if Name_ko is empty, use Name as name_ko
+    if not name_ko:
+        name_ko = decrypt(data.get("Name", ""))
+
     contact = {
         "name": decrypt(data.get("Name", "")),
         "name_hmac": data.get("Name_hmac", ""),
@@ -196,6 +203,9 @@ def _row_to_contact(row, headers):
         "phone_hmac": data.get("Phone_hmac", ""),
         "last_modified": data.get("Last Modified", ""),
         "created_date": data.get("Created Date", ""),
+        "name_ko": name_ko,
+        "name_en": name_en,
+        "address": data.get("Address", ""),
     }
     return contact
 
@@ -203,7 +213,10 @@ def _row_to_contact(row, headers):
 def _contact_to_row(contact):
     """Convert a contact dict to a sheet row with encrypted PII."""
     today = datetime.now().strftime("%Y-%m-%d")
-    name = contact.get("name", "")
+    name_ko = contact.get("name_ko", "")
+    name_en = contact.get("name_en", "")
+    # Primary name: name_ko preferred, fallback to name_en, then legacy name
+    name = contact.get("name", "") or name_ko or name_en
     email = contact.get("email", "")
     phone = contact.get("phone", "")
 
@@ -230,6 +243,9 @@ def _contact_to_row(contact):
         hmac_index(phone) if phone else "",
         today,
         contact.get("created_date", today),
+        encrypt(name_ko),
+        encrypt(name_en),
+        contact.get("address", ""),
     ]
 
 
@@ -348,10 +364,13 @@ def update_contact(name_hmac, fields, changed_by="User"):
         "referred_by": "Referred by",
         "email": "Email",
         "phone": "Phone Number",
+        "name_ko": "Name_ko",
+        "name_en": "Name_en",
+        "address": "Address",
     }
 
     # PII fields that need encryption
-    pii_fields = {"name", "email", "phone"}
+    pii_fields = {"name", "email", "phone", "name_ko", "name_en"}
     # Fields that need HMAC update
     hmac_fields = {"name": "Name_hmac", "email": "Email_hmac", "phone": "Phone_hmac"}
 
@@ -391,6 +410,33 @@ def update_contact(name_hmac, fields, changed_by="User"):
             if old_value != new_value:
                 cells_to_update.append((row_idx, col_idx + 1, new_value))
                 changes.append((header, old_value, new_value))
+
+    # When name_ko or name_en changes, update the primary Name field
+    if "name_ko" in fields or "name_en" in fields:
+        # Determine new primary name from updated or existing values
+        if "name_ko" in fields:
+            new_name_ko = fields["name_ko"]
+        else:
+            nk_col = headers.index("Name_ko") if "Name_ko" in headers else None
+            new_name_ko = decrypt(current_row[nk_col]) if nk_col is not None and nk_col < len(current_row) else ""
+        if "name_en" in fields:
+            new_name_en = fields["name_en"]
+        else:
+            ne_col = headers.index("Name_en") if "Name_en" in headers else None
+            new_name_en = decrypt(current_row[ne_col]) if ne_col is not None and ne_col < len(current_row) else ""
+        new_primary_name = new_name_ko or new_name_en
+        if new_primary_name and "Name" in headers:
+            name_col = headers.index("Name")
+            cells_to_update.append((row_idx, name_col + 1, encrypt(new_primary_name)))
+            # Update HMAC for new primary name
+            employer = fields.get("employer") or (
+                current_row[headers.index("Employer")]
+                if "Employer" in headers and headers.index("Employer") < len(current_row)
+                else ""
+            )
+            new_hmac = hmac_index(f"{new_primary_name}_{employer}" if employer else new_primary_name)
+            hmac_col = headers.index("Name_hmac") + 1
+            cells_to_update.append((row_idx, hmac_col, new_hmac))
 
     if not cells_to_update:
         return True, False  # (success, any_changes)

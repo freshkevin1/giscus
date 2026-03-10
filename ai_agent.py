@@ -21,7 +21,8 @@ CONTACT_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "연락처 이름"},
+                "name_ko": {"type": "string", "description": "한글 이름"},
+                "name_en": {"type": "string", "description": "영문 이름"},
                 "confidence": {"type": "string", "enum": ["high", "low"]},
                 "fields": {
                     "type": "object",
@@ -39,7 +40,6 @@ CONTACT_TOOLS = [
                 "interaction_log": {"type": "string"},
                 "key_value_extract": {"type": "string"},
             },
-            "required": ["name"],
         },
     },
     {
@@ -48,7 +48,9 @@ CONTACT_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "name": {"type": "string"},
+                "name": {"type": "string", "description": "검색용 이름 (한글 또는 영문)"},
+                "name_ko": {"type": "string", "description": "변경할 한글 이름"},
+                "name_en": {"type": "string", "description": "변경할 영문 이름"},
                 "confidence": {"type": "string", "enum": ["high", "low"]},
                 "fields": {
                     "type": "object",
@@ -201,9 +203,10 @@ def _build_contacts_summary():
 
     lines = ["## 등록된 연락처 목록"]
     for c in contacts:
-        display = c["name"]
-        if c.get("employer"):
-            display = f"{c['name']}({c['employer']})"
+        name_ko = c.get("name_ko", "")
+        name_en = c.get("name_en", "")
+        name_display = f"{name_ko} ({name_en})" if name_ko and name_en else (name_ko or name_en or c["name"])
+        display = f"{name_display}({c['employer']})" if c.get("employer") else name_display
         parts = [display]
         if c.get("title"):
             parts.append(c["title"])

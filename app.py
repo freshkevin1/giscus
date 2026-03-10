@@ -2503,7 +2503,7 @@ def api_scan_card():
         client = anthropic.Anthropic()
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=512,
+            max_tokens=700,
             messages=[{
                 "role": "user",
                 "content": [
@@ -2511,8 +2511,10 @@ def api_scan_card():
                     {"type": "text", "text": (
                         "이 명함 이미지에서 다음 정보를 추출하세요. 한국어·영어 명함 모두 지원합니다.\n"
                         "반드시 아래 JSON 형식만 반환하세요. 다른 텍스트는 일절 포함하지 마세요:\n"
-                        '{"name":"이름","employer":"회사명","title":"직책","email":"이메일","phone":"전화번호(숫자·하이픈만)"}\n'
+                        '{"name_ko":"한글이름","name_en":"영문이름","employer":"회사명","title":"직책","email":"이메일","phone":"전화번호(숫자·하이픈만)","address":"주소"}\n'
+                        "name_ko: 한글 이름(있으면). name_en: 영문 이름(있으면). 둘 다 있으면 각각 입력.\n"
                         "추출 불가 필드는 빈 문자열로 설정. 전화번호가 여러 개면 휴대폰 우선.\n"
+                        "주소: 한글·영문 주소가 모두 있으면 한글 주소만 캡처. 주소가 2개면 줄바꿈(\\n)으로 구분하여 2개 모두 반환.\n"
                         "명함이 아니거나 읽을 수 없으면 모든 필드를 빈 문자열로 반환."
                     )}
                 ]
@@ -2524,7 +2526,7 @@ def api_scan_card():
 
         extracted = _json.loads(raw)
         result = {k: str(extracted.get(k, "")).strip()
-                  for k in ("name", "employer", "title", "email", "phone")}
+                  for k in ("name_ko", "name_en", "employer", "title", "email", "phone", "address")}
 
         if not any(result.values()):
             return jsonify({"success": True, "extracted": result,

@@ -126,8 +126,12 @@
                 <form id="addContactForm">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label">이름 *</label>
-                            <input type="text" class="form-control" name="name" required>
+                            <label class="form-label">한글이름</label>
+                            <input type="text" class="form-control" name="name_ko">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">영문이름</label>
+                            <input type="text" class="form-control" name="name_en">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Contact Priority</label>
@@ -196,6 +200,10 @@
                             <label class="form-label">Key Value & Interest</label>
                             <input type="text" class="form-control" name="key_value_interest">
                         </div>
+                        <div class="col-12">
+                            <label class="form-label">주소</label>
+                            <input type="text" class="form-control" name="address">
+                        </div>
                     </div>
                 </form>
             </div>
@@ -220,8 +228,12 @@
                     <input type="hidden" name="name_hmac" id="editNameHmac">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label">이름</label>
-                            <input type="text" class="form-control" name="name" id="editName" readonly>
+                            <label class="form-label">한글이름</label>
+                            <input type="text" class="form-control" name="name_ko" id="editNameKo">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">영문이름</label>
+                            <input type="text" class="form-control" name="name_en" id="editNameEn">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Contact Priority</label>
@@ -289,6 +301,10 @@
                         <div class="col-12">
                             <label class="form-label">Key Value & Interest</label>
                             <input type="text" class="form-control" name="key_value_interest" id="editKVI">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">주소</label>
+                            <input type="text" class="form-control" name="address" id="editAddress">
                         </div>
                     </div>
                 </form>
@@ -463,6 +479,8 @@ function renderContacts() {
         const q = searchQuery.toLowerCase();
         filtered = filtered.filter(c =>
             (c.name || '').toLowerCase().includes(q) ||
+            (c.name_ko || '').toLowerCase().includes(q) ||
+            (c.name_en || '').toLowerCase().includes(q) ||
             (c.employer || '').toLowerCase().includes(q) ||
             (c.tag || '').toLowerCase().includes(q) ||
             (c.email || '').toLowerCase().includes(q)
@@ -512,7 +530,8 @@ function renderContacts() {
     }
 
     tbody.innerHTML = filtered.map(c => {
-        const displayName = c.employer ? `${c.name}(${c.employer})` : c.name;
+        const nameDisplay = c.name_ko && c.name_en ? `${c.name_ko} (${c.name_en})` : (c.name_ko || c.name_en || c.name);
+        const displayName = c.employer ? `${nameDisplay}(${c.employer})` : nameDisplay;
         const overdueClass = isOverdue(c) ? 'overdue-row' : '';
         return `<tr class="${overdueClass}" style="cursor:pointer" onclick="openEdit('${c.name_hmac}')">
             <td><span class="badge ${getScoreBadgeClass(c.score)} score-badge">${c.score}</span></td>
@@ -534,9 +553,10 @@ function renderContacts() {
     if (cardsContainer) {
         cardsContainer.innerHTML = filtered.map(c => {
             const overdueCard = isOverdue(c) ? 'overdue-card' : '';
+            const cardNameDisplay = c.name_ko && c.name_en ? `${c.name_ko} (${c.name_en})` : (c.name_ko || c.name_en || c.name);
             return `<div class="contact-card ${overdueCard}" onclick="openEdit('${c.name_hmac}')">
                 <div class="contact-card-header">
-                    <span class="contact-card-name">${c.name}</span>
+                    <span class="contact-card-name">${cardNameDisplay}</span>
                     <span class="badge ${getScoreBadgeClass(c.score)} score-badge">${c.score}</span>
                 </div>
                 <div class="contact-card-meta">
@@ -566,7 +586,8 @@ function renderDeletedContacts() {
     }
 
     tbody.innerHTML = deletedContacts.map(c => {
-        const displayName = c.employer ? `${c.name}(${c.employer})` : c.name;
+        const delNameDisplay = c.name_ko && c.name_en ? `${c.name_ko} (${c.name_en})` : (c.name_ko || c.name_en || c.name);
+        const displayName = c.employer ? `${delNameDisplay}(${c.employer})` : delNameDisplay;
         return `<tr>
             <td class="fw-semibold">${displayName}</td>
             <td class="text-muted small">${c.employer || '-'}</td>
@@ -588,9 +609,10 @@ function renderDeletedContacts() {
     const cardsContainer = document.getElementById('contactCards');
     if (cardsContainer) {
         cardsContainer.innerHTML = deletedContacts.map(c => {
+            const delCardName = c.name_ko && c.name_en ? `${c.name_ko} (${c.name_en})` : (c.name_ko || c.name_en || c.name);
             return `<div class="contact-card">
                 <div class="contact-card-header">
-                    <span class="contact-card-name">${c.name}</span>
+                    <span class="contact-card-name">${delCardName}</span>
                     <span class="badge ${c.deleted_by === 'AI' ? 'bg-info' : 'bg-secondary'}">${c.deleted_by || '-'}</span>
                 </div>
                 <div class="contact-card-meta">
@@ -646,8 +668,8 @@ document.getElementById('saveContactBtn').addEventListener('click', async () => 
     const data = {};
     new FormData(form).forEach((v, k) => { if (v) data[k] = v; });
 
-    if (!data.name) {
-        alert('이름은 필수입니다.');
+    if (!data.name_ko && !data.name_en) {
+        alert('한글이름 또는 영문이름 중 하나는 필수입니다.');
         return;
     }
 
@@ -686,7 +708,8 @@ async function openEdit(nameHmac) {
     if (!contact) return;
 
     document.getElementById('editNameHmac').value = nameHmac;
-    document.getElementById('editName').value = contact.name;
+    document.getElementById('editNameKo').value = contact.name_ko || '';
+    document.getElementById('editNameEn').value = contact.name_en || '';
     document.getElementById('editCP').value = contact.contact_priority || '';
     document.getElementById('editEmployer').value = contact.employer || '';
     document.getElementById('editTitle').value = contact.title || '';
@@ -699,6 +722,7 @@ async function openEdit(nameHmac) {
     document.getElementById('editTag').value = contact.tag || '';
     document.getElementById('editReferredBy').value = contact.referred_by || '';
     document.getElementById('editKVI').value = contact.key_value_interest || '';
+    document.getElementById('editAddress').value = contact.address || '';
 
     // Load interaction logs
     const logsDiv = document.getElementById('interactionLogs');
@@ -729,9 +753,10 @@ document.getElementById('updateContactBtn').addEventListener('click', async () =
     const btn = document.getElementById('updateContactBtn');
     const nameHmac = document.getElementById('editNameHmac').value;
     const data = {};
-    const fields = ['contact_priority', 'employer', 'title', 'follow_up_priority',
-                     'follow_up_date', 'follow_up_note', 'last_contact', 'email',
-                     'phone', 'tag', 'referred_by', 'key_value_interest'];
+    const fields = ['name_ko', 'name_en', 'contact_priority', 'employer', 'title',
+                     'follow_up_priority', 'follow_up_date', 'follow_up_note',
+                     'last_contact', 'email', 'phone', 'tag', 'referred_by',
+                     'key_value_interest', 'address'];
 
     const form = document.getElementById('editContactForm');
     const formData = new FormData(form);

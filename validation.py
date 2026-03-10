@@ -70,8 +70,8 @@ def validate_contact(data, valid_tags=None):
     """Validate a full contact dict. Returns (is_valid, errors_list)."""
     errors = []
 
-    if not data.get("name"):
-        errors.append("이름은 필수 항목입니다.")
+    if not data.get("name") and not data.get("name_ko") and not data.get("name_en"):
+        errors.append("한글이름 또는 영문이름 중 하나는 필수입니다.")
 
     ok, err = validate_contact_priority(data.get("contact_priority", ""))
     if not ok:
