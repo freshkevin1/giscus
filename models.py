@@ -31,6 +31,7 @@ class Article(db.Model):
     source = db.Column(db.String(50), default="mk", index=True)
     section = db.Column(db.String(100), default="")
     image_url = db.Column(db.String(1000), default="")
+    summary = db.Column(db.Text, nullable=True)
     scraped_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
