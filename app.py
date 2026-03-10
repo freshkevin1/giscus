@@ -1316,8 +1316,6 @@ def api_add_keyword():
     keyword = (data.get("keyword") or "").strip()
     if not keyword:
         return jsonify({"status": "error", "message": "키워드를 입력해주세요."}), 400
-    if InsightKeyword.query.count() >= 10:
-        return jsonify({"status": "error", "message": "키워드는 최대 10개까지 추가할 수 있습니다."}), 400
     if InsightKeyword.query.filter_by(keyword=keyword).first():
         return jsonify({"status": "error", "message": "이미 등록된 키워드입니다."}), 400
     max_pos = db.session.query(db.func.max(InsightKeyword.position)).scalar() or 0
