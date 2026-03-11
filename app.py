@@ -3389,6 +3389,13 @@ def api_anki_upload_confirm():
             db.session.delete(existing)
             db.session.commit()
 
+    # Collect existing front texts to skip duplicates on non-overwrite imports
+    existing_fronts = set()
+    if not overwrite:
+        existing_deck = AnkiDeck.query.filter_by(name=deck_name).first()
+        if existing_deck:
+            existing_fronts = {c.front for c in existing_deck.cards}
+
     deck = AnkiDeck(
         name=deck_name,
         author=author,
@@ -3398,18 +3405,24 @@ def api_anki_upload_confirm():
     db.session.add(deck)
     db.session.flush()  # get deck.id
 
+    skipped = 0
     for card_data in cards_data:
+        front = card_data.get('front', '')
+        if front in existing_fronts:
+            skipped += 1
+            continue
         card = AnkiCard(
             deck_id=deck.id,
             card_type='highlight',
-            front=card_data.get('front', ''),
+            front=front,
             back=card_data.get('back', ''),
             source_ref=card_data.get('source_ref', ''),
         )
         db.session.add(card)
 
+    added = len(cards_data) - skipped
     db.session.commit()
-    return jsonify({"deck_id": deck.id, "card_count": len(cards_data)})
+    return jsonify({"deck_id": deck.id, "card_count": added, "skipped_duplicates": skipped})
 
 
 @app.route("/api/anki/cards", methods=["POST"])
@@ -3500,6 +3513,85 @@ def api_anki_delete_deck(deck_id):
     db.session.delete(deck)
     db.session.commit()
     return jsonify({"status": "ok"})
+
+
+@app.route("/api/anki/duplicates", methods=["GET"])
+@login_required
+def api_anki_duplicates():
+    """Find duplicate cards (same front text) across all active cards."""
+    from sqlalchemy import func as sa_func
+    dupes = (
+        db.session.query(AnkiCard.front, sa_func.count(AnkiCard.id).label('cnt'))
+        .filter(AnkiCard.status == 'active')
+        .group_by(AnkiCard.front)
+        .having(sa_func.count(AnkiCard.id) > 1)
+        .all()
+    )
+    results = []
+    for front_text, count in dupes:
+        cards = AnkiCard.query.filter_by(front=front_text, status='active').all()
+        results.append({
+            'front': front_text[:100],
+            'count': count,
+            'cards': [{'id': c.id, 'deck_id': c.deck_id, 'deck_name': c.deck.name,
+                        'repetitions': c.repetitions, 'interval': c.interval,
+                        'next_review': c.next_review.isoformat() if c.next_review else None}
+                       for c in cards],
+        })
+    return jsonify({"duplicate_groups": len(results), "total_extra_cards": sum(r['count'] - 1 for r in results), "duplicates": results})
+
+
+@app.route("/api/anki/decks/<int:deck_id>/dedup", methods=["POST"])
+@login_required
+def api_anki_dedup_deck(deck_id):
+    """Remove duplicate cards within a deck, keeping the most progressed one."""
+    deck = db.session.get(AnkiDeck, deck_id)
+    if not deck:
+        return jsonify({"error": "덱을 찾을 수 없습니다."}), 404
+
+    seen = {}
+    archived = 0
+    for card in deck.cards:
+        if card.status != 'active':
+            continue
+        if card.front in seen:
+            existing = seen[card.front]
+            # Keep the one with more repetitions (more progressed)
+            if card.repetitions > existing.repetitions:
+                existing.status = 'archived'
+                seen[card.front] = card
+            else:
+                card.status = 'archived'
+            archived += 1
+        else:
+            seen[card.front] = card
+
+    db.session.commit()
+    return jsonify({"archived_duplicates": archived, "remaining_active": len(seen)})
+
+
+@app.route("/api/anki/dedup-all", methods=["POST"])
+@login_required
+def api_anki_dedup_all():
+    """Remove duplicate cards across ALL decks, keeping the most progressed one."""
+    from sqlalchemy import func as sa_func
+    dupes = (
+        db.session.query(AnkiCard.front)
+        .filter(AnkiCard.status == 'active')
+        .group_by(AnkiCard.front)
+        .having(sa_func.count(AnkiCard.id) > 1)
+        .all()
+    )
+    archived = 0
+    for (front_text,) in dupes:
+        cards = AnkiCard.query.filter_by(front=front_text, status='active').order_by(AnkiCard.repetitions.desc()).all()
+        # Keep first (most progressed), archive the rest
+        for card in cards[1:]:
+            card.status = 'archived'
+            archived += 1
+
+    db.session.commit()
+    return jsonify({"archived_duplicates": archived})
 
 
 # --- Init & Run ---
