@@ -2201,7 +2201,7 @@ def api_toggle_habit():
         except ValueError:
             return jsonify({"error": "invalid date format, use YYYY-MM-DD"}), 400
     else:
-        target_date = date.today()
+        target_date = _kst_today()
     if is_habit_logged(habit_name, target_date):
         delete_habit_log(habit_name, target_date)
         action = "undone"
