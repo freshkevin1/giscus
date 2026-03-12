@@ -32,7 +32,7 @@
 <div class="input-group mb-3">
     <span class="input-group-text"><i class="bi bi-search"></i></span>
     <input type="text" id="contact-search" class="form-control"
-           placeholder="이름, 소속, 태그, 이메일로 검색...">
+           placeholder="검색 (이름, 소속, 직급, 태그, 메모...)">
 </div>
 
 <!-- Mobile sort selector (visible only on mobile) -->
@@ -477,14 +477,13 @@ function renderContacts() {
     // 검색 필터 적용
     if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        filtered = filtered.filter(c =>
-            (c.name || '').toLowerCase().includes(q) ||
-            (c.name_ko || '').toLowerCase().includes(q) ||
-            (c.name_en || '').toLowerCase().includes(q) ||
-            (c.employer || '').toLowerCase().includes(q) ||
-            (c.tag || '').toLowerCase().includes(q) ||
-            (c.email || '').toLowerCase().includes(q)
-        );
+        filtered = filtered.filter(c => {
+            const fields = [c.name, c.name_ko, c.name_en, c.employer, c.title,
+                            c.contact_priority, c.follow_up_note, c.tag,
+                            c.key_value_interest, c.referred_by, c.address,
+                            c.phone, c.email];
+            return fields.some(f => f && f.toLowerCase().includes(q));
+        });
     }
 
     if (currentFilter === 'overdue') {
