@@ -311,6 +311,13 @@
                 <!-- Interaction Logs -->
                 <hr>
                 <h6>Interaction Log</h6>
+                <div class="d-flex gap-2 mb-2">
+                    <input type="text" id="newLogContext" class="form-control form-control-sm"
+                           placeholder="미팅 내용, 통화 메모 등...">
+                    <button type="button" class="btn btn-outline-primary btn-sm text-nowrap" id="addLogBtn">
+                        <i class="bi bi-plus-lg"></i> 추가
+                    </button>
+                </div>
                 <div id="interactionLogs" class="small text-muted">로딩 중...</div>
             </div>
             <div class="modal-footer">
@@ -724,25 +731,7 @@ async function openEdit(nameHmac) {
     document.getElementById('editAddress').value = contact.address || '';
 
     // Load interaction logs
-    const logsDiv = document.getElementById('interactionLogs');
-    logsDiv.innerHTML = '로딩 중...';
-    try {
-        const res = await fetch(`/api/contacts/${nameHmac}/logs`);
-        const data = await res.json();
-        const logs = data.logs || [];
-        if (logs.length === 0) {
-            logsDiv.innerHTML = '<p class="text-muted">기록 없음</p>';
-        } else {
-            logsDiv.innerHTML = logs.map(l =>
-                `<div class="border-bottom py-2">
-                    <strong>${l.date}</strong> — ${l.context}
-                    ${l.key_value_extracted ? `<br><small class="text-primary">Key: ${l.key_value_extracted}</small>` : ''}
-                </div>`
-            ).join('');
-        }
-    } catch (e) {
-        logsDiv.innerHTML = '<p class="text-danger">로그 로딩 실패</p>';
-    }
+    reloadLogs(nameHmac);
 
     editContactModal.show();
 }
@@ -874,6 +863,54 @@ function updateMobileSortIcon() {
     const icon = document.querySelector('#mobileSortDir i');
     icon.className = sortAsc ? 'bi bi-sort-up' : 'bi bi-sort-down';
 }
+
+// Reload interaction logs
+async function reloadLogs(nameHmac) {
+    const logsDiv = document.getElementById('interactionLogs');
+    logsDiv.innerHTML = '로딩 중...';
+    try {
+        const res = await fetch(`/api/contacts/${nameHmac}/logs`);
+        const data = await res.json();
+        const logs = data.logs || [];
+        if (logs.length === 0) {
+            logsDiv.innerHTML = '<p class="text-muted">기록 없음</p>';
+        } else {
+            logsDiv.innerHTML = logs.map(l =>
+                `<div class="border-bottom py-2">
+                    <strong>${l.date}</strong> — ${l.context}
+                    ${l.key_value_extracted ? `<br><small class="text-primary">Key: ${l.key_value_extracted}</small>` : ''}
+                </div>`
+            ).join('');
+        }
+    } catch (e) {
+        logsDiv.innerHTML = '<p class="text-danger">로그 로딩 실패</p>';
+    }
+}
+
+// Add manual interaction log
+document.getElementById('addLogBtn').addEventListener('click', async () => {
+    const input = document.getElementById('newLogContext');
+    const context = input.value.trim();
+    if (!context) return;
+    const nameHmac = document.getElementById('editNameHmac').value;
+    try {
+        const res = await fetch(`/api/contacts/${nameHmac}/logs`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({context}),
+        });
+        const result = await res.json();
+        if (result.error) { alert(result.error); return; }
+        input.value = '';
+        reloadLogs(nameHmac);
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+});
+
+document.getElementById('newLogContext').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('addLogBtn').click();
+});
 
 // Init
 document.getElementById('mobileSortKey').value = sortKey;

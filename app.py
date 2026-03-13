@@ -2604,6 +2604,27 @@ def api_get_contact_logs(name_hmac):
         return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
 
 
+@app.route("/api/contacts/<name_hmac>/logs", methods=["POST"])
+@login_required
+def api_add_contact_log(name_hmac):
+    """Add a manual interaction log entry."""
+    try:
+        from sheets import add_interaction_log, find_contact_by_hmac
+        data = request.get_json() or {}
+        context = (data.get("context") or "").strip()
+        if not context:
+            return jsonify({"error": "내용을 입력해주세요."}), 400
+        contact = find_contact_by_hmac(name_hmac)
+        if not contact:
+            return jsonify({"error": "연락처를 찾을 수 없습니다."}), 404
+        display = f"{contact['name']}({contact['employer']})" if contact.get("employer") else contact["name"]
+        add_interaction_log(name_hmac, display, context)
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error("Failed to add log: %s", e)
+        return jsonify({"error": "처리 중 오류가 발생했습니다."}), 500
+
+
 # --- Tag API ---
 
 @app.route("/api/tags", methods=["GET"])
