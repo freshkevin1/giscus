@@ -233,7 +233,7 @@ def generate_recommendations(books, num_recommendations=10):
 
     client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
     response = client.messages.create(
-        model="claude-opus-4-6",
+        model="claude-sonnet-4-6",
         max_tokens=4096,
         system=system_prompt,
         messages=[
@@ -344,7 +344,7 @@ def chat_recommendation(user_message, conversation_history, books, saved_books=N
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-opus-4-6",
+        model="claude-sonnet-4-6",
         max_tokens=4096,
         system=[
             {
@@ -535,7 +535,7 @@ def generate_screen_recommendations(screens, num_recommendations=10):
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-opus-4-6",
+        model="claude-sonnet-4-6",
         max_tokens=4096,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
@@ -637,7 +637,7 @@ def chat_screen_recommendation(user_message, conversation_history, screens, save
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-opus-4-6",
+        model="claude-sonnet-4-6",
         max_tokens=4096,
         system=[
             {
