@@ -49,12 +49,6 @@
             </small>
         </div>
         <div class="d-flex gap-1 flex-shrink-0">
-            <button class="btn btn-sm btn-outline-primary btn-summary"
-                    data-id="{{ article.id }}" data-url="{{ article.url }}"
-                    data-title="{{ article.title }}" data-cached="{{ 'true' if article.summary else 'false' }}"
-                    title="AI 요약">
-                <i class="bi bi-lightning{% if article.summary %}-fill{% endif %}"></i>
-            </button>
             <button class="btn btn-sm btn-outline-success btn-read"
                     data-id="{{ article.id }}">
                 <i class="bi bi-check-lg"></i><span class="d-none d-sm-inline"> 읽음</span>
@@ -70,29 +64,6 @@
 </div>
 {% endif %}
 
-<!-- Article Summary Modal -->
-<div class="modal fade" id="summaryModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h6 class="modal-title text-truncate me-2" id="summaryModalTitle"></h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="summaryModalBody">
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="mt-2 text-muted">AI 요약 생성 중...</p>
-                </div>
-            </div>
-            <div class="modal-footer justify-content-between">
-                <a id="summaryModalLink" href="#" target="_blank" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-box-arrow-up-right"></i> 원문 보기
-                </a>
-                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">닫기</button>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -149,63 +120,6 @@
             btn.classList.replace('btn-primary', 'btn-danger');
         }
     });
-
-    // --- Article summary modal ---
-    const summaryModal = new bootstrap.Modal(document.getElementById('summaryModal'));
-    const summaryCache = {};
-
-    document.querySelectorAll('.btn-summary').forEach(btn => {
-        btn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            const id = this.dataset.id;
-            const title = this.dataset.title;
-            const url = this.dataset.url;
-
-            document.getElementById('summaryModalTitle').textContent = title;
-            document.getElementById('summaryModalLink').href = url;
-            document.getElementById('summaryModalBody').innerHTML =
-                '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">AI 요약 생성 중...</p></div>';
-            summaryModal.show();
-
-            // Check in-memory cache
-            if (summaryCache[id]) {
-                renderSummary(summaryCache[id]);
-                return;
-            }
-
-            try {
-                const resp = await fetch('/api/articles/' + id + '/summary', {method: 'POST'});
-                const data = await resp.json();
-                if (data.status === 'ok') {
-                    summaryCache[id] = data.summary;
-                    renderSummary(data.summary);
-                    // Update button to show cached state
-                    const icon = this.querySelector('i');
-                    icon.className = 'bi bi-lightning-fill';
-                } else {
-                    document.getElementById('summaryModalBody').innerHTML =
-                        '<div class="text-center text-danger py-3"><i class="bi bi-exclamation-triangle" style="font-size:2rem"></i><p class="mt-2">' + (data.message || '요약 생성 실패') + '</p></div>';
-                }
-            } catch (err) {
-                document.getElementById('summaryModalBody').innerHTML =
-                    '<div class="text-center text-danger py-3"><i class="bi bi-exclamation-triangle" style="font-size:2rem"></i><p class="mt-2">네트워크 오류</p></div>';
-            }
-        });
-    });
-
-    function renderSummary(markdown) {
-        // Simple markdown-like rendering
-        let html = markdown
-            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/^- (.+)$/gm, '<li>$1</li>')
-            .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-            .replace(/\n{2,}/g, '<br><br>')
-            .replace(/\n/g, '<br>');
-        // Fix nested ul tags from multiple list groups
-        html = html.replace(/<\/ul><br><ul>/g, '</ul><ul>');
-        document.getElementById('summaryModalBody').innerHTML =
-            '<div class="summary-content" style="line-height:1.7">' + html + '</div>';
-    }
 
     // --- Mark all as read ---
     document.getElementById('btn-read-all').addEventListener('click', async function() {
